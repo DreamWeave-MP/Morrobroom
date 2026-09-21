@@ -1,4 +1,4 @@
-use crate::slipgate::{Plane3d, brush::BrushId, face::FaceId};
+use crate::slipgate::{ConvexHull, Plane3d, brush::BrushId, face::FaceId};
 
 /// A double-precision point used by the reference CSG implementation.
 pub type CsgVector = nalgebra::Vector3<f64>;
@@ -173,6 +173,17 @@ pub fn subtract_convex_brush(
     visible
 }
 
+/// Subtract an existing Slipgate convex hull without exposing its storage
+/// representation to the CSG caller.
+pub fn subtract_convex_hull(
+    fragment: SurfaceFragment,
+    hull: &ConvexHull,
+    tolerance: GeometryTolerance,
+) -> Vec<SurfaceFragment> {
+    let planes = hull.planes().iter().map(CsgPlane::from).collect::<Vec<_>>();
+    subtract_convex_brush(fragment, &planes, tolerance)
+}
+
 fn clip_polygon(
     polygon: &CsgPolygon,
     plane: &CsgPlane,
@@ -300,5 +311,34 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn subtraction_accepts_existing_convex_hulls() {
+        let hull = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: 0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: 0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 0.25,
+            },
+        ]);
+
+        let fragments = subtract_convex_hull(
+            fragment(square(-1.0, 1.0)),
+            &hull,
+            GeometryTolerance::default(),
+        );
+        assert_eq!(fragments.len(), 4);
     }
 }

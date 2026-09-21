@@ -11,6 +11,10 @@ impl<T: IntoIterator<Item = Plane3d>> From<T> for ConvexHull {
 }
 
 impl ConvexHull {
+    pub fn planes(&self) -> &[Plane3d] {
+        &self.0
+    }
+
     pub fn contains(&self, vertex: &Vector3) -> bool {
         for plane in &self.0 {
             let proj = plane.normal().dot(vertex);
