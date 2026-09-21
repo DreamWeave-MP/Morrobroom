@@ -184,6 +184,31 @@ pub fn subtract_convex_hull(
     subtract_convex_brush(fragment, &planes, tolerance)
 }
 
+/// Subtract the union of several convex brushes from one source surface.
+///
+/// Applying each subtraction to every surviving fragment is deliberately
+/// straightforward. This is the reference operation that later broad-phase
+/// or spatial-index implementations must match.
+pub fn subtract_convex_hulls(
+    fragment: SurfaceFragment,
+    hulls: &[ConvexHull],
+    tolerance: GeometryTolerance,
+) -> Vec<SurfaceFragment> {
+    let mut visible = vec![fragment];
+
+    for hull in hulls {
+        visible = visible
+            .into_iter()
+            .flat_map(|fragment| subtract_convex_hull(fragment, hull, tolerance))
+            .collect();
+        if visible.is_empty() {
+            break;
+        }
+    }
+
+    visible
+}
+
 fn clip_polygon(
     polygon: &CsgPolygon,
     plane: &CsgPlane,
@@ -340,5 +365,60 @@ mod tests {
             GeometryTolerance::default(),
         );
         assert_eq!(fragments.len(), 4);
+    }
+
+    #[test]
+    fn subtraction_handles_a_union_of_convex_hulls() {
+        let left = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: -0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: 0.75,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 1.0,
+            },
+        ]);
+        let right = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: 0.75,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: -0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 1.0,
+            },
+        ]);
+
+        let fragments = subtract_convex_hulls(
+            fragment(square(-1.0, 1.0)),
+            &[left, right],
+            GeometryTolerance::default(),
+        );
+        let area = fragments
+            .iter()
+            .map(|fragment| fragment.polygon.area())
+            .sum::<f64>();
+
+        assert!((area - 2.0).abs() < 1.0e-9);
+        assert!(fragments.iter().all(|fragment| {
+            fragment.source_face == FaceId(7) && fragment.source_brush == BrushId(3)
+        }));
     }
 }
