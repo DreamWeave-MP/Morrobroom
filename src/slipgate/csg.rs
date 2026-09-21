@@ -421,4 +421,180 @@ mod tests {
             fragment.source_face == FaceId(7) && fragment.source_brush == BrushId(3)
         }));
     }
+
+    #[test]
+    fn subtraction_handles_a_partial_overlap() {
+        let strip = [
+            plane([1.0, 0.0, 0.0], 0.5),
+            plane([-1.0, 0.0, 0.0], 0.5),
+            plane([0.0, 1.0, 0.0], 1.0),
+            plane([0.0, -1.0, 0.0], 1.0),
+        ];
+
+        let fragments = subtract_convex_brush(
+            fragment(square(-1.0, 1.0)),
+            &strip,
+            GeometryTolerance::default(),
+        );
+
+        assert_eq!(fragments.len(), 2);
+        assert!(
+            (fragments
+                .iter()
+                .map(|fragment| fragment.polygon.area())
+                .sum::<f64>()
+                - 2.0)
+                .abs()
+                < 1.0e-9
+        );
+    }
+
+    #[test]
+    fn subtraction_is_independent_of_disjoint_candidate_order() {
+        let left = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: -0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: 0.75,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 1.0,
+            },
+        ]);
+        let right = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: 0.75,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: -0.25,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 1.0,
+            },
+        ]);
+
+        let forward = subtract_convex_hulls(
+            fragment(square(-1.0, 1.0)),
+            [&left, &right],
+            GeometryTolerance::default(),
+        );
+        let reverse = subtract_convex_hulls(
+            fragment(square(-1.0, 1.0)),
+            [&right, &left],
+            GeometryTolerance::default(),
+        );
+
+        assert_eq!(canonical_polygons(&forward), canonical_polygons(&reverse));
+    }
+
+    #[test]
+    fn subtraction_of_nested_brushes_matches_the_outer_brush() {
+        let outer = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 1.0,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 1.0,
+            },
+        ]);
+        let inner = ConvexHull::from([
+            Plane3d {
+                n: nalgebra::vector![1.0, 0.0, 0.0],
+                d: 0.5,
+            },
+            Plane3d {
+                n: nalgebra::vector![-1.0, 0.0, 0.0],
+                d: 0.5,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, 1.0, 0.0],
+                d: 0.5,
+            },
+            Plane3d {
+                n: nalgebra::vector![0.0, -1.0, 0.0],
+                d: 0.5,
+            },
+        ]);
+
+        let fragments = subtract_convex_hulls(
+            fragment(square(-2.0, 2.0)),
+            [&inner, &outer],
+            GeometryTolerance::default(),
+        );
+
+        assert!(
+            (fragments
+                .iter()
+                .map(|fragment| fragment.polygon.area())
+                .sum::<f64>()
+                - 12.0)
+                .abs()
+                < 1.0e-9
+        );
+    }
+
+    fn canonical_polygons(fragments: &[SurfaceFragment]) -> Vec<Vec<[i64; 3]>> {
+        let mut polygons = fragments
+            .iter()
+            .map(|fragment| {
+                let vertices = fragment
+                    .polygon
+                    .vertices
+                    .iter()
+                    .map(|vertex| {
+                        [
+                            (vertex.x * 1.0e9).round() as i64,
+                            (vertex.y * 1.0e9).round() as i64,
+                            (vertex.z * 1.0e9).round() as i64,
+                        ]
+                    })
+                    .collect::<Vec<_>>();
+                rotate_to_smallest(vertices)
+            })
+            .collect::<Vec<_>>();
+        polygons.sort();
+        polygons
+    }
+
+    fn rotate_to_smallest(vertices: Vec<[i64; 3]>) -> Vec<[i64; 3]> {
+        let Some(start) = vertices
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, vertex)| *vertex)
+        else {
+            return vertices;
+        };
+        vertices
+            .iter()
+            .cycle()
+            .skip(start.0)
+            .take(vertices.len())
+            .copied()
+            .collect()
+    }
 }

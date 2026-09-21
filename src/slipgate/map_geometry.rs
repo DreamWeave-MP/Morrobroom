@@ -9,8 +9,8 @@ use crate::slipgate::{
     csg::{CsgPolygon, GeometryTolerance, SurfaceFragment, subtract_convex_hulls},
     face,
     face::{
-        FaceCenters, FaceId, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices,
-        OccludedFaces,
+        FaceCenters, FaceId, FaceNormals, FacePlanes, FacePolygons, FaceTriangleIndices,
+        FaceVertices, OccludedFaces,
     },
     line,
     texture::TextureSizes,
@@ -88,6 +88,9 @@ pub struct MapGeometry {
     pub face_centers: FaceCenters,
     /// Triangle indices for each face in clockwise winding order.
     pub face_tri_indices: FaceTriangleIndices,
+    /// Canonically ordered source polygon for each face. This is the geometry
+    /// consumed by reference CSG; triangle indices are a later output concern.
+    pub face_polygons: FacePolygons,
     /// Triangle indices for each face in counter-clockwise winding order,
     /// for brushes tagged as inside-out by the map author.
     pub inverted_face_tri_indices: FaceTriangleIndices,
@@ -155,6 +158,7 @@ impl MapGeometry {
             &face_centers,
         );
 
+        let face_polygons = face::face_polygons(&face_indices_cw, &face_vertices);
         let face_tri_indices = face::face_triangle_indices(&face_indices_cw);
         let inverted_face_tri_indices = face::face_triangle_indices(&face_indices_ccw);
         let flat_normals = face::normals_flat(&face_vertices, &face_planes);
@@ -198,6 +202,7 @@ impl MapGeometry {
             face_vertices,
             face_centers,
             face_tri_indices,
+            face_polygons,
             inverted_face_tri_indices,
             flat_normals,
             smooth_normals,
@@ -237,15 +242,8 @@ impl MapGeometry {
         for (brush_index, face_ids) in self.geomap.brush_faces.iter().enumerate() {
             let source_brush = BrushId(brush_index);
             for face_id in face_ids {
-                let face_vertices = &self.face_vertices[*face_id];
-                let mut polygon_vertices = Vec::with_capacity(face_vertices.len());
-                for vertex_index in &self.face_tri_indices[*face_id] {
-                    if !polygon_vertices.contains(&face_vertices[*vertex_index]) {
-                        polygon_vertices.push(face_vertices[*vertex_index]);
-                    }
-                }
                 let polygon = CsgPolygon::new(
-                    polygon_vertices
+                    self.face_polygons[*face_id]
                         .iter()
                         .map(|vertex| vertex.map(f64::from))
                         .collect(),
@@ -314,7 +312,22 @@ mod tests {
             .visible_face_fragments(GeometryTolerance::default())
             .expect("the cube faces should form valid CSG polygons");
         assert_eq!(visible.len(), 6);
+        assert_eq!(
+            geometry.face_polygons.iter().map(Vec::len).sum::<usize>(),
+            24
+        );
+        assert!(
+            (visible
+                .iter()
+                .map(|fragment| fragment.polygon.area())
+                .sum::<f64>()
+                - 24576.0)
+                .abs()
+                < 1.0e-6
+        );
         assert!(visible.iter().all(|fragment| fragment.source_brush.0 == 0));
+
+        assert_visible_fragment_invariants(&geometry, &visible);
 
         for face_id in geometry.geomap.faces.iter() {
             let vertices = &geometry.face_vertices[*face_id];
@@ -348,6 +361,53 @@ mod tests {
                 .len(),
             2
         );
+
+        let visible = geometry
+            .visible_face_fragments(GeometryTolerance::default())
+            .expect("touching brush faces should form valid CSG polygons");
+        assert_visible_fragment_invariants(&geometry, &visible);
+        assert_eq!(visible.len(), 6);
+    }
+
+    #[test]
+    fn morrobroom_torture_fixture_runs_reference_csg() {
+        let map =
+            include_str!("../../tests/fixtures/maps/morrobroom_wish_it_had_never_been_written.map")
+                .parse::<Map>()
+                .expect("torture fixture should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(map);
+        let visible = geometry
+            .visible_face_fragments(GeometryTolerance::default())
+            .expect("torture fixture faces should form valid CSG polygons");
+
+        assert_eq!(geometry.geomap.brushes.len(), 31);
+        assert_eq!(geometry.geomap.faces.len(), 182);
+        assert_eq!(visible.len(), 2001);
+        assert!(
+            (visible
+                .iter()
+                .map(|fragment| fragment.polygon.area())
+                .sum::<f64>()
+                - 90389929.2545853)
+                .abs()
+                < 1.0e-6
+        );
+        assert_visible_fragment_invariants(&geometry, &visible);
+        assert!(!visible.is_empty());
+    }
+
+    #[test]
+    fn beveled_fixture_runs_reference_csg() {
+        let map = include_str!("../../tests/fixtures/maps/parser/unit_beveled.map")
+            .parse::<Map>()
+            .expect("beveled fixture should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(map);
+        let visible = geometry
+            .visible_face_fragments(GeometryTolerance::default())
+            .expect("beveled faces should form valid CSG polygons");
+
+        assert_eq!(visible.len(), geometry.geomap.faces.len());
+        assert_visible_fragment_invariants(&geometry, &visible);
     }
 
     #[test]
@@ -370,6 +430,28 @@ mod tests {
                 geometry.face_tri_indices[*face_id],
                 full.face_tri_indices[*face_id]
             );
+            assert_eq!(
+                geometry.face_polygons[*face_id].len(),
+                geometry.face_vertices[*face_id].len()
+            );
+        }
+    }
+
+    fn assert_visible_fragment_invariants(geometry: &MapGeometry, fragments: &[SurfaceFragment]) {
+        let tolerance = GeometryTolerance::default();
+        for fragment in fragments {
+            assert!(fragment.polygon.vertices.len() >= 3);
+            assert!(fragment.polygon.area() > tolerance.minimum_area);
+            assert!(geometry.geomap.brushes.contains(&fragment.source_brush));
+            assert!(
+                geometry.geomap.brush_faces[fragment.source_brush].contains(&fragment.source_face)
+            );
+
+            let plane = &geometry.face_planes[fragment.source_face];
+            assert!(fragment.polygon.vertices.iter().all(|vertex| {
+                (plane.normal().map(f64::from).dot(vertex) - f64::from(plane.distance())).abs()
+                    <= 1.0e-3
+            }));
         }
     }
 }
