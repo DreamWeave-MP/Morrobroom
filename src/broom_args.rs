@@ -593,10 +593,6 @@ mod tests {
             "Test.omwaddon",
         ]);
 
-        if let Err(error) = &result {
-            eprintln!("{error}");
-        }
-
         assert!(result.is_err(), "Expected failure for missing map file");
     }
 
@@ -612,10 +608,6 @@ mod tests {
             "--output",
             "Test.omwaddon",
         ]);
-
-        if let Err(error) = &result {
-            eprintln!("{error}");
-        }
 
         assert!(
             result.is_ok(),
