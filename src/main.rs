@@ -158,7 +158,6 @@ fn compile_map(
         cell,
         mut created_objects,
         mut processed_base_objects,
-        used_indices: _,
         ..
     } = state;
 

@@ -468,7 +468,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {fac
         for face_tris in tris {
             shape_data
                 .triangles
-                .extend(face_tris.chunks_exact(3).map(|chunk| {
+                .extend(face_tris.as_chunks::<3>().0.iter().map(|chunk| {
                     [
                         u16::try_from(chunk[0] + verts_used).expect("NIF vertex index exceeds u16"),
                         u16::try_from(chunk[1] + verts_used).expect("NIF vertex index exceeds u16"),
