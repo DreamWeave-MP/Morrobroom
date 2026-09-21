@@ -5,7 +5,6 @@ use morrobroom::slipgate::{
     entity::EntityId,
     face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
     map_geometry::MapGeometry,
-    texture::TextureId,
 };
 use openmw_cfg::{Ini, find_file, get_config};
 use std::{
@@ -61,21 +60,21 @@ impl MapData {
             })
             .collect();
 
-        let mut modified_textures: BTreeMap<TextureId, String> = BTreeMap::new();
+        let mut modified_textures: Vec<String> = geometry.geomap.textures.iter().cloned().collect();
 
-        for (texture_id, texture_name) in geometry.geomap.textures.iter() {
+        for (texture_id, texture_name) in geometry.geomap.textures.iter().enumerate() {
             for texture_path in &texture_paths {
                 if texture_path
                     .to_ascii_lowercase()
                     .contains(&texture_name.to_ascii_lowercase())
                 {
-                    modified_textures.insert(*texture_id, texture_path.to_string());
+                    modified_textures[texture_id] = texture_path.to_string();
                 }
             }
         }
 
         let mut textures_with_paths: Textures = Textures::default();
-        textures_with_paths.data = modified_textures;
+        textures_with_paths.data = modified_textures.into();
 
         let face_uvs = geometry.face_uvs(morrobroom::slipgate::texture::texture_sizes(
             &textures_with_paths,
@@ -120,10 +119,7 @@ impl MapData {
     }
 
     pub fn collect_textures(textures: &Textures) -> HashSet<&String> {
-        textures
-            .iter()
-            .map(|(_, texture_name)| texture_name)
-            .collect()
+        textures.iter().map(|texture_name| texture_name).collect()
     }
 
     pub fn find_vfs_texture(name: &str, config: &Ini) -> Option<String> {

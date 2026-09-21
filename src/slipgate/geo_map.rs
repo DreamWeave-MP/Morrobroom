@@ -43,7 +43,7 @@ pub type FaceAngles = Usage<FaceAnglesTag, DenseStorage<FaceId, f32>>;
 pub type FaceScales = Usage<FaceScalesTag, DenseStorage<FaceId, Vector2>>;
 pub type FaceExtensions = Usage<FaceExtensionsTag, DenseStorage<FaceId, Extension>>;
 
-pub type Textures = Usage<TexturesTag, BTreeMap<TextureId, String>>;
+pub type Textures = Usage<TexturesTag, DenseStorage<TextureId, String>>;
 
 /// Struct-of-arrays representation of a parsed map.
 #[derive(Debug, Default, Clone)]
@@ -91,6 +91,7 @@ impl GeoMap {
         let mut face_extensions = Vec::new();
 
         let mut textures = BTreeMap::<String, TextureId>::new();
+        let mut texture_names = Vec::new();
 
         for (
             entity_head,
@@ -133,6 +134,7 @@ impl GeoMap {
                         *texture_id
                     } else {
                         let texture_id = TextureId(texture_head);
+                        texture_names.push(texture.clone());
                         textures.insert(texture, texture_id);
                         texture_head += 1;
                         texture_id
@@ -155,8 +157,6 @@ impl GeoMap {
             .copied()
             .collect();
 
-        let textures = textures.into_iter().map(|(k, v)| (v, k)).collect();
-
         assert_contiguous_ids(brushes.iter().copied());
         assert_contiguous_ids(faces.iter().copied());
 
@@ -164,7 +164,7 @@ impl GeoMap {
             entities,
             brushes,
             faces,
-            textures,
+            textures: DenseStorage::from_vec(texture_names).into(),
             entity_properties,
             entity_brushes,
             point_entities,

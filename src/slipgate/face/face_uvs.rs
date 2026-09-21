@@ -1,10 +1,9 @@
 use crate::slipgate::repr::{TextureOffset, TexturePlane};
 use crate::slipgate::{
-    DenseStorage, FaceAngles, FaceOffsets, FaceScales, FaceTextures, Plane3d, Vector2, Vector3,
-    texture::{TextureId, TextureSizes},
+    DenseStorage, FaceAngles, FaceOffsets, FaceScales, FaceTextures, Plane3d, Textures, Vector2,
+    Vector3, texture::TextureSizes,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::collections::BTreeMap;
 use usage::Usage;
 
 use super::{FaceId, FacePlanes, FaceVertices};
@@ -75,7 +74,7 @@ impl TextureProjection {
 #[allow(clippy::too_many_arguments)]
 pub fn new(
     faces: &Vec<FaceId>,
-    textures: &BTreeMap<TextureId, String>,
+    textures: &Textures,
     face_textures: &FaceTextures,
     face_vertices: &FaceVertices,
     face_planes: &FacePlanes,
@@ -92,7 +91,7 @@ pub fn new(
             let texture_size = texture_sizes.get(face_texture).copied().unwrap_or_else(|| {
                 println!(
                     "Warning: Texture {} not found, generating UV with default size of 256x256",
-                    &textures[face_texture],
+                    &textures[*face_texture],
                 );
                 (256, 256)
             });
