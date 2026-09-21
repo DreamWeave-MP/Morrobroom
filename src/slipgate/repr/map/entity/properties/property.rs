@@ -20,6 +20,6 @@ mod tests {
 
     #[test]
     fn test_property_to_string() {
-        assert_eq!(test_property_out().to_string(), test_property_in())
+        assert_eq!(test_property_out().to_string(), test_property_in());
     }
 }

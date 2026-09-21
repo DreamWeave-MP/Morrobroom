@@ -13,6 +13,7 @@ use std::{
 pub struct Map(pub Vec<Entity>);
 
 impl Map {
+    #[must_use]
     pub fn new(entities: Vec<Entity>) -> Self {
         entities.into()
     }
@@ -42,9 +43,9 @@ impl Display for Map {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some((last, rest)) = self.split_last() {
             for item in rest {
-                writeln!(f, "{}", item)?;
+                writeln!(f, "{item}")?;
             }
-            write!(f, "{}", last)?;
+            write!(f, "{last}")?;
         }
 
         Ok(())
@@ -58,6 +59,6 @@ mod tests {
         assert_eq!(
             crate::slipgate::unit_test_data::test_map_out().to_string(),
             crate::slipgate::unit_test_data::test_map_in()
-        )
+        );
     }
 }

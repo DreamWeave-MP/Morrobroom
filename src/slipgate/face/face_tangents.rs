@@ -18,6 +18,7 @@ pub enum FaceBasesTag {}
 
 pub type FaceBases = Usage<FaceBasesTag, DenseStorage<FaceId, Basis>>;
 
+#[must_use]
 pub fn face_bases(
     planes: &Vec<FaceId>,
     geo_planes: &FacePlanes,
@@ -48,26 +49,26 @@ fn standard_basis(plane: &Plane3d) -> Basis {
     let dr = normal.dot(right_vector);
     let df = normal.dot(forward_vector);
 
-    let du_abs = du.abs();
-    let dr_abs = dr.abs();
-    let df_abs = df.abs();
+    let up_abs = du.abs();
+    let right_abs = dr.abs();
+    let forward_abs = df.abs();
 
-    let du_sign = du.signum();
-    let dr_sign = dr.signum();
-    let df_sign = df.signum();
+    let up_sign = du.signum();
+    let right_sign = dr.signum();
+    let forward_sign = df.signum();
 
-    if du_abs >= dr_abs && du_abs >= df_abs {
-        let z = *plane.normal() * du_sign;
+    if up_abs >= right_abs && up_abs >= forward_abs {
+        let z = *plane.normal() * up_sign;
         let x = z.cross(forward_vector).normalize();
         let y = z.cross(right_vector).normalize();
         Basis { x, y, z }
-    } else if dr_abs >= du_abs && dr_abs >= df_abs {
-        let z = *plane.normal() * dr_sign;
+    } else if right_abs >= up_abs && right_abs >= forward_abs {
+        let z = *plane.normal() * right_sign;
         let x = z.cross(up_vector).normalize();
         let y = z.cross(forward_vector).normalize();
         Basis { x, y, z }
-    } else if df_abs >= du_abs && df_abs >= dr_abs {
-        let z = *plane.normal() * df_sign;
+    } else if forward_abs >= up_abs && forward_abs >= right_abs {
+        let z = *plane.normal() * forward_sign;
         let x = z.cross(up_vector).normalize();
         let y = z.cross(right_vector).normalize();
         Basis { x, y, z }

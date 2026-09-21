@@ -49,8 +49,8 @@ impl std::error::Error for InvalidFacePolygon {}
 impl std::fmt::Display for MapGeometryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "IO error: {}", e),
-            Self::Parse(msg) => write!(f, "Parse error: {}", msg),
+            Self::Io(e) => write!(f, "IO error: {e}"),
+            Self::Parse(msg) => write!(f, "Parse error: {msg}"),
         }
     }
 }
@@ -114,6 +114,10 @@ impl MapGeometry {
     /// Both winding orders are computed and stored since map authors may tag
     /// individual brushes as inside-out. For UV coordinates call
     /// [`face_uvs`](Self::face_uvs) separately.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the map file cannot be read or parsed.
     pub fn new(path: impl AsRef<Path>) -> Result<Self, MapGeometryError> {
         let map_string = fs::read_to_string(path)?;
         let map = map_string
@@ -128,6 +132,7 @@ impl MapGeometry {
     /// This is the full constructor and includes the complete-face occlusion
     /// pass. Call [`MapGeometry::from_map_without_occlusion`] when the caller
     /// only needs the core geometry pipeline.
+    #[must_use]
     pub fn from_map(map: Map) -> Self {
         Self::build(map, true)
     }
@@ -137,6 +142,7 @@ impl MapGeometry {
     /// The core geometry stages are identical to [`MapGeometry::from_map`],
     /// but the quadratic occlusion scans are skipped. This is the constructor
     /// intended for frontends that do not consume complete-face occlusion.
+    #[must_use]
     pub fn from_map_without_occlusion(map: Map) -> Self {
         Self::build(map, false)
     }
@@ -151,7 +157,7 @@ impl MapGeometry {
             face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
         let face_centers = face::face_centers(&face_vertices);
 
-        let (face_indices_cw, face_indices_ccw) = face::face_indices_both(
+        let (face_indices_cw, inverted_face_indices) = face::face_indices_both(
             &geomap.face_planes,
             &face_planes,
             &face_vertices,
@@ -160,7 +166,7 @@ impl MapGeometry {
 
         let face_polygons = face::face_polygons(&face_indices_cw, &face_vertices);
         let face_tri_indices = face::face_triangle_indices(&face_indices_cw);
-        let inverted_face_tri_indices = face::face_triangle_indices(&face_indices_ccw);
+        let inverted_face_tri_indices = face::face_triangle_indices(&inverted_face_indices);
         let flat_normals = face::normals_flat(&face_vertices, &face_planes);
         let smooth_normals = face::normals_phong_averaged(&face_vertex_planes, &face_planes);
 
@@ -197,7 +203,6 @@ impl MapGeometry {
 
         MapGeometry {
             geomap,
-            brush_hulls,
             face_planes,
             face_vertices,
             face_centers,
@@ -207,6 +212,7 @@ impl MapGeometry {
             flat_normals,
             smooth_normals,
             occluded_faces,
+            brush_hulls,
         }
     }
 
@@ -214,7 +220,8 @@ impl MapGeometry {
     ///
     /// Separated from construction because texture sizes must come from outside
     /// the map file (typically loaded from the game's asset pipeline).
-    pub fn face_uvs(&self, texture_sizes: TextureSizes) -> face::FaceUvs {
+    #[must_use]
+    pub fn face_uvs(&self, texture_sizes: &TextureSizes) -> face::FaceUvs {
         face::new(
             &self.geomap.faces,
             &self.geomap.textures,
@@ -224,7 +231,7 @@ impl MapGeometry {
             &self.geomap.face_offsets,
             &self.geomap.face_angles,
             &self.geomap.face_scales,
-            &texture_sizes,
+            texture_sizes,
         )
     }
 
@@ -233,6 +240,10 @@ impl MapGeometry {
     /// This is intentionally the simple reference implementation: it performs
     /// no broad-phase culling and preserves source face/brush identity on every
     /// surviving fragment. The result is not yet a final render mesh.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a reconstructed face cannot produce a valid polygon.
     pub fn visible_face_fragments(
         &self,
         tolerance: GeometryTolerance,

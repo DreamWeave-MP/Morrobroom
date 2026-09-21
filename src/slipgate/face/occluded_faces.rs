@@ -23,6 +23,7 @@ pub enum OccludedFacesTag {}
 ///   (detected by [`face_face_containment`](super::face_face_containment)).
 pub type OccludedFaces = Usage<OccludedFacesTag, BTreeSet<FaceId>>;
 
+#[must_use]
 pub fn occluded_faces(
     face_duplicates: &FaceDuplicates,
     brush_face_containment: &BrushFaceContainment,

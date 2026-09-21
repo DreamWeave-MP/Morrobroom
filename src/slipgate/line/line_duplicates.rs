@@ -13,6 +13,7 @@ use crate::slipgate::{
 pub enum LineDuplicatesTag {}
 pub type LineDuplicates = Usage<LineDuplicatesTag, BTreeSet<(LineId, LineId)>>;
 
+#[must_use]
 pub fn line_duplicates(
     brushes: &Brushes,
     lines: &Lines,
@@ -39,17 +40,17 @@ pub fn line_duplicates(
                 .flat_map(move |face_a| {
                     // Fetch LHS vertex and line data
                     let verts_a = &face_vertices[*face_a];
-                    let lines_a = &face_lines[*face_a];
+                    let face_line_ids_a = &face_lines[*face_a];
                     let dfi_line = Arc::clone(&dfi_face);
 
                     // Iterate over LHS face lines
-                    lines_a.par_iter().flat_map(move |line_id_a| {
+                    face_line_ids_a.par_iter().flat_map(move |line_id_a| {
                         // Fetch LHS line indices
-                        let line_a = lines[*line_id_a];
+                        let lhs_line = lines[*line_id_a];
 
                         // Fetch LHS line vertices
-                        let v0_a = &verts_a[line_a.i0];
-                        let v1_a = &verts_a[line_a.i1];
+                        let v0_a = &verts_a[lhs_line.i0];
+                        let v1_a = &verts_a[lhs_line.i1];
                         let dfi_brush = Arc::clone(&dfi_line);
 
                         // Iterate over brushes again to compare
@@ -73,18 +74,18 @@ pub fn line_duplicates(
                                         .flat_map(|face_b| {
                                             // Fetch RHS vertex and line data
                                             let verts_b = &face_vertices[*face_b];
-                                            let lines_b = &face_lines[*face_b];
+                                            let face_line_ids_b = &face_lines[*face_b];
 
                                             // Iterate over RHS face lines
-                                            lines_b
+                                            face_line_ids_b
                                                 .par_iter()
                                                 .flat_map(move |line_id_b| {
                                                     // Fetch RHS line indices
-                                                    let line_b = lines[*line_id_b];
+                                                    let rhs_line = lines[*line_id_b];
 
                                                     // Fetch RHS line vertices
-                                                    let v0_b = &verts_b[line_b.i0];
-                                                    let v1_b = &verts_b[line_b.i1];
+                                                    let v0_b = &verts_b[rhs_line.i0];
+                                                    let v1_b = &verts_b[rhs_line.i1];
 
                                                     // If the lines are equivalent, add them to the set
                                                     if line_eq(v0_a, v1_a, v0_b, v1_b) {

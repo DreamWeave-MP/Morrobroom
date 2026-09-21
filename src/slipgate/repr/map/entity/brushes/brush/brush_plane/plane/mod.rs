@@ -25,6 +25,6 @@ mod tests {
 
     #[test]
     fn test_plane_to_string() {
-        assert_eq!(test_plane_out().to_string(), test_plane_in())
+        assert_eq!(test_plane_out().to_string(), test_plane_in());
     }
 }

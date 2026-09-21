@@ -14,17 +14,18 @@ impl<T: IntoIterator<Item = Plane3d>> From<T> for ConvexHull {
         // The average of the plane anchors is a stable interior probe for a
         // bounded convex brush.
         if !planes.is_empty() {
+            let plane_count = crate::slipgate::usize_to_f32(planes.len());
             let center = planes
                 .iter()
                 .map(|plane| plane.normal() * plane.distance())
                 .sum::<Vector3>()
-                / planes.len() as f32;
+                / plane_count;
             let orientation = planes
                 .iter()
                 .map(|plane| plane.normal().dot(&center) - plane.distance())
                 .sum::<f32>();
 
-            if orientation > EPSILON * planes.len() as f32 {
+            if orientation > EPSILON * plane_count {
                 for plane in &mut planes {
                     plane.n = -plane.n;
                     plane.d = -plane.d;
@@ -37,6 +38,7 @@ impl<T: IntoIterator<Item = Plane3d>> From<T> for ConvexHull {
 }
 
 impl ConvexHull {
+    #[must_use]
     pub fn planes(&self) -> &[Plane3d] {
         &self.0
     }

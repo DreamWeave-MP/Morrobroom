@@ -12,12 +12,12 @@ use vfstool_lib::VFS;
 
 mod brush_class_props;
 /// To add a new record type to the serializer:
-/// 1: Implement the ToFGDProp trait for that record type
+/// 1: Implement the `ToFGDProp` trait for that record type
 /// 2: In src/serialize.rs, add the relevant fields to the `serialize_typed_objects_as_fgd` function
 /// 3: Add that specific record type, to `serialize_object_as_fgd`, for the serialization of each individual record
 /// 4: Add a test module for serializing that specific record type. Just copy and paste one of the existing ones at the bottom of this file and change the tag and the output file name.
 /// 5: Add relevant bounds handling to `get_object_bounds_from_nif` and `get_object_model_path`
-/// 6: Actually deserialize that record type during loading, in ConfigurationManager::collect_merged_objects
+/// 6: Actually deserialize that record type during loading, in `ConfigurationManager::collect_merged_objects`
 mod serialize;
 
 #[derive(Debug)]
@@ -88,6 +88,15 @@ use std::collections::HashMap;
 
 use crate::fgd::serialize::tag_to_tag_str;
 type BoundsMap = HashMap<String, [i32; 6]>;
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "FGD bounds are an integer format contract; fractional model coordinates are truncated at this boundary."
+)]
+fn fgd_bound(value: f32) -> i32 {
+    value as i32
+}
+
 pub struct ConfigurationManager {
     merged_objects: BTreeMap<String, (TES3Object, String)>,
     object_bounds: BoundsMap,
@@ -97,15 +106,20 @@ pub struct ConfigurationManager {
     object_scale: f32,
 }
 
+/// Generate an FGD description from the configured `OpenMW` records.
+///
+/// # Errors
+///
+/// Returns an error when configuration, plugin, model, or output-file processing fails.
 pub fn generate_fgd(
     config_path: Option<&Path>,
     object_types: &[&'static str],
     object_scale: f32,
     output_path: &Path,
 ) -> Result<(), FgdGenerationError> {
-    let config_path = config_path
-        .map(Path::to_path_buf)
-        .unwrap_or_else(openmw_config::default_config_path);
+    // The public function deliberately preserves the command's fallible file/config boundary.
+    let config_path =
+        config_path.map_or_else(openmw_config::default_config_path, Path::to_path_buf);
     let config_path_str = config_path
         .to_str()
         .ok_or_else(|| FgdGenerationError::NonUtf8ConfigPath(config_path.clone()))?;
@@ -120,6 +134,7 @@ pub fn generate_fgd(
     Ok(())
 }
 
+#[must_use]
 pub fn get_object_model_path(object: &TES3Object) -> Option<String> {
     let mesh = match object {
         TES3Object::LeveledCreature(_)
@@ -174,9 +189,8 @@ fn get_object_bounds_from_nif(
         TES3Object::Light(record) => {
             if record.mesh == String::default() {
                 return None;
-            } else {
-                &record.mesh
             }
+            &record.mesh
         }
         TES3Object::Lockpick(record) => &record.mesh,
         TES3Object::MiscItem(record) => &record.mesh,
@@ -203,12 +217,12 @@ fn get_object_bounds_from_nif(
         {
             if let Some((min, max)) = stream.bounding_box() {
                 Some([
-                    (min.x * object_scale) as i32,
-                    (min.y * object_scale) as i32,
-                    (min.z * object_scale) as i32,
-                    (max.x * object_scale) as i32,
-                    (max.y * object_scale) as i32,
-                    (max.z * object_scale) as i32,
+                    fgd_bound(min.x * object_scale),
+                    fgd_bound(min.y * object_scale),
+                    fgd_bound(min.z * object_scale),
+                    fgd_bound(max.x * object_scale),
+                    fgd_bound(max.y * object_scale),
+                    fgd_bound(max.z * object_scale),
                 ])
             } else {
                 None
@@ -222,11 +236,16 @@ fn get_object_bounds_from_nif(
 }
 
 impl ConfigurationManager {
+    /// Load and merge the configured plugins into the manager's object index.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a configured plugin cannot be found or parsed.
     pub fn collect_merged_objects(&mut self) -> Result<(), ConfigManagerError> {
         let content_files: Vec<&String> = self
             .openmw_config
             .content_files_iter()
-            .map(|plugin| plugin.value())
+            .map(openmw_config::FileSetting::value)
             .collect();
 
         content_files
@@ -235,8 +254,8 @@ impl ConfigurationManager {
             .map(|plugin_name| {
                 if let Some(file) = self.vfs.get_file(plugin_name) {
                     if let Ok(plugin) = tes3::esp::Plugin::from_path_filtered(file.path(), |tag| {
-                        serialize::is_serializable_tag(&tag)
-                            && self.object_types.contains(tag_to_tag_str(&tag))
+                        serialize::is_serializable_tag(tag)
+                            && self.object_types.contains(tag_to_tag_str(tag))
                     }) {
                         Ok((plugin, plugin_name))
                     } else {
@@ -250,29 +269,27 @@ impl ConfigurationManager {
             .into_iter()
             .try_for_each(|plugin| match plugin {
                 Err(missing_plugin) => Err(ConfigManagerError::MissingPluginErr(
-                    missing_plugin.to_string(),
+                    (*missing_plugin).clone(),
                 )),
                 Ok((plugin, plugin_name)) => {
                     plugin.objects.into_iter().for_each(|tes3_object| {
                         let editor_id = tes3_object.editor_id_ascii_lowercase().to_string();
 
-                        if let Some(model) = get_object_model_path(&tes3_object) {
-                            if let None = self.object_bounds.get(&model) {
-                                if let Some(bounds) = get_object_bounds_from_nif(
-                                    &self.vfs,
-                                    &tes3_object,
-                                    self.object_scale,
-                                ) {
-                                    self.object_bounds.insert(model, bounds);
-                                };
-                            };
+                        if let Some(model) = get_object_model_path(&tes3_object)
+                            && !self.object_bounds.contains_key(&model)
+                            && let Some(bounds) = get_object_bounds_from_nif(
+                                &self.vfs,
+                                &tes3_object,
+                                self.object_scale,
+                            )
+                        {
+                            self.object_bounds.insert(model, bounds);
                         }
 
                         // Remember this won't work for cells :D
-                        if !self.merged_objects.contains_key(&editor_id) {
-                            self.merged_objects
-                                .insert(editor_id, (tes3_object, plugin_name.to_ascii_lowercase()));
-                        }
+                        self.merged_objects
+                            .entry(editor_id)
+                            .or_insert_with(|| (tes3_object, plugin_name.to_ascii_lowercase()));
                     });
                     Ok(())
                 }
@@ -293,6 +310,12 @@ impl TryFrom<(&str, &[&'static str])> for ConfigurationManager {
 }
 
 impl ConfigurationManager {
+    /// Construct a manager from an `OpenMW` configuration path and object-type filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the configuration cannot be loaded, the scale is invalid, or a
+    /// configured plugin cannot be merged.
     pub fn try_from_with_scale(
         config_path: &str,
         object_types: &[&'static str],
@@ -309,7 +332,7 @@ impl ConfigurationManager {
         let vfs = VFS::from_directories(
             openmw_config
                 .data_directories_iter()
-                .map(|directory| directory.parsed()),
+                .map(openmw_config::DirectorySetting::parsed),
             Some(
                 openmw_config
                     .fallback_archives_iter()
@@ -318,10 +341,7 @@ impl ConfigurationManager {
             ),
         );
 
-        let object_types: HashSet<&'static str> = object_types
-            .iter()
-            .map(|object_type| *object_type)
-            .collect();
+        let object_types: HashSet<&'static str> = object_types.iter().copied().collect();
 
         let mut manager = ConfigurationManager {
             vfs,

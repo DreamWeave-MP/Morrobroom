@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 /// Value Parser for input scale
 fn validate_scale(arg: &str) -> Result<f32, String> {
     arg.parse::<f32>()
-        .map_err(|e| format!("Invalid scale value '{}': {}", arg, e))
+        .map_err(|e| format!("Invalid scale value '{arg}': {e}"))
         .and_then(|num| {
             if num <= 0.0 {
                 Err("Scale value must be greater than 0".to_string())
@@ -21,19 +21,19 @@ fn validate_scale(arg: &str) -> Result<f32, String> {
 fn validate_input_map(s: &str) -> Result<PathBuf, String> {
     let path = Path::new(s);
 
-    let meta = fs::metadata(path).map_err(|e| format!("Map file does not exist: {} ({})", s, e))?;
+    let meta = fs::metadata(path).map_err(|e| format!("Map file does not exist: {s} ({e})"))?;
     if !meta.is_file() {
-        return Err(format!("Provided path is not a regular file: {}", s));
+        return Err(format!("Provided path is not a regular file: {s}"));
     }
 
     match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("map") => {}
-        Some(ext) => return Err(format!("Invalid extension: .{} (expected .map)", ext)),
+        Some(ext) => return Err(format!("Invalid extension: .{ext} (expected .map)")),
         None => return Err("Map file is missing an extension".into()),
     }
 
     let abs_path = fs::canonicalize(path)
-        .map_err(|e| format!("Failed to canonicalize map path: {} ({})", s, e))?;
+        .map_err(|e| format!("Failed to canonicalize map path: {s} ({e})"))?;
 
     Ok(abs_path)
 }
@@ -62,13 +62,17 @@ fn validate_compile_output_path(s: &str) -> Result<PathBuf, String> {
         path.to_path_buf()
     } else {
         std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?
+            .map_err(|e| format!("Failed to get current directory: {e}"))?
             .join(path)
     };
 
     if let Some(parent) = abs_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create output directory {:?}: {}", parent, e))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "Failed to create output directory {}: {e}",
+                parent.display()
+            )
+        })?;
     }
 
     Ok(abs_path)
@@ -77,15 +81,11 @@ fn validate_compile_output_path(s: &str) -> Result<PathBuf, String> {
 fn validate_openmw_config_path(s: &str) -> Result<PathBuf, String> {
     let path = Path::new(s);
 
-    fs::metadata(path).map_err(|e| {
-        format!(
-            "OpenMW config file does not exist or is inaccessible: {} ({})",
-            s, e
-        )
-    })?;
+    fs::metadata(path)
+        .map_err(|e| format!("OpenMW config file does not exist or is inaccessible: {s} ({e})"))?;
 
     let abs_path = fs::canonicalize(path)
-        .map_err(|e| format!("Failed to canonicalize OpenMW config path: {} ({})", s, e))?;
+        .map_err(|e| format!("Failed to canonicalize OpenMW config path: {s} ({e})"))?;
 
     Ok(abs_path)
 }
@@ -129,6 +129,10 @@ pub struct MorrobroomArgs {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(
+    clippy::upper_case_acronyms,
+    reason = "FGD is the established command spelling and appears in the CLI contract."
+)]
 pub enum BroomCommand {
     Compile {
         /// Input map file name.
@@ -154,7 +158,7 @@ pub enum BroomCommand {
         /// List of all object types to use in FGD serialization.
         /// All of these types will be used in writing a single, merged FGD file.
         /// Uses the four-letter shortnames defined by the TES3 ESP format. Refer to
-        /// https://en.uesp.net/wiki/Morrowind_Mod:Mod_File_Format
+        /// <https://en.uesp.net/wiki/Morrowind_Mod:Mod_File_Format>
         ///  for more specific examples of what types to use. Does not support cells or dialogues,
         /// only objects which are otherwise placeable in the game world.
         #[arg(long = "types", short = 't', value_delimiter = ';')]
@@ -171,6 +175,10 @@ pub enum BroomCommand {
     },
 }
 
+#[allow(
+    clippy::upper_case_acronyms,
+    reason = "The four-letter variants are the public TES3 record tags accepted by the CLI."
+)]
 #[derive(Clone, Debug, ValueEnum)]
 pub enum TES3ObjectType {
     ACTI,
@@ -240,7 +248,9 @@ mod tests {
 
     impl CurrentDirGuard {
         fn set_to(path: impl AsRef<Path>) -> Self {
-            let guard = CURRENT_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let guard = CURRENT_DIR_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let original_dir = env::current_dir().unwrap();
             env::set_current_dir(path).unwrap();
 
@@ -283,7 +293,7 @@ mod tests {
 
     #[test]
     fn scale_parser_accepts_positive() {
-        assert_eq!(validate_scale("1.25").unwrap(), 1.25);
+        assert!((validate_scale("1.25").unwrap() - 1.25).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -353,8 +363,7 @@ mod tests {
             assert_eq!(
                 variant.as_str(),
                 expected_tag,
-                "Mismatched tag for {:?}",
-                variant
+                "Mismatched tag for {variant:?}"
             );
         }
     }
@@ -381,7 +390,7 @@ mod tests {
                 object_scale,
                 output_path,
             } => {
-                assert_eq!(object_scale, 2.0);
+                assert!((object_scale - 2.0).abs() < f32::EPSILON);
 
                 assert_eq!(
                     map_path.canonicalize().unwrap(),
@@ -390,7 +399,7 @@ mod tests {
 
                 assert_eq!(output_path, Some(tmp_out.canonicalize().unwrap()));
             }
-            _ => panic!("expected compile subcommand"),
+            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
         }
     }
 
@@ -413,7 +422,7 @@ mod tests {
             BroomCommand::Compile { map_path, .. } => {
                 assert_eq!(map_path, expected_map_path);
             }
-            _ => panic!("expected compile subcommand"),
+            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
         }
     }
 
@@ -449,7 +458,7 @@ mod tests {
         {
             let types = object_types.unwrap_or(default_object_types().into());
 
-            assert_eq!(object_scale, 3.5);
+            assert!((object_scale - 3.5).abs() < f32::EPSILON);
             assert_eq!(types.len(), 18);
             assert!(openmw_config.is_none());
             assert!(output_path.eq(&PathBuf::from("Morrowind.fgd")));
@@ -482,7 +491,7 @@ mod tests {
         ]);
 
         if let Err(error) = &result {
-            eprintln!("{}", error.to_string())
+            eprintln!("{error}");
         }
 
         assert!(result.is_err(), "Expected failure for missing map file");
@@ -502,7 +511,7 @@ mod tests {
         ]);
 
         if let Err(error) = &result {
-            eprintln!("{}", error.to_string())
+            eprintln!("{error}");
         }
 
         assert!(

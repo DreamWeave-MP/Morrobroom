@@ -15,6 +15,7 @@ use crate::slipgate::repr::Entity;
 pub struct Brushes(pub Vec<Brush>);
 
 impl Brushes {
+    #[must_use]
     pub fn new(brushes: Vec<Brush>) -> Self {
         brushes.into()
     }
@@ -44,9 +45,9 @@ impl Display for Brushes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some((last, rest)) = self.split_last() {
             for item in rest {
-                writeln!(f, "{}", item)?;
+                writeln!(f, "{item}")?;
             }
-            write!(f, "{}", last)?;
+            write!(f, "{last}")?;
         }
 
         Ok(())
@@ -60,6 +61,6 @@ mod tests {
         assert_eq!(
             crate::slipgate::unit_test_data::test_brushes_out().to_string(),
             crate::slipgate::unit_test_data::test_brushes_in()
-        )
+        );
     }
 }

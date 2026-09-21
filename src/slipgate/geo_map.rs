@@ -69,6 +69,7 @@ pub struct GeoMap {
 }
 
 impl GeoMap {
+    #[must_use]
     pub fn new(crate::slipgate::repr::Map(map): crate::slipgate::repr::Map) -> Self {
         let mut brush_head = 0;
         let mut plane_head = 0;

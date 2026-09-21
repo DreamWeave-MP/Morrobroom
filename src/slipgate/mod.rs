@@ -33,10 +33,41 @@ const EPSILON: f32 = 0.001;
 pub type Vector2 = nalgebra::Vector2<f32>;
 pub type Vector3 = nalgebra::Vector3<f32>;
 
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Geometry cardinalities are normalized by the f32 math layer."
+)]
+pub(crate) fn usize_to_f32(value: usize) -> f32 {
+    value as f32
+}
+
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Texture dimensions are consumed by the f32 UV math layer."
+)]
+pub(crate) fn u32_to_f32(value: u32) -> f32 {
+    value as f32
+}
+
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "The geometry pipeline stores vertex coordinates as f32 by contract."
+)]
+pub(crate) fn f64_to_f32(value: f64) -> f32 {
+    let converted = value as f32;
+    assert!(converted.is_finite(), "vertex coordinate must be finite");
+    converted
+}
+
+#[must_use]
 pub fn vector3_from_point(point: Point) -> Vector3 {
     nalgebra::vector![point.x, point.y, point.z]
 }
 
+#[must_use]
 pub fn vector3_from_texture_plane(plane: &TexturePlane) -> Vector3 {
     nalgebra::vector![plane.x, plane.y, plane.z]
 }

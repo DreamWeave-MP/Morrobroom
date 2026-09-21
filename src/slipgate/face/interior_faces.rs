@@ -14,6 +14,12 @@ pub enum InteriorFacesTag {}
 
 pub type InteriorFaces = Usage<InteriorFacesTag, BTreeSet<FaceId>>;
 
+/// Find faces enclosed by non-manifold geometry.
+///
+/// # Panics
+///
+/// Panics if a face is missing its line adjacency entry.
+#[must_use]
 pub fn interior_faces(
     faces: &Faces,
     face_lines: &FaceLines,
@@ -32,7 +38,7 @@ pub fn interior_faces(
 
             let non_manifold: usize = lines
                 .iter()
-                .map(|line_id| non_manifold_lines.contains(line_id) as usize)
+                .map(|line_id| usize::from(non_manifold_lines.contains(line_id)))
                 .sum();
 
             if non_manifold == lines.len() {

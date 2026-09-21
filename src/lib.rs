@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
+    hash::BuildHasher,
     path::{Path, PathBuf},
 };
 
@@ -10,9 +11,11 @@ pub mod slipgate;
 pub mod util;
 pub use util::FindLowest;
 
-pub fn get_prop<'a>(
+/// Look up a named entity property.
+#[must_use]
+pub fn get_prop<'a, S: BuildHasher>(
     prop_name: &str,
-    prop_map: &'a HashMap<&String, &String>,
+    prop_map: &'a HashMap<&String, &String, S>,
 ) -> Option<&'a String> {
     prop_map
         .iter()
@@ -23,6 +26,11 @@ pub fn get_prop<'a>(
 /// Create the working directory structure for the map export.
 ///
 /// Returns a tuple of (workdir root path, map subfolder name).
+///
+/// # Errors
+///
+/// Returns an error if the map path has no usable filename or parent directory, or if the
+/// working-directory tree cannot be created.
 pub fn create_workdir(map_path: &Path) -> Result<(PathBuf, String), String> {
     let file_stem = map_path
         .file_stem()
@@ -38,7 +46,7 @@ pub fn create_workdir(map_path: &Path) -> Result<(PathBuf, String), String> {
     let map_dir = meshes_dir.join(file_stem);
 
     // Create the full directory tree in one go
-    fs::create_dir_all(&map_dir).map_err(|e| format!("Failed to create workdir: {}", e))?;
+    fs::create_dir_all(&map_dir).map_err(|e| format!("Failed to create workdir: {e}"))?;
 
     Ok((workdir, file_stem.to_string()))
 }

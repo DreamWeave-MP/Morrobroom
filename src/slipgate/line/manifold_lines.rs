@@ -10,6 +10,7 @@ pub type ManifoldLines = Usage<ManifoldTag, BTreeSet<LineId>>;
 pub enum NonManifoldTag {}
 pub type NonManifoldLines = Usage<NonManifoldTag, BTreeSet<LineId>>;
 
+#[must_use]
 pub fn manifold_lines(
     line_face_connections: &LineFaceConnections,
 ) -> (ManifoldLines, NonManifoldLines) {

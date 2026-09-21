@@ -25,6 +25,7 @@ pub struct Line {
 pub enum LinesTag {}
 pub type Lines = Usage<LinesTag, DenseStorage<LineId, Line>>;
 
+#[must_use]
 pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
     let mut face_lines = vec![Vec::new(); face_indices.len()];
     let mut lines = Vec::new();

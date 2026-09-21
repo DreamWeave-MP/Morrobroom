@@ -56,7 +56,7 @@ mod bench_large_sets {
         let result = large_set.find_lowest();
         let duration = start.elapsed();
 
-        println!("[LARGE SET] Result: {}, Time taken: {:?}", result, duration);
+        println!("[LARGE SET] Result: {result}, Time taken: {duration:?}");
     }
 
     #[test]
@@ -70,10 +70,7 @@ mod bench_large_sets {
         let result = large_set.find_lowest();
         let duration = start.elapsed();
 
-        println!(
-            "[LARGE SET WITH GAP] Result: {}, Time taken: {:?}",
-            result, duration
-        );
+        println!("[LARGE SET WITH GAP] Result: {result}, Time taken: {duration:?}");
     }
 }
 
@@ -90,7 +87,7 @@ mod bench_small_sets {
         let result = small_set.find_lowest();
         let duration = start.elapsed();
 
-        println!("[SMALL SET] Result: {}, Time taken: {:?}", result, duration);
+        println!("[SMALL SET] Result: {result}, Time taken: {duration:?}");
     }
 
     #[test]
@@ -101,9 +98,6 @@ mod bench_small_sets {
         let result = small_set.find_lowest();
         let duration = start.elapsed();
 
-        println!(
-            "[SMALL SET WITH GAP] Result: {}, Time taken: {:?}",
-            result, duration
-        );
+        println!("[SMALL SET WITH GAP] Result: {result}, Time taken: {duration:?}");
     }
 }

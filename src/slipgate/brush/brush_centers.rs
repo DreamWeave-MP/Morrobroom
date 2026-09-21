@@ -9,6 +9,7 @@ pub enum BrushCentersTag {}
 pub type BrushCenters = Usage<BrushCentersTag, DenseStorage<BrushId, Vector3>>;
 
 // Calculate brush centers
+#[must_use]
 pub fn brush_centers(brush_planes: &BrushFaces, face_centers: &FaceCenters) -> BrushCenters {
     DenseStorage::from_vec(
         brush_planes
@@ -20,7 +21,7 @@ pub fn brush_centers(brush_planes: &BrushFaces, face_centers: &FaceCenters) -> B
                 for plane_id in plane_ids {
                     center += face_centers[*plane_id];
                 }
-                center /= plane_ids.len() as f32;
+                center /= crate::slipgate::usize_to_f32(plane_ids.len());
 
                 center
             })

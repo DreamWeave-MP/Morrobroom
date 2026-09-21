@@ -8,21 +8,25 @@ pub struct Plane3d {
 }
 
 impl Plane3d {
+    #[must_use]
     pub fn normal(&self) -> &Vector3 {
         &self.n
     }
 
+    #[must_use]
     pub fn distance(&self) -> f32 {
         self.d
     }
 
     // Returns true if the two planes are parallel
+    #[must_use]
     pub fn is_parallel(&self, rhs: &Plane3d) -> bool {
         let plane_dot = self.normal().dot(rhs.normal());
         plane_dot <= -1.0 + EPSILON
     }
 
     // Returns true if the two planes are parallel and occupy the same position
+    #[must_use]
     pub fn opposes(&self, rhs: &Plane3d) -> bool {
         if !self.is_parallel(rhs) {
             return false;

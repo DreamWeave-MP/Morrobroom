@@ -11,6 +11,10 @@ use crate::slipgate::{
 };
 
 /// Parse an [`Extension`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a supported extension.
 pub fn parse_extension(input: &str) -> IResult<&str, Extension> {
     map_res(
         opt(alt((
@@ -30,6 +34,10 @@ pub fn parse_extension(input: &str) -> IResult<&str, Extension> {
 }
 
 /// Parse an [`Extension::Hexen2`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a floating-point literal.
 pub fn parse_extension_hexen_2(input: &str) -> IResult<&str, Extension> {
     map_res(parse_f32, |f| {
         Ok(Extension::Hexen2(f)) as Result<Extension, ()>
@@ -38,6 +46,10 @@ pub fn parse_extension_hexen_2(input: &str) -> IResult<&str, Extension> {
 }
 
 /// Parse an [`Extension::Quake2`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not contain the Quake 2 extension fields.
 pub fn parse_extension_quake_2(input: &str) -> IResult<&str, Extension> {
     map_res(
         (parse_u32, space1, parse_u32, space1, parse_f32),
@@ -53,6 +65,10 @@ pub fn parse_extension_quake_2(input: &str) -> IResult<&str, Extension> {
 }
 
 /// Parse an [`Extension::Daikatana`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not contain the Daikatana extension fields.
 pub fn parse_extension_daikatana(input: &str) -> IResult<&str, Extension> {
     map_res(
         (

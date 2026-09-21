@@ -32,6 +32,6 @@ mod tests {
         assert_eq!(
             crate::slipgate::unit_test_data::test_entity_out().to_string(),
             crate::slipgate::unit_test_data::test_entity_in()
-        )
+        );
     }
 }

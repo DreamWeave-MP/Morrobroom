@@ -14,9 +14,10 @@ pub enum BrushFaceContainmentTag {}
 pub type BrushFaceContainment = Usage<BrushFaceContainmentTag, DenseStorage<BrushId, Vec<FaceId>>>;
 
 // Find contained faces
+#[must_use]
 pub fn brush_face_containment(
     brushes: &Vec<BrushId>,
-    faces: &Vec<FaceId>,
+    faces: &[FaceId],
     brush_faces: &BrushFaces,
     brush_hulls: &BrushHulls,
     face_vertices: &FaceVertices,

@@ -21,6 +21,10 @@ impl FromStr for Property {
 }
 
 /// Parse a [`Property`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a quoted key/value pair.
 pub fn parse_property(input: &str) -> IResult<&str, Property> {
     let (i, o) = separated_pair(parse_string, space1, parse_string).parse(input)?;
     Ok((

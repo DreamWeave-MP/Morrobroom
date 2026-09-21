@@ -25,22 +25,21 @@ pub enum Extension {
 }
 
 impl Display for Extension {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Extension::Standard => Ok(()),
-            Extension::Hexen2(d) => f.write_fmt(format_args!("{}", d)),
+            Extension::Hexen2(value) => formatter.write_fmt(format_args!("{value}")),
             Extension::Quake2 {
                 content_flags,
                 surface_flags,
                 value,
-            } => f.write_fmt(format_args!(
-                "{} {} {}",
-                content_flags, surface_flags, value
-            )),
+            } => formatter.write_fmt(format_args!("{content_flags} {surface_flags} {value}")),
             Extension::Daikatana {
-                unknown: (i, j, k),
-                color: (r, g, b),
-            } => f.write_fmt(format_args!("{} {} {} {} {} {}", i, j, k, r, g, b)),
+                unknown: (unknown_x, unknown_y, unknown_z),
+                color: (red, green, blue),
+            } => formatter.write_fmt(format_args!(
+                "{unknown_x} {unknown_y} {unknown_z} {red} {green} {blue}"
+            )),
         }
     }
 }
@@ -51,6 +50,6 @@ mod tests {
 
     #[test]
     fn test_extension_to_string() {
-        assert_eq!(test_extension_out().to_string(), test_extension_in())
+        assert_eq!(test_extension_out().to_string(), test_extension_in());
     }
 }

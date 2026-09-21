@@ -28,6 +28,7 @@ pub struct TextureProjection {
 impl TextureProjection {
     /// Prepare a Valve projection using the source texture planes, face scale,
     /// and resolved texture dimensions.
+    #[must_use]
     pub fn from_valve(
         u_plane: TexturePlane,
         v_plane: TexturePlane,
@@ -55,6 +56,7 @@ impl TextureProjection {
         }
     }
 
+    #[must_use]
     pub fn project(&self, position: Vector3) -> Vector2 {
         nalgebra::vector![
             self.u_axis.dot(&position) * self.uv_scale.x,
@@ -71,7 +73,15 @@ impl TextureProjection {
     }
 }
 
+fn texture_size_vector((width, height): (u32, u32)) -> Vector2 {
+    Vector2::new(
+        crate::slipgate::u32_to_f32(width),
+        crate::slipgate::u32_to_f32(height),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
+#[must_use]
 pub fn new(
     faces: &Vec<FaceId>,
     textures: &Textures,
@@ -105,7 +115,7 @@ pub fn new(
                     u,
                     v,
                     face_texture_scale,
-                    nalgebra::vector![texture_size.0 as f32, texture_size.1 as f32],
+                    texture_size_vector(texture_size),
                 )),
                 TextureOffset::Standard { .. } => None,
             };
@@ -119,7 +129,7 @@ pub fn new(
                         face_texture_offset,
                         face_texture_rotation,
                         face_texture_scale,
-                        nalgebra::vector![texture_size.0 as f32, texture_size.1 as f32],
+                        texture_size_vector(texture_size),
                         valve_projection.as_ref(),
                     )
                 })
@@ -129,6 +139,7 @@ pub fn new(
     DenseStorage::from_vec(uvs).into()
 }
 
+#[must_use]
 pub fn vertex_uv(
     vertex: Vector3,
     plane: Plane3d,
@@ -167,12 +178,19 @@ fn prepared_vertex_uv(
             texture_scale,
             texture_size,
         ),
-        TextureOffset::Valve { u, v } => valve_projection
-            .map(|projection| projection.project(vertex))
-            .unwrap_or_else(|| valve_uv(vertex, u, v, texture_scale, texture_size)),
+        TextureOffset::Valve { u, v } => valve_projection.map_or_else(
+            || valve_uv(vertex, u, v, texture_scale, texture_size),
+            |projection| projection.project(vertex),
+        ),
     }
 }
 
+/// Project a vertex using the standard Quake texture convention.
+///
+/// # Panics
+///
+/// Panics when the brush plane has no usable normal and therefore no projection axis.
+#[must_use]
 pub fn standard_uv(
     vertex: Vector3,
     brush_plane: Plane3d,
@@ -182,6 +200,7 @@ pub fn standard_uv(
     texture_scale: Vector2,
     texture_size: Vector2,
 ) -> Vector2 {
+    // A zero-length plane normal cannot select a texture projection axis.
     let up_vector = Vector3::z_axis();
     let right_vector = Vector3::y_axis();
     let forward_vector = Vector3::x_axis();
@@ -215,6 +234,7 @@ pub fn standard_uv(
     uv + nalgebra::vector![u_offset / texture_size.x, v_offset / texture_size.y]
 }
 
+#[must_use]
 pub fn valve_uv(
     vertex: Vector3,
     u_plane: TexturePlane,
@@ -251,6 +271,6 @@ mod tests {
         let uv = projection.project(nalgebra::vector![10.0, 20.0, 30.0]);
 
         assert!((uv.x - 1.15625).abs() < f32::EPSILON);
-        assert!((uv.y - 0.03515625).abs() < f32::EPSILON);
+        assert!((uv.y - 0.035_156_25).abs() < f32::EPSILON);
     }
 }

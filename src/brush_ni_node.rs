@@ -18,6 +18,7 @@ macro_rules! define_enum_with_fromstr {
             }
         default = $default:ident
     ) => {
+        $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq)]
             $vis enum $name {
                 $(
@@ -100,6 +101,7 @@ define_enum_with_fromstr! {
 }
 
 define_enum_with_fromstr! {
+    #[allow(clippy::upper_case_acronyms, reason = "These names are part of the NIF material flag vocabulary.")]
     pub enum BrushUseAlpha {
         OFF = 0,
         BlendEnable = 1,
@@ -109,6 +111,7 @@ define_enum_with_fromstr! {
 }
 
 define_enum_with_fromstr! {
+    #[allow(clippy::upper_case_acronyms, reason = "These names are part of the NIF material flag vocabulary.")]
     pub enum BrushNoSort {
         OFF = 0,
         ON = 8196,
@@ -184,35 +187,35 @@ impl BrushNiNode {
     pub fn from_brushes(
         brushes: &[BrushId],
         map_data: &MapData,
-        entity_id: &EntityId,
+        entity_id: EntityId,
     ) -> Vec<BrushNiNode> {
         brushes
             .iter()
-            .flat_map(|brush_id| BrushNiNode::from_brush(brush_id, entity_id, map_data))
+            .flat_map(|brush_id| BrushNiNode::from_brush(*brush_id, entity_id, map_data))
             .collect()
     }
 
     /// The name of this function might be a bit confusing, as it returns a set of nodes
-    /// But one brush may have multiple textures, whereas one TriShape should only
+    /// But one brush may have multiple textures, whereas one `TriShape` should only
     /// ever have one texture. So even though we are requesting information for one brush,
-    /// Any one brush might be an arbitrary number of TriShapes due to texture splitting.
+    /// Any one brush might be an arbitrary number of `TriShapes` due to texture splitting.
     pub fn from_brush(
-        brush_id: &BrushId,
-        entity_id: &EntityId,
+        brush_id: BrushId,
+        entity_id: EntityId,
         map_data: &MapData,
     ) -> Vec<BrushNiNode> {
         let mut face_nodes = Vec::new();
 
-        let faces_with_textures = Self::collect_faces_with_textures(&brush_id, map_data);
+        let faces_with_textures = Self::collect_faces_with_textures(brush_id, map_data);
 
         for face_set in faces_with_textures {
             face_nodes.push(Self::node_from_faces(
-                &face_set, &map_data, entity_id, brush_id,
+                &face_set, map_data, entity_id, brush_id,
             ));
         }
 
         for node in &mut face_nodes {
-            node.collect()
+            node.collect();
         }
 
         face_nodes
@@ -232,30 +235,38 @@ impl BrushNiNode {
     // Given a set of faces, expressed by a brush (or brush entity), create a corresponding BrushNiNode
     // BrushNiNodes contain all the relevant data for a NIF, but aren't quite the nif-ready format
     fn node_from_faces(
-        faces: &Vec<FaceId>,
+        faces: &[FaceId],
         map_data: &MapData,
-        entity_id: &EntityId,
-        brush_id: &BrushId,
+        entity_id: EntityId,
+        brush_id: BrushId,
     ) -> BrushNiNode {
         let mut node = BrushNiNode::default();
 
         let entity_props = map_data.get_entity_properties(entity_id);
+        node.mat_props = Self::material_props(&entity_props);
 
-        ["Ambient", "Diffuse", "Emissive"]
-            .iter()
-            .for_each(|color_type| {
-                if let Some(color) = entity_props.get(&format!("Material_{}_color", color_type)) {
-                    let color_value = Some(Self::get_color(color));
-                    match *color_type {
-                        "Ambient" => node.mat_props.color.ambient = color_value,
-                        "Diffuse" => node.mat_props.color.diffuse = color_value,
-                        "Emissive" => node.mat_props.color.emissive = color_value,
-                        _ => unreachable!(),
-                    }
+        Self::append_faces(&mut node, faces, map_data, brush_id);
+        node
+    }
+
+    fn material_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+    ) -> BrushNiMatProps {
+        let mut props = BrushNiMatProps::default();
+
+        for color_type in ["Ambient", "Diffuse", "Emissive"] {
+            if let Some(color) = entity_props.get(&format!("Material_{color_type}_color")) {
+                let color_value = Some(Self::get_color(color));
+                match color_type {
+                    "Ambient" => props.color.ambient = color_value,
+                    "Diffuse" => props.color.diffuse = color_value,
+                    "Emissive" => props.color.emissive = color_value,
+                    _ => unreachable!(),
                 }
-            });
+            }
+        }
 
-        [
+        for alpha_prop in [
             "UseBlend",
             "BlendSourceMode",
             "BlendDestinationMode",
@@ -263,66 +274,46 @@ impl BrushNiNode {
             "TestFunction",
             "TestThreshold",
             "NoSort",
-        ]
-        .iter()
-        .for_each(|alpha_prop| {
-            if let Some(prop) = entity_props.get(&format!("Material_Alpha_{}", alpha_prop)) {
-                match *alpha_prop {
-                    "UseBlend" => {
-                        if let Ok(value) = prop.parse::<BrushUseAlpha>() {
-                            node.mat_props.alpha.use_blend = Some(value);
-                        }
-                    }
-                    "BlendSourceMode" => {
-                        if let Ok(value) = prop.parse::<BrushSourceBlendMode>() {
-                            node.mat_props.alpha.blend_source_mode = Some(value);
-                        }
-                    }
+        ] {
+            if let Some(prop) = entity_props.get(&format!("Material_Alpha_{alpha_prop}")) {
+                match alpha_prop {
+                    "UseBlend" => props.alpha.use_blend = prop.parse().ok(),
+                    "BlendSourceMode" => props.alpha.blend_source_mode = prop.parse().ok(),
                     "BlendDestinationMode" => {
-                        if let Ok(value) = prop.parse::<BrushDestinationBlendMode>() {
-                            node.mat_props.alpha.blend_destination_mode = Some(value);
-                        }
+                        props.alpha.blend_destination_mode = prop.parse().ok();
                     }
-                    "TestEnable" => {
-                        if let Ok(value) = prop.parse::<BrushUseAlpha>() {
-                            node.mat_props.alpha.use_test = Some(value);
-                        }
-                    }
-                    "TestFunction" => {
-                        if let Ok(value) = prop.parse::<BrushAlphaTestFunction>() {
-                            node.mat_props.alpha.test_function = Some(value);
-                        }
-                    }
-                    "TestThreshold" => {
-                        if let Ok(value) = prop.parse::<u8>() {
-                            node.mat_props.alpha.test_threshold = Some(value);
-                        }
-                    }
-                    "NoSort" => {
-                        if let Ok(value) = prop.parse::<BrushNoSort>() {
-                            node.mat_props.alpha.no_sort = Some(value);
-                        }
-                    }
+                    "TestEnable" => props.alpha.use_test = prop.parse().ok(),
+                    "TestFunction" => props.alpha.test_function = prop.parse().ok(),
+                    "TestThreshold" => props.alpha.test_threshold = prop.parse().ok(),
+                    "NoSort" => props.alpha.no_sort = prop.parse().ok(),
                     _ => unreachable!(),
                 }
             }
-        });
+        }
 
         if let Some(value) = entity_props.get(&"Material_Alpha".to_string()) {
-            node.mat_props.alpha.opacity = Some(
+            props.alpha.opacity = Some(
                 value
                     .parse()
                     .expect("Failed to parse float value from material properties!"),
             );
         }
+        props
+    }
 
-        for face_id in faces.iter() {
+    fn append_faces(
+        node: &mut BrushNiNode,
+        faces: &[FaceId],
+        map_data: &MapData,
+        brush_id: BrushId,
+    ) {
+        for face_id in faces {
             let texture_id = map_data.geomap.face_textures.get(*face_id).unwrap();
             let texture_name = map_data.geomap.textures.get(*texture_id).unwrap();
 
             if texture_name == "skip" || texture_name.contains("skip_") {
                 continue;
-            };
+            }
 
             let (_content_flags, mut surface_flags, _value) = match &map_data
                 .geomap
@@ -342,21 +333,19 @@ impl BrushNiNode {
 
             let indices = if surface_flags & surfaces::NiBroomSurface::InvertFaces as u32 != 0 {
                 map_data.inverted_face_tri_indices.get(*face_id).unwrap_or_else(|| {
-panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}", face_id)
+panic!("Critical error: Missing inverted face triangle indices for face_id: {face_id:?}")
 })
             } else {
                 map_data.face_tri_indices.get(*face_id).unwrap_or_else(|| {
                     panic!(
-                        "Critical error: Missing face triangle indices for face_id: {:?} on brush: {:?}",
-                        face_id,
-                        brush_id
+                        "Critical error: Missing face triangle indices for face_id: {face_id:?} on brush: {brush_id:?}"
                     )
                 })
             };
 
             // We can't do fuzzier matches on this, so,
             // we'll have to hardcode a set of sky texture names (Thanks skyrim)
-            if texture_name.to_ascii_lowercase() == "sky5_blu" {
+            if texture_name.eq_ignore_ascii_case("sky5_blu") {
                 node.use_emissive = true;
             }
 
@@ -367,7 +356,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
                 || texture_name.to_ascii_lowercase().contains("mwat")
             {
                 surface_flags |= surfaces::NiBroomSurface::NoClip as u32;
-                println!("{face_id} interpreted as liquid, added NoClip flag")
+                println!("{face_id} interpreted as liquid, added NoClip flag");
             }
 
             // Get Texture uvs for this specific face out of parsed map data
@@ -380,37 +369,36 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
             if texture_name != "clip" {
                 node.normals.extend(
                     if surface_flags & surfaces::NiBroomSurface::SmoothShading as u32 == 0 {
-                        &*map_data.flat_normals.get(*face_id).unwrap()
+                        map_data.flat_normals.get(*face_id).unwrap()
                     } else {
-                        &*map_data.smooth_normals.get(*face_id).unwrap()
+                        map_data.smooth_normals.get(*face_id).unwrap()
                     },
                 );
                 node.uv_sets.extend(*uv_sets);
 
                 node.vis_verts.extend(*vertices);
-                node.vis_tris.push((*indices).to_vec());
-                node.texture = texture_name.to_string();
+                node.vis_tris.push((*indices).clone());
+                node.texture.clone_from(texture_name);
             }
 
             // The node will always have an RCN, only populate it if the NoClip flag is NOT applied to this surface
             if surface_flags & surfaces::NiBroomSurface::NoClip as u32 == 0 {
                 node.col_verts.extend(*vertices);
-                node.col_tris.push((*indices).to_vec());
+                node.col_tris.push((*indices).clone());
             }
         }
-        node
     }
 
-    fn collect_faces_with_textures(brush_id: &BrushId, map_data: &MapData) -> Vec<Vec<FaceId>> {
+    fn collect_faces_with_textures(brush_id: BrushId, map_data: &MapData) -> Vec<Vec<FaceId>> {
         let mut face_textures = Vec::new();
 
-        let faces = map_data.geomap.brush_faces.get(*brush_id).unwrap();
+        let faces = map_data.geomap.brush_faces.get(brush_id).unwrap();
 
-        for face in faces.iter() {
+        for face in faces {
             let texture_id = map_data.geomap.face_textures.get(*face).unwrap();
             let texture_name = map_data.geomap.textures.get(*texture_id).unwrap();
             if !face_textures.contains(texture_name) {
-                face_textures.push(texture_name.to_string())
+                face_textures.push(texture_name.clone());
             }
         }
 
@@ -418,7 +406,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
             vec![Vec::new(); face_textures.len()];
 
         for (index, texture) in face_textures.iter().enumerate() {
-            for face in faces.iter() {
+            for face in faces {
                 let texture_id = map_data.geomap.face_textures.get(*face).unwrap();
                 let texture_name = map_data.geomap.textures.get(*texture_id).unwrap();
 
@@ -433,50 +421,44 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
 
     /// Renumbers triangles appropriately, then switches the Y and Z coordinates of every vertex
     /// Quake is Y-up, and the triangles are numbered differently (since they're not collected into a mesh like we do)
-    fn to_nif_format(
-        shape_data: &mut NiTriShapeData,
-        verts: &mut Vec<SV3>,
-        tris: &mut Vec<Vec<usize>>,
-    ) {
+    fn to_nif_format(shape_data: &mut NiTriShapeData, verts: &[SV3], tris: &[Vec<usize>]) {
         if verts.is_empty() {
             return;
-        };
+        }
 
         let mut verts_used = 0;
 
-        tris.into_iter().for_each(|face_tris| {
+        for face_tris in tris {
             shape_data
                 .triangles
                 .extend(face_tris.chunks_exact(3).map(|chunk| {
                     [
-                        (chunk[0] + verts_used) as u16,
-                        (chunk[1] + verts_used) as u16,
-                        (chunk[2] + verts_used) as u16,
+                        u16::try_from(chunk[0] + verts_used).expect("NIF vertex index exceeds u16"),
+                        u16::try_from(chunk[1] + verts_used).expect("NIF vertex index exceeds u16"),
+                        u16::try_from(chunk[2] + verts_used).expect("NIF vertex index exceeds u16"),
                     ]
                 }));
 
-            verts_used += face_tris.into_iter().collect::<HashSet<_>>().len();
-        });
+            verts_used += face_tris.iter().collect::<HashSet<_>>().len();
+        }
 
-        verts.into_iter().for_each(|vert| {
-            shape_data
-                .vertices
-                .push([vert[0] as f32, vert[1] as f32, vert[2] as f32].into())
-        });
+        for vert in verts {
+            shape_data.vertices.push([vert[0], vert[1], vert[2]].into());
+        }
     }
 
     fn collect(&mut self) {
-        if self.vis_verts.len() > 0 {
-            self.distance_from_origin = Mesh::centroid(&self.vis_verts)
+        if !self.vis_verts.is_empty() {
+            self.distance_from_origin = Mesh::centroid(&self.vis_verts);
         }
 
-        Self::to_nif_format(&mut self.vis_data, &mut self.vis_verts, &mut self.vis_tris);
-        Self::to_nif_format(&mut self.col_data, &mut self.col_verts, &mut self.col_tris);
+        Self::to_nif_format(&mut self.vis_data, &self.vis_verts, &self.vis_tris);
+        Self::to_nif_format(&mut self.col_data, &self.col_verts, &self.col_tris);
 
         for normal in &self.normals {
             self.vis_data
                 .normals
-                .push([normal[0] as f32, normal[1] as f32, normal[2] as f32].into());
+                .push([normal[0], normal[1], normal[2]].into());
         }
 
         for uv in &self.uv_sets {

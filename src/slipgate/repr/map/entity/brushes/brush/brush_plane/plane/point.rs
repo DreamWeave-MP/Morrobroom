@@ -41,6 +41,6 @@ mod tests {
 
     #[test]
     fn test_point_to_string() {
-        assert_eq!(test_point_out().to_string(), test_point_in())
+        assert_eq!(test_point_out().to_string(), test_point_in());
     }
 }

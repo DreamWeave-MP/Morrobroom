@@ -29,6 +29,10 @@ impl FromStr for Brushes {
 }
 
 /// Parse [`Brushes`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when a brush or comment cannot be parsed.
 pub fn parse_brushes(input: &str) -> IResult<&str, Brushes> {
     let some_brush = map_res(parse_brush, |res| {
         Ok(Some(res)) as Result<Option<Brush>, ()>

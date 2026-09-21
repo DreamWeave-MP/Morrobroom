@@ -8,6 +8,7 @@ pub enum FaceBrushesTag {}
 
 pub type FaceBrushes = Usage<FaceBrushesTag, DenseStorage<FaceId, BrushId>>;
 
+#[must_use]
 pub fn face_brushes(brush_faces: &BrushFaces) -> FaceBrushes {
     DenseStorage::from_vec(
         brush_faces

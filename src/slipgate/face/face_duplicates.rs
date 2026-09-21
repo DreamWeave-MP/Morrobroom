@@ -11,6 +11,7 @@ pub enum FaceDuplicatesTag {}
 /// The set of opposing faces that share the same set of vertices
 pub type FaceDuplicates = Usage<FaceDuplicatesTag, BTreeSet<(FaceId, FaceId)>>;
 
+#[must_use]
 pub fn face_duplicates(
     planes: &Vec<FaceId>,
     face_planes: &FacePlanes,
@@ -24,7 +25,7 @@ pub fn face_duplicates(
 
             planes
                 .iter()
-                .flat_map(move |rhs_id| {
+                .filter_map(move |rhs_id| {
                     let rhs_verts = &face_vertices[*rhs_id];
                     let rhs_plane = &face_planes[*rhs_id];
 

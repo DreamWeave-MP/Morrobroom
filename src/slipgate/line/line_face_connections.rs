@@ -1,4 +1,4 @@
-//! Lookup table from LineId to the FaceIds it connects to
+//! Lookup table from `LineId` to the `FaceIds` it connects to
 use std::collections::BTreeSet;
 
 use crate::slipgate::DenseStorage;
@@ -10,6 +10,7 @@ pub enum LineFaceConnectionsTag {}
 pub type LineFaceConnections =
     Usage<LineFaceConnectionsTag, DenseStorage<LineId, BTreeSet<FaceId>>>;
 
+#[must_use]
 pub fn line_face_connections(
     lines: &Lines,
     line_faces: &LineFaces,

@@ -1,5 +1,5 @@
 use imagesize::blob_size;
-use morrobroom::slipgate::repr::*;
+use morrobroom::slipgate::repr::Map;
 use morrobroom::slipgate::{
     GeoMap, Textures,
     entity::EntityId,
@@ -17,6 +17,14 @@ use vfstool_lib::VFS;
 use crate::Mesh;
 
 const GRID_SIZE: u8 = 128;
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "The spatial index is an i32 grid; coordinates outside its range are saturated by the Rust cast contract."
+)]
+fn grid_coordinate(coordinate: f32) -> i32 {
+    (coordinate.round() / f32::from(GRID_SIZE)).floor() as i32
+}
 
 pub struct MapData {
     pub geomap: GeoMap,
@@ -52,7 +60,7 @@ impl MapData {
         let vfs = VFS::from_directories(
             openmw_config
                 .data_directories_iter()
-                .map(|directory| directory.parsed()),
+                .map(openmw_config::DirectorySetting::parsed),
             Some(fallback_archives),
         );
 
@@ -70,9 +78,9 @@ impl MapData {
             })
             .collect();
 
-        let face_uvs = geometry.face_uvs(morrobroom::slipgate::texture::texture_sizes(
+        let face_uvs = geometry.face_uvs(&morrobroom::slipgate::texture::texture_sizes(
             &geometry.geomap.textures,
-            texture_sizes,
+            &texture_sizes,
         ));
 
         let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
@@ -88,9 +96,9 @@ impl MapData {
                             .expect("Face vertices should always be valid"),
                     );
                     let grid_position = [
-                        (centroid.x.round() / GRID_SIZE as f32).floor() as i32,
-                        (centroid.y.round() / GRID_SIZE as f32).floor() as i32,
-                        (centroid.z.round() / GRID_SIZE as f32).floor() as i32,
+                        grid_coordinate(centroid.x),
+                        grid_coordinate(centroid.y),
+                        grid_coordinate(centroid.z),
                     ];
                     (grid_position, *face_id)
                 })
@@ -114,7 +122,7 @@ impl MapData {
     }
 
     pub fn collect_textures(textures: &Textures) -> HashSet<&String> {
-        textures.iter().map(|texture_name| texture_name).collect()
+        textures.iter().collect()
     }
 
     pub fn find_vfs_texture(name: &str, vfs: &VFS) -> Option<(String, (u32, u32))> {
@@ -123,17 +131,23 @@ impl MapData {
         extensions
          .iter()
          .find_map(|extension| {
-              let full_name = format!("Textures/{}.{}", name, extension);
-              println!("Searching for texture: {}", full_name);
+              let full_name = format!("Textures/{name}.{extension}");
+              println!("Searching for texture: {full_name}");
               let file = vfs.get_file(full_name.as_str())?;
               let mut reader = file.open().ok()?;
               let mut bytes = Vec::new();
               reader.read_to_end(&mut bytes).ok()?;
               let image_size = blob_size(&bytes).ok()?;
-              Some((full_name, (image_size.width as u32, image_size.height as u32)))
+               Some((
+                   full_name,
+                   (
+                       u32::try_from(image_size.width).expect("texture width exceeds u32"),
+                       u32::try_from(image_size.height).expect("texture height exceeds u32"),
+                   ),
+               ))
           })
           .or_else(|| {
-              eprintln!("ERROR: Texture not found! This map is using a texture which isn't in your OpenMW VFS: {}.[dds/tga/png]", name);
+              eprintln!("ERROR: Texture not found! This map is using a texture which isn't in your OpenMW VFS: {name}.[dds/tga/png]");
               None
           })
     }
@@ -142,13 +156,14 @@ impl MapData {
         &self.vfs
     }
 
-    pub fn get_entity_properties(&self, entity_id: &EntityId) -> HashMap<&String, &String> {
-        let entity_properties = self.geomap.entity_properties.get(*entity_id);
+    pub fn get_entity_properties(&self, entity_id: EntityId) -> HashMap<&String, &String> {
+        let entity_properties = self.geomap.entity_properties.get(entity_id);
 
         // Group names are powers of 2 and have different keys in the group definition and separate entities which reference it
-        if let None = entity_properties {
-            panic!("brush entity {} has no properties!", entity_id);
-        }
+        assert!(
+            entity_properties.is_some(),
+            "brush entity {entity_id} has no properties!"
+        );
 
         entity_properties
             .unwrap()

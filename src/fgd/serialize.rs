@@ -22,7 +22,7 @@ use write_fgd_prop::WriteFGDProp;
 type PluginRecordMap<'a> = BTreeMap<&'a String, BTreeSet<Cow<'a, str>>>;
 
 #[allow(dead_code)] // Shared inventory retained alongside the CLI's typed enum list.
-pub static SERIALIZABLE_TYPES: [&'static str; 18] = [
+pub static SERIALIZABLE_TYPES: [&str; 18] = [
     tes3::esp::Activator::TAG_STR,
     tes3::esp::Alchemy::TAG_STR,
     tes3::esp::Apparatus::TAG_STR,
@@ -47,31 +47,31 @@ pub static SERIALIZABLE_TYPES: [&'static str; 18] = [
 
 #[allow(dead_code)] // Record-level filter retained for callers that already parsed objects.
 pub fn is_serializable_type(object: &TES3Object) -> bool {
-    match object {
+    matches!(
+        object,
         TES3Object::Activator(_)
-        | TES3Object::Alchemy(_)
-        | TES3Object::Apparatus(_)
-        | TES3Object::Armor(_)
-        | TES3Object::Book(_)
-        | TES3Object::Clothing(_)
-        | TES3Object::Door(_)
-        | TES3Object::Ingredient(_)
-        | TES3Object::LeveledCreature(_)
-        | TES3Object::LeveledItem(_)
-        | TES3Object::Light(_)
-        | TES3Object::Lockpick(_)
-        | TES3Object::MiscItem(_)
-        | TES3Object::Probe(_)
-        | TES3Object::RepairItem(_)
-        | TES3Object::Static(_)
-        | TES3Object::Weapon(_) => true,
-        _ => false,
-    }
+            | TES3Object::Alchemy(_)
+            | TES3Object::Apparatus(_)
+            | TES3Object::Armor(_)
+            | TES3Object::Book(_)
+            | TES3Object::Clothing(_)
+            | TES3Object::Door(_)
+            | TES3Object::Ingredient(_)
+            | TES3Object::LeveledCreature(_)
+            | TES3Object::LeveledItem(_)
+            | TES3Object::Light(_)
+            | TES3Object::Lockpick(_)
+            | TES3Object::MiscItem(_)
+            | TES3Object::Probe(_)
+            | TES3Object::RepairItem(_)
+            | TES3Object::Static(_)
+            | TES3Object::Weapon(_)
+    )
 }
 
-pub fn is_serializable_tag(tag: &[u8; 4]) -> bool {
+pub fn is_serializable_tag(tag: [u8; 4]) -> bool {
     matches!(
-        tag,
+        &tag,
         tes3::esp::Activator::TAG
             | tes3::esp::Alchemy::TAG
             | tes3::esp::Apparatus::TAG
@@ -93,8 +93,8 @@ pub fn is_serializable_tag(tag: &[u8; 4]) -> bool {
     )
 }
 
-pub fn tag_to_tag_str(tag: &[u8; 4]) -> &'static str {
-    match tag {
+pub fn tag_to_tag_str(tag: [u8; 4]) -> &'static str {
+    match &tag {
         tes3::esp::Activator::TAG => tes3::esp::Activator::TAG_STR,
         tes3::esp::Alchemy::TAG => tes3::esp::Alchemy::TAG_STR,
         tes3::esp::Apparatus::TAG => tes3::esp::Apparatus::TAG_STR,
@@ -129,7 +129,7 @@ pub fn encode_fgd_token<S: AsRef<str>>(input: &S) -> Cow<'_, str> {
             out.push(c);
         } else {
             use std::fmt::Write;
-            write!(out, "_x{:02X}_", b).unwrap();
+            write!(out, "_x{b:02X}_").unwrap();
         }
     }
     if out == input.as_ref() {
@@ -185,9 +185,9 @@ fn generate_rgb_from_id(id: &str) -> [i32; 3] {
 
     // Split hash into 3 bytes for RGB
     [
-        ((hash & 0xFF) as u8) as i32,
-        (((hash >> 8) & 0xFF) as u8) as i32,
-        (((hash >> 16) & 0xFF) as u8) as i32,
+        i32::from((hash & 0xFF) as u8),
+        i32::from(((hash >> 8) & 0xFF) as u8),
+        i32::from(((hash >> 16) & 0xFF) as u8),
     ]
 }
 
@@ -195,9 +195,13 @@ pub fn write_base_class<W: Write, D: std::fmt::Display>(
     fgd_string: &mut W,
     class_name: D,
 ) -> Result<(), io::Error> {
-    writeln!(fgd_string, "@BaseClass = {}\n[", class_name)
+    writeln!(fgd_string, "@BaseClass = {class_name}\n[")
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "The formatting boundary accepts owned identifiers from record serializers."
+)]
 pub fn write_point_class<W: Write>(
     fgd_string: &mut W,
     classes: &[&str],
@@ -217,6 +221,10 @@ pub fn write_point_class<W: Write>(
     Ok(())
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "The formatting boundary accepts owned identifiers from record serializers."
+)]
 pub fn write_unplaceable_point_class<W: Write>(
     fgd_string: &mut W,
     classes: &[&str],
@@ -237,6 +245,11 @@ pub fn write_unplaceable_point_class<W: Write>(
     Ok(())
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    clippy::trivially_copy_pass_by_ref,
+    reason = "The formatting boundary is shared by record serializers with existing ownership-shaped inputs."
+)]
 pub fn write_light_point_class<W: Write>(
     fgd_string: &mut W,
     classes: &[&str],
@@ -250,7 +263,7 @@ pub fn write_light_point_class<W: Write>(
 
     write_fgd_size(Some(bounds), fgd_string)?;
 
-    write_light_fgd_color(&color, fgd_string)?;
+    write_light_fgd_color(color, fgd_string)?;
 
     writeln!(fgd_string, " = {id}")?;
 
@@ -286,6 +299,10 @@ pub fn write_fgd_color<W: Write>(color: &[i32; 3], fgd_string: &mut W) -> Result
     write!(fgd_string, " color({r} {g} {b})")
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Color arrays are borrowed alongside the other formatting inputs."
+)]
 pub fn write_light_fgd_color<W: Write>(
     color: &[u8; 4],
     fgd_string: &mut W,
@@ -308,6 +325,10 @@ pub fn write_fgd_base<W: Write>(fgd_string: &mut W, classes: &[&str]) -> io::Res
     Ok(())
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "Record serializers pass their flags through a shared borrowed formatting boundary."
+)]
 pub fn write_object_flags<W: Write>(fgd_string: &mut W, flags: &ObjectFlags) -> io::Result<()> {
     "ObjectFlags".write_fgd(
         fgd_string,
@@ -324,17 +345,13 @@ pub fn serialize_objects_as_fgd<W: Write>(
     config_manager: &crate::fgd::ConfigurationManager,
     fgd_string: &mut W,
 ) -> Result<(), std::io::Error> {
-    let set: Vec<&'static str> = config_manager
-        .object_types
-        .iter()
-        .map(|object_type| *object_type)
-        .collect();
+    let set: Vec<&'static str> = config_manager.object_types.iter().copied().collect();
 
     write_dictionary(&config_manager.merged_objects, &set, fgd_string)?;
 
     serialize_base_object_to_fgd(fgd_string)?;
 
-    for (_, (object, parent_plugin)) in &config_manager.merged_objects {
+    for (object, parent_plugin) in config_manager.merged_objects.values() {
         let bounds = if let Some(path) = get_object_model_path(object) {
             config_manager.get_object_bounds(&path)
         } else {
@@ -342,7 +359,7 @@ pub fn serialize_objects_as_fgd<W: Write>(
         };
 
         match object {
-            TES3Object::Script(_) => continue,
+            TES3Object::Script(_) => {}
             _ => serialize_object_to_fgd(object, bounds, parent_plugin, fgd_string)?,
         }
     }
@@ -350,126 +367,154 @@ pub fn serialize_objects_as_fgd<W: Write>(
     Ok(())
 }
 
+const OBJECT_TYPE_DATA: [(&str, &str, &str, &str, &[u8; 4]); 19] = [
+    (
+        "STAT",
+        "StaticList",
+        "static_list",
+        "List of all static objects in this configuration",
+        tes3::esp::Static::TAG,
+    ),
+    (
+        "ACTI",
+        "ActivatorList",
+        "activator_list",
+        "List of all activators in this configuration",
+        tes3::esp::Activator::TAG,
+    ),
+    (
+        "SCPT",
+        "ScriptList",
+        "script_list",
+        "List of all mwscripts in this configuration",
+        tes3::esp::Script::TAG,
+    ),
+    (
+        "INGR",
+        "IngredientList",
+        "ingredient_list",
+        "List of all ingredients in this configuration",
+        tes3::esp::Ingredient::TAG,
+    ),
+    (
+        "LIGH",
+        "LightList",
+        "light_list",
+        "List of all lights in this configuration",
+        tes3::esp::Light::TAG,
+    ),
+    (
+        "APPA",
+        "ApparatusList",
+        "apparatus_list",
+        "List of all alchemy apparatuses in this configuration",
+        tes3::esp::Apparatus::TAG,
+    ),
+    (
+        "BOOK",
+        "BookList",
+        "book_list",
+        "List of all books in this configuration",
+        tes3::esp::Book::TAG,
+    ),
+    (
+        "DOOR",
+        "DoorList",
+        "door_list",
+        "List of all doors in this configuration",
+        tes3::esp::Door::TAG,
+    ),
+    (
+        "ARMO",
+        "ArmorList",
+        "armor_list",
+        "List of all armors in this configuration",
+        tes3::esp::Armor::TAG,
+    ),
+    (
+        "WEAP",
+        "WeaponList",
+        "weapon_list",
+        "List of all weapons in this configuration",
+        tes3::esp::Weapon::TAG,
+    ),
+    (
+        "ALCH",
+        "PotionList",
+        "potion_list",
+        "List of all potions in this configuration",
+        tes3::esp::Alchemy::TAG,
+    ),
+    (
+        "CONT",
+        "ContainerList",
+        "container_list",
+        "List of all containers in this configuration",
+        tes3::esp::Container::TAG,
+    ),
+    (
+        "REPA",
+        "RepairItemList",
+        "repairitem_list",
+        "List of all repair items in this configuration",
+        tes3::esp::RepairItem::TAG,
+    ),
+    (
+        "LOCK",
+        "LockpickList",
+        "lockpick_list",
+        "List of all lockpicks in this configuration",
+        tes3::esp::Lockpick::TAG,
+    ),
+    (
+        "PROB",
+        "ProbeList",
+        "probe_list",
+        "List of all probes in this configuration",
+        tes3::esp::Probe::TAG,
+    ),
+    (
+        "LEVC",
+        "LeveledCreatureList",
+        "leveledcreature_list",
+        "List of all leveled creatures in this configuration",
+        tes3::esp::LeveledCreature::TAG,
+    ),
+    (
+        "LEVI",
+        "LeveledItemList",
+        "leveleditem_list",
+        "List of all leveled items in this configuration",
+        tes3::esp::LeveledItem::TAG,
+    ),
+    (
+        "CLOT",
+        "ClothingList",
+        "clothing_list",
+        "List of all clothing items in this configuration",
+        tes3::esp::Clothing::TAG,
+    ),
+    (
+        "MISC",
+        "MiscList",
+        "misc_list",
+        "List of all miscellaneous items in this configuration",
+        tes3::esp::MiscItem::TAG,
+    ),
+];
+
 pub fn get_object_type_data(
     object_type: &'static str,
 ) -> (&'static str, &'static str, &'static str, &'static [u8; 4]) {
-    match object_type {
-        "STAT" => (
-            "StaticList",
-            "static_list",
-            "List of all static objects in this configuration",
-            tes3::esp::Static::TAG,
-        ),
-        "ACTI" => (
-            "ActivatorList",
-            "activator_list",
-            "List of all activators in this configuration",
-            tes3::esp::Activator::TAG,
-        ),
-        "SCPT" => (
-            "ScriptList",
-            "script_list",
-            "List of all mwscripts in this configuration",
-            tes3::esp::Script::TAG,
-        ),
-        "INGR" => (
-            "IngredientList",
-            "ingredient_list",
-            "List of all ingredients in this configuration",
-            tes3::esp::Ingredient::TAG,
-        ),
-        "LIGH" => (
-            "LightList",
-            "light_list",
-            "List of all lights in this configuration",
-            tes3::esp::Light::TAG,
-        ),
-        "APPA" => (
-            "ApparatusList",
-            "apparatus_list",
-            "List of all alchemy apparatuses in this configuration",
-            tes3::esp::Apparatus::TAG,
-        ),
-        "BOOK" => (
-            "BookList",
-            "book_list",
-            "List of all books in this configuration",
-            tes3::esp::Book::TAG,
-        ),
-        "DOOR" => (
-            "DoorList",
-            "door_list",
-            "List of all doors in this configuration",
-            tes3::esp::Door::TAG,
-        ),
-        "ARMO" => (
-            "ArmorList",
-            "armor_list",
-            "List of all armors in this configuration",
-            tes3::esp::Armor::TAG,
-        ),
-        "WEAP" => (
-            "WeaponList",
-            "weapon_list",
-            "List of all weapons in this configuration",
-            tes3::esp::Weapon::TAG,
-        ),
-        "ALCH" => (
-            "PotionList",
-            "potion_list",
-            "List of all potions in this configuration",
-            tes3::esp::Alchemy::TAG,
-        ),
-        "CONT" => (
-            "ContainerList",
-            "container_list",
-            "List of all containers in this configuration",
-            tes3::esp::Container::TAG,
-        ),
-        "REPA" => (
-            "RepairItemList",
-            "repairitem_list",
-            "List of all repair items in this configuration",
-            tes3::esp::RepairItem::TAG,
-        ),
-        "LOCK" => (
-            "LockpickList",
-            "lockpick_list",
-            "List of all lockpicks in this configuration",
-            tes3::esp::Lockpick::TAG,
-        ),
-        "PROB" => (
-            "ProbeList",
-            "probe_list",
-            "List of all probes in this configuration",
-            tes3::esp::Probe::TAG,
-        ),
-        "LEVC" => (
-            "LeveledCreatureList",
-            "leveledcreature_list",
-            "List of all leveled creatures in this configuration",
-            tes3::esp::LeveledCreature::TAG,
-        ),
-        "LEVI" => (
-            "LeveledItemList",
-            "leveleditem_list",
-            "List of all leveled items in this configuration",
-            tes3::esp::LeveledItem::TAG,
-        ),
-        "CLOT" => (
-            "ClothingList",
-            "clothing_list",
-            "List of all clothing items in this configuration",
-            tes3::esp::Clothing::TAG,
-        ),
-        "MISC" => (
-            "MiscList",
-            "misc_list",
-            "List of all miscellaneous items in this configuration",
-            tes3::esp::MiscItem::TAG,
-        ),
-        _ => unimplemented!(),
-    }
+    OBJECT_TYPE_DATA
+        .iter()
+        .find(|(tag, ..)| *tag == object_type)
+        .map_or_else(
+            || panic!("unknown TES3 object type: {object_type}"),
+            |(_, class_name, list_name, list_desc, tag)| {
+                (*class_name, *list_name, *list_desc, *tag)
+            },
+        )
 }
 
 #[allow(dead_code)] // Retained for per-type FGD files in addition to combined output.
@@ -493,7 +538,7 @@ pub fn serialize_typed_objects_as_fgd<W: Write>(
         list_desc,
     )?;
 
-    for (_, (object, parent_plugin)) in &config_manager.merged_objects {
+    for (object, parent_plugin) in config_manager.merged_objects.values() {
         let bounds = if let Some(path) = crate::fgd::get_object_model_path(object) {
             config_manager.get_object_bounds(&path)
         } else {
@@ -501,7 +546,7 @@ pub fn serialize_typed_objects_as_fgd<W: Write>(
         };
 
         if object.tag() == object_type {
-            serialize_object_to_fgd(object, bounds, parent_plugin, fgd_string)?
+            serialize_object_to_fgd(object, bounds, parent_plugin, fgd_string)?;
         }
     }
 
@@ -511,7 +556,7 @@ pub fn serialize_typed_objects_as_fgd<W: Write>(
 pub fn serialize_object_to_fgd<W: Write>(
     object: &TES3Object,
     bounds: Option<&[i32; 6]>,
-    parent_plugin: &String,
+    parent_plugin: &str,
     fgd_string: &mut W,
 ) -> Result<(), io::Error> {
     match object {
@@ -580,7 +625,7 @@ pub fn serialize_object_to_fgd<W: Write>(
             "Unimplemented record type in serialize_object_to_fgd: {}",
             object.tag_str()
         ),
-    };
+    }
 
     Ok(())
 }
@@ -606,6 +651,10 @@ pub fn serialize_base_object_to_fgd<W: Write>(fgd_string: &mut W) -> Result<(), 
 ///       ...
 ///   ]
 /// ```
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "TES3 record tags are borrowed from the static type constants."
+)]
 pub fn write_choice_list_by_tag<W: io::Write>(
     merged_objects: &BTreeMap<String, (TES3Object, String)>,
     out: &mut W,
@@ -653,7 +702,7 @@ pub fn write_dictionary<W: Write>(
     let mut dictionary_class_list: Vec<&'static str> = Vec::new();
 
     classes
-        .into_iter()
+        .iter()
         .map(|class| get_object_type_data(class))
         .try_for_each(|(class_name, list_name, list_desc, object_type)| {
             dictionary_class_list.push(class_name);

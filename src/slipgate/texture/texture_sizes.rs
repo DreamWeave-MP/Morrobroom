@@ -10,9 +10,10 @@ pub enum TextureSizesTag {}
 pub type TextureSizes = Usage<TextureSizesTag, BTreeMap<TextureId, (u32, u32)>>;
 
 /// Construct using a name -> size map
+#[must_use]
 pub fn texture_sizes(
     textures: &Textures,
-    texture_sizes: BTreeMap<&str, (u32, u32)>,
+    texture_sizes: &BTreeMap<&str, (u32, u32)>,
 ) -> TextureSizes {
     textures
         .par_iter()

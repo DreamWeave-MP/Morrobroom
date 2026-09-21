@@ -31,6 +31,10 @@ impl FromStr for Brush {
 }
 
 /// Parse a [`Brush`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a braced brush.
 pub fn parse_brush(input: &str) -> IResult<&str, Brush> {
     let (i, o) = delimited(
         recognize(terminated(tag("{"), line_ending)),

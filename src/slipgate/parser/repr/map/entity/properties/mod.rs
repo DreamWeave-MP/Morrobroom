@@ -25,6 +25,10 @@ impl FromStr for Properties {
 }
 
 /// Parse [`Properties`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when a property cannot be parsed.
 pub fn parse_properties(input: &str) -> IResult<&str, Properties> {
     let (i, o) = separated_list0(line_ending, parse_property).parse(input)?;
 

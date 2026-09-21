@@ -26,8 +26,8 @@ impl Default for TextureOffset {
 impl Display for TextureOffset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TextureOffset::Standard { u, v } => f.write_fmt(format_args!("{} {}", u, v)),
-            TextureOffset::Valve { u, v } => f.write_fmt(format_args!("{} {}", u, v)),
+            TextureOffset::Standard { u, v } => f.write_fmt(format_args!("{u} {v}")),
+            TextureOffset::Valve { u, v } => f.write_fmt(format_args!("{u} {v}")),
         }
     }
 }
@@ -44,7 +44,7 @@ mod tests {
         assert_eq!(
             test_texture_plane_out().to_string(),
             test_texture_plane_in()
-        )
+        );
     }
 
     #[test]
@@ -52,6 +52,6 @@ mod tests {
         assert_eq!(
             test_texture_offset_out().to_string(),
             test_texture_offset_in()
-        )
+        );
     }
 }

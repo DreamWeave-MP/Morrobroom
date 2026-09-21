@@ -32,6 +32,10 @@ impl FromStr for Entity {
 }
 
 /// Parse an [`Entity`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the entity's properties or brushes cannot be parsed.
 pub fn parse_entity(input: &str) -> IResult<&str, Entity> {
     let (i, o) = delimited(
         terminated(tag("{"), opt(line_ending)),
@@ -64,7 +68,7 @@ mod tests {
             Ok((
                 "",
                 Entity {
-                    properties: Default::default(),
+                    properties: crate::slipgate::repr::Properties::default(),
                     brushes: crate::slipgate::repr::Brushes::new(vec![
                         crate::slipgate::unit_test_data::test_brush_out()
                     ])
@@ -84,7 +88,7 @@ mod tests {
                             value: "worldspawn".into()
                         }
                     ]),
-                    brushes: Default::default()
+                    brushes: crate::slipgate::repr::Brushes::default()
                 }
             ))
         );

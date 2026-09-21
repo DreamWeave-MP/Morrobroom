@@ -46,6 +46,7 @@ pub struct CsgPolygon {
 }
 
 impl CsgPolygon {
+    #[must_use]
     pub fn new(vertices: Vec<CsgVector>) -> Option<Self> {
         let polygon = Self { vertices };
         polygon
@@ -53,6 +54,7 @@ impl CsgPolygon {
             .then_some(polygon)
     }
 
+    #[must_use]
     pub fn area(&self) -> f64 {
         if self.vertices.len() < 3 {
             return 0.0;
@@ -79,9 +81,8 @@ impl CsgPolygon {
             return None;
         }
 
-        self.vertices.dedup_by(|previous, current| {
-            (&*previous - &*current).norm() <= tolerance.vertex_merge
-        });
+        self.vertices
+            .dedup_by(|previous, current| (*previous - *current).norm() <= tolerance.vertex_merge);
         if self.vertices.len() > 1
             && (self.vertices[0] - self.vertices[self.vertices.len() - 1]).norm()
                 <= tolerance.vertex_merge
@@ -133,6 +134,7 @@ pub struct PolygonSplit {
 }
 
 /// Split a polygon into the part outside and the part inside one brush plane.
+#[must_use]
 pub fn split_polygon_by_plane(
     polygon: &CsgPolygon,
     plane: &CsgPlane,
@@ -145,6 +147,7 @@ pub fn split_polygon_by_plane(
 }
 
 /// Subtract one convex brush from one source surface.
+#[must_use]
 pub fn subtract_convex_brush(
     fragment: SurfaceFragment,
     planes: &[CsgPlane],
@@ -290,8 +293,8 @@ mod tests {
             GeometryTolerance::default(),
         );
 
-        assert_eq!(split.inside.unwrap().area(), 2.0);
-        assert_eq!(split.outside.unwrap().area(), 2.0);
+        assert!((split.inside.unwrap().area() - 2.0).abs() < f64::EPSILON);
+        assert!((split.outside.unwrap().area() - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -568,9 +571,9 @@ mod tests {
                     .iter()
                     .map(|vertex| {
                         [
-                            (vertex.x * 1.0e9).round() as i64,
-                            (vertex.y * 1.0e9).round() as i64,
-                            (vertex.z * 1.0e9).round() as i64,
+                            quantize_coordinate(vertex.x),
+                            quantize_coordinate(vertex.y),
+                            quantize_coordinate(vertex.z),
                         ]
                     })
                     .collect::<Vec<_>>();
@@ -579,6 +582,14 @@ mod tests {
             .collect::<Vec<_>>();
         polygons.sort();
         polygons
+    }
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "The test canonicalizes finite geometry to a bounded integer grid."
+    )]
+    fn quantize_coordinate(value: f64) -> i64 {
+        (value * 1.0e9).round() as i64
     }
 
     fn rotate_to_smallest(vertices: Vec<[i64; 3]>) -> Vec<[i64; 3]> {

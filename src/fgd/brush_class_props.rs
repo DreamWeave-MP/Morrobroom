@@ -1,5 +1,5 @@
 #[allow(dead_code)] // Retained for the material-property portion of future FGD output.
-pub static MATERIAL_BASE_DEF: &'static str = r#"@BaseClass = material
+pub static MATERIAL_BASE_DEF: &str = r#"@BaseClass = material
 [
     Material_Emissive_color(color) : "Color emitted by the brush" : "1.0 0 0"
     Material_Ambient_color(color) : "Ambient color of the brush" : "0 1.0 0"

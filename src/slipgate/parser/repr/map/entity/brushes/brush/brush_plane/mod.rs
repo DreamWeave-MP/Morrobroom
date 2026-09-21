@@ -30,6 +30,10 @@ impl FromStr for BrushPlane {
 }
 
 /// Parse a [`BrushPlane`] from `&str`
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not contain a complete brush plane.
 pub fn parse_brush_plane(i: &str) -> IResult<&str, BrushPlane> {
     let (i, plane) = terminated(parse_triangle, space1).parse(i)?;
     let (i, texture) = terminated(take_until(" "), space1).parse(i)?;

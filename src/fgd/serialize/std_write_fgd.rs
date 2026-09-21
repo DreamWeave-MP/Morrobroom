@@ -190,6 +190,10 @@ mod test_numeric_fgd {
     }
 
     #[test]
+    #[allow(
+        clippy::approx_constant,
+        reason = "This test intentionally serializes the exact value 3.14."
+    )]
     fn test_f32_write_fgd() {
         let val: f32 = 3.14;
         let out = serialize_to_string(&val, "FloatVal", "Pi-ish");
@@ -233,9 +237,9 @@ impl STDWriteFGD for [u8; 4] {
         description: S,
     ) -> Result<(), io::Error> {
         let (r, g, b) = (
-            self[0] as f32 / 255.,
-            self[1] as f32 / 255.,
-            self[2] as f32 / 255.,
+            f32::from(self[0]) / 255.,
+            f32::from(self[1]) / 255.,
+            f32::from(self[2]) / 255.,
         );
 
         writeln!(
@@ -260,8 +264,7 @@ mod color_tests {
             .filter_map(|part| {
                 if part.trim().contains('.') && part.contains(' ') {
                     Some(
-                        part.trim()
-                            .split_whitespace()
+                        part.split_whitespace()
                             .filter_map(|n| n.parse::<f32>().ok())
                             .collect::<Vec<_>>(),
                     )
@@ -314,7 +317,7 @@ mod color_tests {
     }
 }
 
-/// HashMap u32, String corresponds to a `Flags` type in FGD
+/// `HashMap` u32, String corresponds to a `Flags` type in FGD
 impl STDWriteFGD for HashMap<u32, String> {
     fn write_fgd<S: AsRef<str>, W: Write>(
         &self,
@@ -330,7 +333,7 @@ impl STDWriteFGD for HashMap<u32, String> {
         )?;
 
         for (k, v) in self {
-            writeln!(target, "        \"{}\": \"{}\"", k, v)?;
+            writeln!(target, "        \"{k}\": \"{v}\"")?;
         }
 
         writeln!(target, "    ]")?;
@@ -399,7 +402,7 @@ impl STDWriteFGD for Vec<(String, u16)> {
         )?;
 
         for (k, v) in self {
-            writeln!(target, "        \"{}\": \"{}\"", k, v)?;
+            writeln!(target, "        \"{k}\": \"{v}\"")?;
         }
 
         writeln!(target, "    ]")?;
@@ -423,7 +426,7 @@ impl<D: std::fmt::Display> STDWriteFGD for Vec<(D, D)> {
         )?;
 
         for (k, v) in self {
-            writeln!(target, "        \"{}\": \"{}\"", k, v)?;
+            writeln!(target, "        \"{k}\": \"{v}\"")?;
         }
 
         writeln!(target, "    ]")?;

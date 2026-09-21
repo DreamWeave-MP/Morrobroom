@@ -28,6 +28,10 @@ impl FromStr for TrianglePlane {
 }
 
 /// Parse a [`Triangle`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not contain three points.
 pub fn parse_triangle(input: &str) -> IResult<&str, TrianglePlane> {
     let (i, (v0, v1, v2)) = (
         terminated(parse_point, space1),

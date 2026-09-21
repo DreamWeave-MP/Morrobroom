@@ -8,6 +8,16 @@ use tes3::esp::{
     TES3Object,
 };
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "TES3 stores scaled light radii as u32; the source map contract supplies non-negative radii."
+)]
+fn scaled_radius(radius: u32, scale_mode: f32) -> u32 {
+    (radius as f32 * scale_mode) as u32
+}
+
 pub fn activator(
     entity_props: &HashMap<&String, &String>,
     ref_id: &str,
@@ -166,8 +176,7 @@ pub fn cell(entity_props: &HashMap<&String, &String>) -> Cell {
             fog_density: get_prop("FogDensity", entity_props)
                 .parse::<f32>()
                 .unwrap_or_default()
-                .max(1.0)
-                .min(0.0),
+                .clamp(0.0, 1.0),
             fog_color: get_color(&get_prop("Fog_color", entity_props)),
             ambient_color: get_color(&get_prop("Ambient_color", entity_props)),
             sunlight_color: get_color(&get_prop("Sun_color", entity_props)),
@@ -214,7 +223,7 @@ pub fn creature_list(entity_props: &HashMap<&String, &String>, ref_id: &str) -> 
             Some(value) if *value == "1" => LeveledCreatureFlags::CALCULATE_FROM_ALL_LEVELS,
             Some(_) | None => LeveledCreatureFlags::empty(),
         },
-        creatures: collect_list_creatures(&entity_props),
+        creatures: collect_list_creatures(entity_props),
     })
 }
 
@@ -231,7 +240,7 @@ pub fn item_list(entity_props: &HashMap<&String, &String>, ref_id: &str) -> TES3
             Some(value) if *value == "1" => LeveledItemFlags::CALCULATE_FROM_ALL_LEVELS,
             Some(_) | None => LeveledItemFlags::empty(),
         },
-        items: collect_list_items(&entity_props),
+        items: collect_list_items(entity_props),
     })
 }
 
@@ -289,7 +298,7 @@ pub fn ingredient(
 
 pub fn point_light(
     entity_props: &HashMap<&String, &String>,
-    scale_mode: &f32,
+    scale_mode: f32,
     radius: u32,
     ref_id: &str,
 ) -> TES3Object {
@@ -302,13 +311,18 @@ pub fn point_light(
             weight: 0.0,
             value: 0,
             time: 0,
-            radius: (match entity_props.get(&"Radius".to_string()) {
-                Some(radius_override) => radius_override
-                    .parse()
-                    .expect(&("Invalid point light radius override on ".to_owned() + &ref_id)),
-                None => radius,
-            } as f32
-                * scale_mode) as u32,
+            radius: scaled_radius(
+                match entity_props.get(&"Radius".to_string()) {
+                    Some(radius_override) => radius_override.parse().unwrap_or_else(|_| {
+                        panic!(
+                            "{}",
+                            ("Invalid point light radius override on ".to_owned() + ref_id)
+                        )
+                    }),
+                    None => radius,
+                },
+                scale_mode,
+            ),
             flags: LightFlags::from_bits(
                 get_prop("LightFlags", entity_props)
                     .parse::<u32>()
@@ -323,7 +337,7 @@ pub fn point_light(
 
 pub fn light(
     entity_props: &HashMap<&String, &String>,
-    scale_mode: &f32,
+    scale_mode: f32,
     ref_id: &str,
     mesh_name: &str,
 ) -> TES3Object {
@@ -345,10 +359,12 @@ pub fn light(
             time: get_prop("Time", entity_props)
                 .parse::<i32>()
                 .unwrap_or_default(),
-            radius: (get_prop("Radius", entity_props)
-                .parse::<u32>()
-                .unwrap_or_default() as f32
-                * scale_mode) as u32,
+            radius: scaled_radius(
+                get_prop("Radius", entity_props)
+                    .parse::<u32>()
+                    .unwrap_or_default(),
+                scale_mode,
+            ),
             flags: LightFlags::from_bits(
                 get_prop("LightFlags", entity_props)
                     .parse::<u32>()
@@ -425,76 +441,74 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
             .parse::<i16>()
             .unwrap_or(-1);
 
-        match effect_type {
-            -1 => continue, // Not 100% sure if this is valid but I'm fairly certain one
-            // can't have a magic effect with no effect type
-            _ => {
-                let magnitude = prop_map
-                    .get(&format!("Effect_{count}_Magnitude"))
-                    .map(|s| s.parse::<u32>().unwrap_or_default());
+        if effect_type != -1 {
+            // Not 100% sure if this is valid but I'm fairly certain one
+            // can't have a magic effect with no effect type.
+            let magnitude = prop_map
+                .get(&format!("Effect_{count}_Magnitude"))
+                .map(|s| s.parse::<u32>().unwrap_or_default());
 
-                let (min_magnitude, max_magnitude) = match magnitude {
-                    Some(mag) => (mag, mag),
-                    None => (
-                        prop_map
-                            .get(&format!("Effect_{count}_MagnitudeMin"))
-                            .map(|s| s.parse::<u32>().unwrap_or_default())
-                            .unwrap_or_default(),
-                        prop_map
-                            .get(&format!("Effect_{count}_MagnitudeMax"))
-                            .map(|s| s.parse::<u32>().unwrap_or_default())
-                            .unwrap_or_default(),
-                    ),
-                };
+            let (min_magnitude, max_magnitude) = match magnitude {
+                Some(mag) => (mag, mag),
+                None => (
+                    prop_map
+                        .get(&format!("Effect_{count}_MagnitudeMin"))
+                        .map(|s| s.parse::<u32>().unwrap_or_default())
+                        .unwrap_or_default(),
+                    prop_map
+                        .get(&format!("Effect_{count}_MagnitudeMax"))
+                        .map(|s| s.parse::<u32>().unwrap_or_default())
+                        .unwrap_or_default(),
+                ),
+            };
 
-                effects.push(Effect {
-                    magic_effect: effect_type.try_into().expect("Invalid Magic Effect Type!"),
-                    skill: SkillId2::try_from(match effect_type {
-                        21 | 26 | 78 | 83 | 89 => {
-                            // These are the skill effects
-                            prop_map
-                                .get(&format!("Effect_{count}_Skill"))
-                                .unwrap_or(&&String::default())
-                                .parse::<i8>()
-                                .unwrap_or_default()
-                        }
-                        _ => -1,
-                    })
-                    .expect("Invalid Skill ID!"),
-                    attribute: AttributeId2::try_from(match effect_type {
-                        17 | 22 | 74 | 79 | 85 => {
-                            // These are the attribute effects
-                            prop_map
-                                .get(&format!("Effect_{count}_Attribute"))
-                                .unwrap_or(&&String::default())
-                                .parse::<i8>()
-                                .unwrap_or_default()
-                        }
-                        _ => -1,
-                    })
-                    .expect("Invalid Attribute ID!"),
-                    range: EffectRange::try_from(
+            effects.push(Effect {
+                magic_effect: effect_type.try_into().expect("Invalid Magic Effect Type!"),
+                skill: SkillId2::try_from(match effect_type {
+                    21 | 26 | 78 | 83 | 89 => {
+                        // These are the skill effects
                         prop_map
-                            .get(&format!("Effect_{count}_Range"))
+                            .get(&format!("Effect_{count}_Skill"))
                             .unwrap_or(&&String::default())
-                            .parse::<u32>()
-                            .unwrap_or_default(),
-                    )
-                    .expect("Invalid Effect Range!"),
-                    area: prop_map
-                        .get(&format!("Effect_{count}_Area"))
+                            .parse::<i8>()
+                            .unwrap_or_default()
+                    }
+                    _ => -1,
+                })
+                .expect("Invalid Skill ID!"),
+                attribute: AttributeId2::try_from(match effect_type {
+                    17 | 22 | 74 | 79 | 85 => {
+                        // These are the attribute effects
+                        prop_map
+                            .get(&format!("Effect_{count}_Attribute"))
+                            .unwrap_or(&&String::default())
+                            .parse::<i8>()
+                            .unwrap_or_default()
+                    }
+                    _ => -1,
+                })
+                .expect("Invalid Attribute ID!"),
+                range: EffectRange::try_from(
+                    prop_map
+                        .get(&format!("Effect_{count}_Range"))
                         .unwrap_or(&&String::default())
                         .parse::<u32>()
                         .unwrap_or_default(),
-                    duration: prop_map
-                        .get(&format!("Effect_{count}_Duration"))
-                        .unwrap_or(&&String::default())
-                        .parse::<u32>()
-                        .unwrap_or_default(),
-                    min_magnitude,
-                    max_magnitude,
-                });
-            }
+                )
+                .expect("Invalid Effect Range!"),
+                area: prop_map
+                    .get(&format!("Effect_{count}_Area"))
+                    .unwrap_or(&&String::default())
+                    .parse::<u32>()
+                    .unwrap_or_default(),
+                duration: prop_map
+                    .get(&format!("Effect_{count}_Duration"))
+                    .unwrap_or(&&String::default())
+                    .parse::<u32>()
+                    .unwrap_or_default(),
+                min_magnitude,
+                max_magnitude,
+            });
         }
     }
     effects
@@ -504,23 +518,22 @@ fn collect_biped_objects(prop_map: &HashMap<&String, &String>) -> Vec<BipedObjec
     let mut biped_objects = Vec::new();
 
     for count in 1..7 {
-        match prop_map.get(&format!("SlotType{count}")) {
-            Some(biped_object) => biped_objects.push(BipedObject {
+        if let Some(biped_object) = prop_map.get(&format!("SlotType{count}")) {
+            biped_objects.push(BipedObject {
                 biped_object_type: biped_object
                     .parse::<u8>()
                     .unwrap_or_default()
                     .try_into()
                     .expect("Invalid Biped Object Type!"),
-                male_bodypart: prop_map
+                male_bodypart: (*prop_map
                     .get(&format!("male_part{count}"))
-                    .unwrap_or(&&String::default())
-                    .to_string(),
-                female_bodypart: prop_map
+                    .unwrap_or(&&String::default()))
+                .clone(),
+                female_bodypart: (*prop_map
                     .get(&format!("female_part{count}"))
-                    .unwrap_or(&&String::default())
-                    .to_string(),
-            }),
-            None => continue,
+                    .unwrap_or(&&String::default()))
+                .clone(),
+            });
         }
     }
 
@@ -533,17 +546,14 @@ fn collect_contained_objects(
     let mut contained_objects = Vec::new();
 
     for count in 1..7 {
-        match prop_map.get(&format!("Item{count}_Id")) {
-            Some(contained_id) => {
-                let item_count: i32 = prop_map
-                    .get(&format!("Item{count}_Count"))
-                    .map_or("1", |v| v)
-                    .parse()
-                    .expect("Cannot fail parsing a default-initialized integer");
-                let object_id = crate::esp::FixedString::<32>(contained_id.to_string());
-                contained_objects.push((item_count, object_id))
-            }
-            None => continue,
+        if let Some(contained_id) = prop_map.get(&format!("Item{count}_Id")) {
+            let item_count: i32 = prop_map
+                .get(&format!("Item{count}_Count"))
+                .map_or("1", |v| v)
+                .parse()
+                .expect("Cannot fail parsing a default-initialized integer");
+            let object_id = crate::esp::FixedString::<32>((*contained_id).clone());
+            contained_objects.push((item_count, object_id));
         }
     }
 
@@ -554,16 +564,13 @@ fn collect_list_creatures(prop_map: &HashMap<&String, &String>) -> Vec<(String, 
     let mut contained_objects = Vec::new();
 
     for count in 1..25 {
-        match prop_map.get(&format!("Creature_{count}_Id")) {
-            Some(contained_id) => {
-                let level_required: u16 = prop_map
-                    .get(&format!("Creature_{count}_PlayerLevel"))
-                    .map_or("1", |v| v)
-                    .parse()
-                    .expect("Cannot fail parsing a default-initialized integer");
-                contained_objects.push((contained_id.to_string(), level_required))
-            }
-            None => continue,
+        if let Some(contained_id) = prop_map.get(&format!("Creature_{count}_Id")) {
+            let level_required: u16 = prop_map
+                .get(&format!("Creature_{count}_PlayerLevel"))
+                .map_or("1", |v| v)
+                .parse()
+                .expect("Cannot fail parsing a default-initialized integer");
+            contained_objects.push(((*contained_id).clone(), level_required));
         }
     }
 
@@ -574,23 +581,20 @@ fn collect_list_items(prop_map: &HashMap<&String, &String>) -> Vec<(String, u16)
     let mut contained_objects = Vec::new();
 
     for count in 1..25 {
-        match prop_map.get(&format!("Item_{count}_Id")) {
-            Some(contained_id) => {
-                let level_required: u16 = prop_map
-                    .get(&format!("Item_{count}_PlayerLevel"))
-                    .map_or("1", |v| v)
-                    .parse()
-                    .expect("Cannot fail parsing a default-initialized integer");
-                contained_objects.push((contained_id.to_string(), level_required))
-            }
-            None => continue,
+        if let Some(contained_id) = prop_map.get(&format!("Item_{count}_Id")) {
+            let level_required: u16 = prop_map
+                .get(&format!("Item_{count}_PlayerLevel"))
+                .map_or("1", |v| v)
+                .parse()
+                .expect("Cannot fail parsing a default-initialized integer");
+            contained_objects.push(((*contained_id).clone(), level_required));
         }
     }
 
     contained_objects
 }
 
-fn get_color(color_str: &String) -> [u8; 4] {
+fn get_color(color_str: &str) -> [u8; 4] {
     let mut array = [0; 4];
     let colors: Vec<&str> = color_str.split_whitespace().collect();
 
@@ -602,8 +606,8 @@ fn get_color(color_str: &String) -> [u8; 4] {
 }
 
 fn get_prop(prop_name: &str, prop_map: &HashMap<&String, &String>) -> String {
-    prop_map
+    (*prop_map
         .get(&prop_name.to_string())
-        .unwrap_or(&&String::default())
-        .to_string()
+        .unwrap_or(&&String::default()))
+    .clone()
 }

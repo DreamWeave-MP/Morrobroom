@@ -13,6 +13,7 @@ use std::{
 pub struct Properties(pub Vec<Property>);
 
 impl Properties {
+    #[must_use]
     pub fn new(properties: Vec<Property>) -> Self {
         properties.into()
     }
@@ -42,9 +43,9 @@ impl Display for Properties {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some((last, rest)) = self.split_last() {
             for item in rest {
-                writeln!(f, "{}", item)?;
+                writeln!(f, "{item}")?;
             }
-            write!(f, "{}", last)?;
+            write!(f, "{last}")?;
         }
 
         Ok(())
@@ -57,6 +58,6 @@ mod tests {
 
     #[test]
     fn test_properties() {
-        assert_eq!(test_properties_out().to_string(), test_properties_in())
+        assert_eq!(test_properties_out().to_string(), test_properties_in());
     }
 }

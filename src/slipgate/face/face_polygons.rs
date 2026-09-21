@@ -15,6 +15,7 @@ pub type FacePolygons = Usage<FacePolygonsTag, DenseStorage<FaceId, Vec<Vector3>
 /// inherently ordered. `FaceIndices` is the canonical angular ordering; this
 /// stage turns that ordering into the source polygon consumed by CSG. Triangle
 /// topology is intentionally not involved.
+#[must_use]
 pub fn face_polygons(face_indices: &FaceIndices, face_vertices: &FaceVertices) -> FacePolygons {
     let polygons = face_indices
         .iter()

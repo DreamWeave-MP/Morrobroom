@@ -11,6 +11,10 @@ pub trait DenseId: Copy {
 }
 
 /// Assert that an ID sequence is exactly `0..len`.
+///
+/// # Panics
+///
+/// Panics when an ID is missing, duplicated, or out of order.
 pub fn assert_contiguous_ids<K: DenseId>(ids: impl IntoIterator<Item = K>) {
     for (expected, id) in ids.into_iter().enumerate() {
         assert_eq!(
@@ -33,6 +37,7 @@ pub struct DenseStorage<K, V> {
 }
 
 impl<K, V> DenseStorage<K, V> {
+    #[must_use]
     pub fn from_vec(values: Vec<V>) -> Self {
         Self {
             values,
@@ -42,6 +47,10 @@ impl<K, V> DenseStorage<K, V> {
 
     /// Build storage from explicitly keyed values, rejecting holes or
     /// out-of-order IDs instead of silently assigning the wrong value.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a supplied ID is not the next contiguous index.
     pub fn from_pairs<I>(pairs: I) -> Self
     where
         K: DenseId,
@@ -61,6 +70,7 @@ impl<K, V> DenseStorage<K, V> {
         Self::from_vec(values)
     }
 
+    #[must_use]
     pub fn as_slice(&self) -> &[V] {
         &self.values
     }
@@ -76,10 +86,12 @@ impl<K, V> DenseStorage<K, V> {
         self.values.get(id.index())
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -88,6 +100,7 @@ impl<K, V> DenseStorage<K, V> {
         self.values.iter()
     }
 
+    #[must_use]
     pub fn par_iter(&self) -> RayonIter<'_, V>
     where
         V: Sync,

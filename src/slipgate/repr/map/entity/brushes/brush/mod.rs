@@ -13,6 +13,7 @@ use std::{
 pub struct Brush(pub Vec<BrushPlane>);
 
 impl Brush {
+    #[must_use]
     pub fn new(entities: Vec<BrushPlane>) -> Self {
         entities.into()
     }
@@ -42,7 +43,7 @@ impl Display for Brush {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
         for brush in &self.0 {
-            f.write_fmt(format_args!("{}\n", brush))?;
+            f.write_fmt(format_args!("{brush}\n"))?;
         }
         write!(f, "}}")?;
         Ok(())
@@ -56,6 +57,6 @@ mod tests {
         assert_eq!(
             crate::slipgate::unit_test_data::test_brush_out().to_string(),
             crate::slipgate::unit_test_data::test_brush_in()
-        )
+        );
     }
 }

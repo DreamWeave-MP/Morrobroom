@@ -10,6 +10,7 @@ pub enum FaceTriangleIndicesTag {}
 pub type FaceTriangleIndices = Usage<FaceTriangleIndicesTag, DenseStorage<FaceId, Vec<usize>>>;
 
 /// Generate triangle indices
+#[must_use]
 pub fn face_triangle_indices(face_indices: &FaceIndices) -> FaceTriangleIndices {
     let triangles = face_indices
         .par_iter()

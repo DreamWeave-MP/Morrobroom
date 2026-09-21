@@ -1,4 +1,4 @@
-//! Lookup table from LineId to its parent FaceId
+//! Lookup table from `LineId` to its parent `FaceId`
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use usage::Usage;
 

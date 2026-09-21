@@ -26,6 +26,10 @@ impl FromStr for Point {
 }
 
 /// Parse a [`Point`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a parenthesized point.
 pub fn parse_point(input: &str) -> IResult<&str, Point> {
     let open_brace = recognize(terminated(tag("("), opt(space1)));
     let triple = (

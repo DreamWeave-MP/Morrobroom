@@ -9,6 +9,7 @@ pub enum FaceFaceContainmentTag {}
 pub type FaceFaceContainment = Usage<FaceFaceContainmentTag, DenseStorage<FaceId, Vec<FaceId>>>;
 
 // Find contained faces
+#[must_use]
 pub fn face_face_containment(
     faces: &Vec<FaceId>,
     lines: &Lines,

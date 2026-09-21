@@ -14,6 +14,7 @@ pub enum EntityCentersTag {}
 pub type EntityCenters = Usage<EntityCentersTag, BTreeMap<EntityId, Vector3>>;
 
 // Calculate entity centers
+#[must_use]
 pub fn entity_centers(
     entity_brushes: &BTreeMap<EntityId, Vec<BrushId>>,
     brush_centers: &BrushCenters,
@@ -26,7 +27,7 @@ pub fn entity_centers(
                 .map(|brush_id| brush_centers[*brush_id])
                 .sum();
 
-            let center = center / brush_ids.len() as f32;
+            let center = center / crate::slipgate::usize_to_f32(brush_ids.len());
 
             (*entity_id, center)
         })

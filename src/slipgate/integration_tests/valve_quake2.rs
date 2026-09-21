@@ -10,9 +10,9 @@ fn valve_quake2_face_preserves_projection_and_surface_metadata()
 
     let face = &map[0].brushes[0][0];
     assert_eq!(face.texture, "mb/canonical");
-    assert_eq!(face.angle, 15.0);
-    assert_eq!(face.scale_x, 0.5);
-    assert_eq!(face.scale_y, 0.25);
+    assert!((face.angle - 15.0).abs() < f32::EPSILON);
+    assert!((face.scale_x - 0.5).abs() < f32::EPSILON);
+    assert!((face.scale_y - 0.25).abs() < f32::EPSILON);
 
     match face.texture_offset {
         TextureOffset::Valve { u, v } => {

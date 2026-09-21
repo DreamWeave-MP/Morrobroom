@@ -9,6 +9,7 @@ pub enum FaceCentersTag {}
 pub type FaceCenters = Usage<FaceCentersTag, DenseStorage<FaceId, Vector3>>;
 
 // Calculate face centers
+#[must_use]
 pub fn face_centers(face_vertices: &FaceVertices) -> FaceCenters {
     let centers = face_vertices
         .par_iter()
@@ -17,7 +18,7 @@ pub fn face_centers(face_vertices: &FaceVertices) -> FaceCenters {
             for world_vertex in vertices {
                 center += world_vertex;
             }
-            center /= vertices.len() as f32;
+            center /= crate::slipgate::usize_to_f32(vertices.len());
             center
         })
         .collect();

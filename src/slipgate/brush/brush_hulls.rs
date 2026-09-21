@@ -8,6 +8,7 @@ pub enum BrushHullsTag {}
 
 pub type BrushHulls = Usage<BrushHullsTag, DenseStorage<BrushId, ConvexHull>>;
 
+#[must_use]
 pub fn brush_hulls(brush_planes: &BrushFaces, geo_planes: &FacePlanes) -> BrushHulls {
     let hulls = brush_planes
         .par_iter()

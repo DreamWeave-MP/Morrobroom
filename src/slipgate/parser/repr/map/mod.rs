@@ -29,6 +29,10 @@ impl FromStr for Map {
 }
 
 /// Parse a [`Map`] from `&str`.
+///
+/// # Errors
+///
+/// Returns a parser error when an entity or comment cannot be parsed.
 pub fn parse_map(input: &str) -> IResult<&str, Map> {
     let some_entity = map_res(parse_entity, |res| {
         Ok(Some(res)) as Result<Option<Entity>, ()>

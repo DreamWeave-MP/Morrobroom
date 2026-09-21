@@ -9,6 +9,10 @@ use nom::{
 use crate::slipgate::{parser::primitive::parse_f32, repr::TexturePlane};
 
 /// Parse a [`TexturePlane`] from `&str`
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a bracketed texture plane.
 pub fn parse_texture_plane(input: &str) -> IResult<&str, TexturePlane> {
     map_res(
         (

@@ -36,7 +36,7 @@ pub static LEVC_BOUNDS: [i32; 6] = [
     LEVC_HEIGHT,
 ];
 
-pub static BOOL_CHOICES: &'static str = r#"    [
+pub static BOOL_CHOICES: &str = r#"    [
         "true" : "true"
         "false" : "false"
     ]
@@ -265,7 +265,7 @@ impl WriteFGDProp for Ingredient {
                         }
                         _ => {}
                     }
-                };
+                }
 
                 Ok(())
             })
@@ -314,7 +314,7 @@ mod test_ingredient_effect_expansion {
         let ing = Ingredient {
             id: "ingred_unit_test".into(),
             mesh: "meshes\\dummy.nif".into(),
-            script: "".into(),
+            script: String::new(),
             name: "UnitTest Ingredient".into(),
             data: tes3::esp::IngredientData {
                 weight: 0.1,
@@ -507,8 +507,8 @@ mod weapon_tests {
         assert!(result.contains("Plugin(string): \"\": \"mymod.esp\""));
         assert!(result.contains("Enchantment(string): \"\": \"enchant_fire\""));
         assert!(result.contains("ChopMax(integer): \"\": 20"));
-        assert!(result.contains("["));
-        assert!(result.contains("]"));
+        assert!(result.contains('['));
+        assert!(result.contains(']'));
         eprintln!("{result}");
 
         let expected = r#"@PointClass base(world_Base) color(255 255 255) = weapon_weapon_daed_dagger
@@ -536,7 +536,7 @@ mod weapon_tests {
 
 "#;
 
-        assert_eq!(result, expected)
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -568,14 +568,15 @@ impl WriteFGDProp for Light {
         parent_plugin: &str,
         bounds: Option<&[i32; 6]>,
     ) -> Result<(), io::Error> {
-        let half_size = (self.data.radius / 2) as i32;
+        let half_size = i32::try_from(self.data.radius / 2)
+            .expect("light radius must fit in the FGD integer bounds");
 
         if self.data.flags.contains(LightFlags::CAN_CARRY) {
             write_point_class(
                 fgd_string,
                 &["world_Base"],
                 bounds,
-                self.editor_id_ascii_lowercase().replace(" ", "_"),
+                self.editor_id_ascii_lowercase().replace(' ', "_"),
             )?;
         } else {
             write_light_point_class(
@@ -698,6 +699,10 @@ mod test_light_fgd {
     }
 
     #[test]
+    #[allow(
+        clippy::field_reassign_with_default,
+        reason = "This fixture mutates only the fields relevant to the empty-flags case."
+    )]
     fn test_light_fgd_empty_flags() {
         let mut light = Light::default();
         light.id = "EmptyFlagLight".to_string();
@@ -725,7 +730,7 @@ impl WriteFGDProp for LeveledCreature {
             &["world_Base"],
             Some(&LEVC_BOUNDS),
             &generate_rgb_from_id(&self.id),
-            String::from("leveledcreature_") + &self.editor_id_ascii_lowercase().replace(" ", "_"),
+            String::from("leveledcreature_") + &self.editor_id_ascii_lowercase().replace(' ', "_"),
         )?;
 
         writeln!(fgd_string, "[")?;
@@ -735,9 +740,7 @@ impl WriteFGDProp for LeveledCreature {
 
         writeln!(
             fgd_string,
-            "    {}(choices): \"{}\": \"{}\" =\n{}",
-            "CalculateFromAllLevels",
-            "Whether to ignore the specified level for each possible option, and simply spawn all possible options at all levels.",
+            "    CalculateFromAllLevels(choices): \"Whether to ignore the specified level for each possible option, and simply spawn all possible options at all levels.\": \"{}\" =\n{}",
             self.leveled_creature_flags
                 .contains(LeveledCreatureFlags::CALCULATE_FROM_ALL_LEVELS),
             BOOL_CHOICES,
@@ -800,7 +803,7 @@ mod test_leveled_creature_fgd {
             .unwrap();
 
         let out_str = String::from_utf8(output).unwrap();
-        println!("{}", out_str);
+        println!("{out_str}");
     }
 }
 
@@ -816,7 +819,7 @@ impl WriteFGDProp for LeveledItem {
             &["world_Base"],
             Some(&LEVI_BOUNDS),
             &generate_rgb_from_id(&self.id),
-            String::from("leveleditem_") + &self.editor_id_ascii_lowercase().replace(" ", "_"),
+            String::from("leveleditem_") + &self.editor_id_ascii_lowercase().replace(' ', "_"),
         )?;
 
         writeln!(fgd_string, "[")?;
@@ -826,9 +829,7 @@ impl WriteFGDProp for LeveledItem {
 
         writeln!(
             fgd_string,
-            "    {}(choices): \"{}\": \"{}\" =\n{}",
-            "CalculateFromAllLevels",
-            "Whether to ignore the specified level for each possible option, and simply spawn all possible options at all levels.",
+            "    CalculateFromAllLevels(choices): \"Whether to ignore the specified level for each possible option, and simply spawn all possible options at all levels.\": \"{}\" =\n{}",
             self.leveled_item_flags
                 .contains(LeveledItemFlags::CALCULATE_FROM_ALL_LEVELS),
             BOOL_CHOICES,
@@ -836,9 +837,7 @@ impl WriteFGDProp for LeveledItem {
 
         writeln!(
             fgd_string,
-            "    {}(choices): \"{}\": \"{}\" =\n{}",
-            "CalculateForEachItem",
-            "Idunno, actually.",
+            "    CalculateForEachItem(choices): \"Idunno, actually.\": \"{}\" =\n{}",
             self.leveled_item_flags
                 .contains(LeveledItemFlags::CALCULATE_FOR_EACH_ITEM),
             BOOL_CHOICES,
@@ -881,6 +880,10 @@ mod test_leveled_item_fgd {
     }
 
     #[test]
+    #[allow(
+        clippy::field_reassign_with_default,
+        reason = "This fixture is intentionally assembled field by field for readability."
+    )]
     fn print_leveled_item_fgd() {
         let mut li = LeveledItem::default();
         li.id = "LItem_TestChest01".into();
@@ -897,6 +900,10 @@ mod test_leveled_item_fgd {
     }
 
     #[test]
+    #[allow(
+        clippy::field_reassign_with_default,
+        reason = "This fixture is intentionally assembled field by field for readability."
+    )]
     fn flags_and_items_are_serialized_correctly() {
         let mut li = LeveledItem::default();
         li.id = "LItem_FlagsTest".into();
@@ -914,12 +921,12 @@ mod test_leveled_item_fgd {
         assert!(out.contains("LeveledItemId_0(string)"));
         assert!(out.contains("iron_dagger"));
         assert!(out.contains("LeveledItemLevel_0(string)"));
-        assert!(out.contains("2"));
+        assert!(out.contains('2'));
 
         assert!(out.contains("LeveledItemId_1(string)"));
         assert!(out.contains("silver_dagger"));
         assert!(out.contains("LeveledItemLevel_1(string)"));
-        assert!(out.contains("6"));
+        assert!(out.contains('6'));
 
         assert!(out.trim_end().ends_with(']'));
     }
@@ -965,7 +972,7 @@ impl WriteFGDProp for Clothing {
             .iter()
             .enumerate()
             .try_for_each(|(idx, biped_object)| {
-                if &biped_object.male_bodypart != &String::default() {
+                if biped_object.male_bodypart != String::default() {
                     format!(
                         "PartSlot_{}_{idx}_male",
                         &biped_object.biped_object_type.display()
@@ -973,14 +980,14 @@ impl WriteFGDProp for Clothing {
                     .write_fgd(fgd_string, "", &biped_object.male_bodypart)?;
                 }
 
-                if &biped_object.female_bodypart != &String::default() {
+                if biped_object.female_bodypart == String::default() {
+                    Ok(())
+                } else {
                     format!(
                         "PartSlot_{}_{idx}_female",
                         &biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.female_bodypart)
-                } else {
-                    Ok(())
                 }
             })?;
 
@@ -1065,8 +1072,8 @@ mod test_clothing_fgd {
 
         // ── new PartSlot lines
         let part_name = tes3::esp::BipedObjectType::Chest.display();
-        let male_slot = format!("PartSlot_{}_0_male(string)", part_name);
-        let female_slot = format!("PartSlot_{}_0_female(string)", part_name);
+        let male_slot = format!("PartSlot_{part_name}_0_male(string)");
+        let female_slot = format!("PartSlot_{part_name}_0_female(string)");
 
         assert!(out.contains(&male_slot));
         assert!(out.contains("C_Male_Part"));
@@ -1124,7 +1131,7 @@ impl WriteFGDProp for Armor {
             .iter()
             .enumerate()
             .try_for_each(|(idx, biped_object)| {
-                if &biped_object.male_bodypart != &String::default() {
+                if biped_object.male_bodypart != String::default() {
                     format!(
                         "PartSlot_{}_{idx}_male",
                         &biped_object.biped_object_type.display()
@@ -1132,14 +1139,14 @@ impl WriteFGDProp for Armor {
                     .write_fgd(fgd_string, "", &biped_object.male_bodypart)?;
                 }
 
-                if &biped_object.female_bodypart != &String::default() {
+                if biped_object.female_bodypart == String::default() {
+                    Ok(())
+                } else {
                     format!(
                         "PartSlot_{}_{idx}_female",
                         &biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.female_bodypart)
-                } else {
-                    Ok(())
                 }
             })?;
 
@@ -1232,9 +1239,9 @@ mod test_armor_fgd {
         }
 
         let part_type = tes3::esp::BipedObjectType::Chest.display();
-        assert!(out.contains(&format!("PartSlot_{}_0_male(string)", part_type)));
+        assert!(out.contains(&format!("PartSlot_{part_type}_0_male(string)")));
         assert!(out.contains("A_Male_Part"));
-        assert!(out.contains(&format!("PartSlot_{}_0_female(string)", part_type)));
+        assert!(out.contains(&format!("PartSlot_{part_type}_0_female(string)")));
         assert!(out.contains("A_Female_Part"));
 
         assert!(
@@ -1868,7 +1875,7 @@ impl WriteFGDProp for Container {
             .iter()
             .enumerate()
             .try_for_each(|(idx, (count, id))| {
-                format!("InventoryItemID_{idx}").write_fgd(fgd_string, "", &id)?;
+                format!("InventoryItemID_{idx}").write_fgd(fgd_string, "", id)?;
                 count.write_fgd(
                     fgd_string,
                     &format!("InventoryItemCount_{idx}"),
@@ -1900,7 +1907,7 @@ mod tests {
                 (5, "misc_com_bottle_01".to_string().into()),
                 (1, "ingred_comberry_01".to_string().into()),
             ],
-            encumbrance: 150.0.into(),
+            encumbrance: 150.0,
         }
     }
 
@@ -1961,17 +1968,17 @@ impl WriteFGDProp for Book {
         "Enchantment".write_fgd(fgd_string, "", &self.enchanting)?;
         self.data.weight.write_fgd(fgd_string, "Weight", "")?;
         self.data.value.write_fgd(fgd_string, "Value", "")?;
-        "BookType".write_fgd(fgd_string, "", &self.data.book_type.display())?;
+        "BookType".write_fgd(fgd_string, "", self.data.book_type.display())?;
 
         if self.data.skill != SkillId::None {
-            "SkillId".write_fgd(fgd_string, "", &self.data.skill.display())?;
+            "SkillId".write_fgd(fgd_string, "", self.data.skill.display())?;
         }
 
         self.data
             .enchantment
             .write_fgd(fgd_string, "EnchantCap", "")?;
 
-        "BookText".write_fgd(fgd_string, "", &self.data.book_type.display())?;
+        "BookText".write_fgd(fgd_string, "", self.data.book_type.display())?;
 
         writeln!(fgd_string, "]\n")?;
 
@@ -2020,10 +2027,10 @@ mod test_book_fgd {
         let book = Book {
             id: "bk_blank".into(),
             mesh: "Meshes\\Books\\bk_blank.nif".into(),
-            script: "".into(),
+            script: String::new(),
             name: "Blank Book".into(),
             icon: "Icons\\Books\\blank.dds".into(),
-            enchanting: "".into(),
+            enchanting: String::new(),
             text: "Nothing is written here.".into(),
             flags: ObjectFlags::empty(),
             data: BookData {
@@ -2067,12 +2074,12 @@ mod test_book_fgd {
     fn book_fgd_includes_skill_id_when_set() {
         let book = Book {
             id: "bk_skill_mysticism".into(),
-            mesh: "".into(),
-            script: "".into(),
+            mesh: String::new(),
+            script: String::new(),
             name: "Skill Book: Mysticism".into(),
-            icon: "".into(),
-            enchanting: "".into(),
-            text: "".into(),
+            icon: String::new(),
+            enchanting: String::new(),
+            text: String::new(),
             flags: ObjectFlags::empty(),
             data: BookData {
                 weight: 1.0,
@@ -2189,7 +2196,7 @@ impl WriteFGDProp for Alchemy {
                         }
                         _ => {}
                     }
-                };
+                }
 
                 Ok(())
             })
@@ -2224,7 +2231,7 @@ mod test_potion_fgd {
             id: "PotionHealth".into(),
             mesh: "meshes\\potions\\health.nif".into(),
             icon: "icons\\potions\\health.dds".into(),
-            script: "".into(),
+            script: String::new(),
             name: "Potion of Healing".into(),
             flags: ObjectFlags::empty(),
             data: AlchemyData {
@@ -2234,8 +2241,8 @@ mod test_potion_fgd {
             },
             effects: vec![Effect {
                 magic_effect: EffectId2::RestoreHealth,
-                skill: Default::default(),
-                attribute: Default::default(),
+                skill: tes3::esp::SkillId2::default(),
+                attribute: tes3::esp::AttributeId2::default(),
                 range: EffectRange::OnSelf,
                 area: 0,
                 duration: 5,
@@ -2293,9 +2300,9 @@ mod test_potion_fgd {
     fn potion_fgd_writes_restore_health_effect() {
         let potion = Alchemy {
             id: "HealthRestore".into(),
-            mesh: "".into(),
-            script: "".into(),
-            name: "".into(),
+            mesh: String::new(),
+            script: String::new(),
+            name: String::new(),
             flags: ObjectFlags::empty(),
             icon: "icons\\potions\\health.dds".into(),
             data: AlchemyData {
@@ -2305,8 +2312,8 @@ mod test_potion_fgd {
             },
             effects: vec![Effect {
                 magic_effect: EffectId2::RestoreHealth,
-                skill: Default::default(),
-                attribute: Default::default(),
+                skill: tes3::esp::SkillId2::default(),
+                attribute: tes3::esp::AttributeId2::default(),
                 range: EffectRange::OnSelf,
                 area: 0,
                 duration: 2,
@@ -2343,9 +2350,9 @@ mod test_potion_fgd {
         let potion = Alchemy {
             id: "PotionStr".into(),
             icon: "icons\\potions\\health.dds".into(),
-            mesh: "".into(),
-            script: "".into(),
-            name: "".into(),
+            mesh: String::new(),
+            script: String::new(),
+            name: String::new(),
             flags: ObjectFlags::empty(),
             data: AlchemyData {
                 weight: 0.1,
@@ -2354,7 +2361,7 @@ mod test_potion_fgd {
             },
             effects: vec![Effect {
                 magic_effect: EffectId2::FortifyAttribute,
-                skill: Default::default(),
+                skill: tes3::esp::SkillId2::default(),
                 attribute: tes3::esp::AttributeId2::Strength,
                 range: EffectRange::OnTouch,
                 area: 5,
@@ -2383,10 +2390,10 @@ mod test_potion_fgd {
     fn potion_fgd_serializes_skill_effect() {
         let potion = Alchemy {
             id: "PotionAcrobatics".into(),
-            mesh: "".into(),
+            mesh: String::new(),
             icon: "icons\\potions\\health.dds".into(),
-            script: "".into(),
-            name: "".into(),
+            script: String::new(),
+            name: String::new(),
             flags: ObjectFlags::empty(),
             data: AlchemyData {
                 weight: 0.1,
@@ -2396,7 +2403,7 @@ mod test_potion_fgd {
             effects: vec![Effect {
                 magic_effect: EffectId2::DamageSkill,
                 skill: tes3::esp::SkillId2::Acrobatics,
-                attribute: Default::default(),
+                attribute: tes3::esp::AttributeId2::default(),
                 range: EffectRange::OnTarget,
                 area: 10,
                 duration: 2,
@@ -2420,9 +2427,9 @@ mod test_potion_fgd {
         let potion = Alchemy {
             id: "NoneEffectPotion".into(),
             icon: "icons\\potions\\health.dds".into(),
-            mesh: "".into(),
-            script: "".into(),
-            name: "".into(),
+            mesh: String::new(),
+            script: String::new(),
+            name: String::new(),
             flags: ObjectFlags::empty(),
             data: AlchemyData {
                 weight: 0.1,
@@ -2431,8 +2438,8 @@ mod test_potion_fgd {
             },
             effects: vec![Effect {
                 magic_effect: EffectId2::None,
-                skill: Default::default(),
-                attribute: Default::default(),
+                skill: tes3::esp::SkillId2::default(),
+                attribute: tes3::esp::AttributeId2::default(),
                 range: EffectRange::OnSelf,
                 area: 0,
                 duration: 0,
@@ -2479,7 +2486,7 @@ impl WriteFGDProp for Apparatus {
         self.data.weight.write_fgd(fgd_string, "Weight", "")?;
         self.data.value.write_fgd(fgd_string, "Value", "")?;
         self.data.quality.write_fgd(fgd_string, "Quality", "")?;
-        "ApparatusType".write_fgd(fgd_string, "", &self.data.apparatus_type.display())?;
+        "ApparatusType".write_fgd(fgd_string, "", self.data.apparatus_type.display())?;
 
         writeln!(fgd_string, "]\n")?;
 
@@ -2524,7 +2531,7 @@ mod test_apparatus_fgd {
         let app = Apparatus {
             id: "Mortar01".into(),
             mesh: "Meshes\\Apparatus\\mortar01.nif".into(),
-            script: "".into(),
+            script: String::new(),
             name: "Mortar & Pestle".into(),
             icon: "Icons\\App\\mortar.dds".into(),
             flags: ObjectFlags::all(),

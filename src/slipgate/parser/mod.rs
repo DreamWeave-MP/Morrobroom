@@ -18,16 +18,28 @@ use nom::{
 };
 
 /// Recognize an unsigned integer literal.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not begin with decimal digits.
 pub fn parse_integer_unsigned(input: &str) -> IResult<&str, &str> {
     recognize(many1(one_of("0123456789"))).parse(input)
 }
 
 /// Recognize a signed integer literal.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not begin with an optional sign and decimal digits.
 pub fn parse_integer_signed(input: &str) -> IResult<&str, &str> {
     recognize((opt(one_of("+-")), parse_integer_unsigned)).parse(input)
 }
 
 /// Recognize a floating-point literal.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not begin with a supported floating-point literal.
 pub fn parse_float(input: &str) -> IResult<&str, &str> {
     alt((
         // Case one: +.42 / -.42 / .42
@@ -47,6 +59,10 @@ pub fn parse_float(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a quoted string literal into string slice: `"Foo"` becomes an `&str` containing `Foo`.
+///
+/// # Errors
+///
+/// Returns a parser error when the input is not a quoted string.
 pub fn parse_string(input: &str) -> IResult<&str, &str> {
     let esc = escaped(none_of("\"\'"), '\\', one_of("\"\'"));
     let esc_or_empty = alt((esc, tag("")));
@@ -56,6 +72,10 @@ pub fn parse_string(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a comment beginning with `//` and terminating at end-of-line, not including end-of-line characters.
+///
+/// # Errors
+///
+/// Returns a parser error when the input does not begin with a line comment.
 pub fn parse_eol_comment(input: &str) -> IResult<&str, &str> {
     let (i, (_, o)) = pair(
         recognize(terminated(tag("//"), opt(space1))),

@@ -15,6 +15,12 @@ pub type FaceVertices = Usage<FaceVerticesTag, DenseStorage<FaceId, Vec<Vector3>
 pub type FaceVertexPlanes =
     Usage<FaceVertexPlanesTag, DenseStorage<FaceId, Vec<(FaceId, FaceId, FaceId)>>>;
 
+/// Compute the vertices created by intersecting each brush face with its hull.
+///
+/// # Panics
+///
+/// Panics if a brush face is missing from the dense face storage.
+#[must_use]
 pub fn face_vertices(
     brush_planes: &BrushFaces,
     face_planes: &FacePlanes,
@@ -108,7 +114,7 @@ pub fn triplanar_intersection(p0: &Plane3d, p1: &Plane3d, p2: &Plane3d) -> Optio
         + n0.cross(&n1) * f64::from(p2.distance()))
         / denom;
 
-    Some(position.map(|value| value as f32))
+    Some(position.map(crate::slipgate::f64_to_f32))
 }
 
 #[cfg(test)]

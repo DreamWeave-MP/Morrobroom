@@ -17,6 +17,7 @@ pub enum FaceIndicesTag {}
 pub type FaceIndices = Usage<FaceIndicesTag, DenseStorage<FaceId, Vec<usize>>>;
 
 // Generate face indices with the specified winding
+#[must_use]
 pub fn face_indices(
     face_planes: &FaceTrianglePlanes,
     geo_planes: &FacePlanes,
@@ -64,6 +65,7 @@ pub fn face_indices(
 }
 
 /// Generate both winding orders from one angular sort per face.
+#[must_use]
 pub fn face_indices_both(
     face_planes: &FaceTrianglePlanes,
     geo_planes: &FacePlanes,

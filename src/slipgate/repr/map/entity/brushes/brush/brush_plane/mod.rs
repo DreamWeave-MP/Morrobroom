@@ -48,6 +48,6 @@ mod tests {
         assert_eq!(
             crate::slipgate::unit_test_data::test_brush_plane_out().to_string(),
             crate::slipgate::unit_test_data::test_brush_plane_in()
-        )
+        );
     }
 }
