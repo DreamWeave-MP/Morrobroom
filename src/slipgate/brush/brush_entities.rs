@@ -1,17 +1,17 @@
-use std::collections::BTreeMap;
-
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
-use crate::slipgate::{EntityBrushes, brush::BrushId, entity::EntityId};
+use crate::slipgate::{DenseStorage, EntityBrushes, brush::BrushId, entity::EntityId};
 
 pub enum BrushEntitiesTag {}
 
-pub type BrushEntities = Usage<BrushEntitiesTag, BTreeMap<BrushId, EntityId>>;
+pub type BrushEntities = Usage<BrushEntitiesTag, DenseStorage<BrushId, EntityId>>;
 
 pub fn brush_entities(entity_brushes: &EntityBrushes) -> BrushEntities {
-    entity_brushes
-        .par_iter()
-        .flat_map_iter(|(entity, brushes)| brushes.iter().map(move |brush| (*brush, *entity)))
-        .collect()
+    DenseStorage::from_vec(
+        entity_brushes
+            .iter()
+            .flat_map(|(entity, brushes)| brushes.iter().map(move |_| *entity))
+            .collect(),
+    )
+    .into()
 }
