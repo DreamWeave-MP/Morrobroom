@@ -81,21 +81,39 @@ Copy the contents of the repository's `resources/` directory into the custom
 - macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind`
 - Linux: `~/.TrenchBroom/games/Morrowind`
 
-In **Preferences → Games → Morrowind**, set the game directory and configure
-the compilation tools:
+In **Preferences → Games → Morrowind**, set the Morrowind game directory to
+the directory containing `Data Files/` — not `Data Files/` itself — and
+configure the compilation tools:
 
 - `Morrobroom` — the downloaded Morrobroom executable
 - `OpenMW` — the OpenMW executable used to launch compiled maps
 - `OpenCS` — optional, for finishing plugins in OpenMW Construction Set
 
 The supplied **Map-to-Engine** profile uses those tool names and stages each
-map under its own `build/` directory. It does not assume `/usr/bin/openmw` or
-write generated assets into the global OpenMW data directory. Configure an
-OpenMW engine profile separately if you want TrenchBroom's normal **Launch**
-command as well.
+map under its own `build/<map-name>/` directory. It does not assume
+`/usr/bin/openmw` or write generated assets into the global OpenMW data
+directory. Configure an OpenMW engine profile separately if you want
+TrenchBroom's normal **Launch** command as well.
+
+**Save your map before compiling.** This profile compiles the saved `.map`
+file directly rather than creating a temporary export through TrenchBroom.
+The on-disk map is the source of truth.
 
 If the included object definitions do not match the installed game data,
-regenerate `Morrowind.fgd` from the active `openmw.cfg` with the `FGD` command.
+regenerate `Morrowind.fgd` from the active `openmw.cfg` and write it into the
+custom game directory listed above. For example:
+
+```bash
+morrobroom FGD \
+  --config /path/to/openmw.cfg \
+  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+```
+
+The destination is:
+
+- Windows: `%APPDATA%\TrenchBroom\games\Morrowind\Morrowind.fgd`
+- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind/Morrowind.fgd`
+- Linux: `~/.TrenchBroom/games/Morrowind/Morrowind.fgd`
 
 ## Lightmapping
 

@@ -104,6 +104,8 @@ You will generally want:
 - a Morrobroom release binary, or a Rust toolchain if building from source
 
 Morrobroom includes its TrenchBroom game configuration, compilation profile, editor assets, and base FGD data under `resources/`.
+Release archives also include the documentation source under `content/` so
+offline distributions retain the same material used by the project site.
 
 ### Configure TrenchBroom
 
@@ -114,28 +116,42 @@ directory:
 - macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind`
 - Linux: `~/.TrenchBroom/games/Morrowind`
 
-Then open **Preferences → Games → Morrowind**, set the Morrowind game
-directory, and configure these compilation tools:
+Then open **Preferences → Games → Morrowind**. Set the Morrowind game
+directory to the directory containing `Data Files/` — not `Data Files/`
+itself — and configure these compilation tools:
 
 - `Morrobroom`: the downloaded Morrobroom executable
 - `OpenMW`: the OpenMW executable used by **Map-to-Engine**
 - `OpenCS`: optional, for finishing generated plugins in OpenMW Construction
-  Set
 
 The supplied profile uses these names rather than embedding executable paths.
-It compiles into a project-local `build/` directory, so generated meshes,
-lightmaps, and the plugin stay together instead of being written into the
-global OpenMW data directory. Configure an OpenMW engine profile separately if
-you also want TrenchBroom's normal **Launch** command.
+It compiles into a project-local `build/<map-name>/` directory, so generated
+meshes, lightmaps, and the plugin stay together without different maps
+overwriting one another or writing into the global OpenMW data directory.
+Configure an OpenMW engine profile separately if you also want TrenchBroom's
+normal **Launch** command.
+
+**Save the map before compiling.** The supplied profile compiles the saved
+`.map` file directly; it does not create a temporary export through
+TrenchBroom's Export Map task. The on-disk map is the source of truth.
 
 If the supplied FGD does not match the user's installed data, regenerate it
-from the active OpenMW configuration:
+from the active OpenMW configuration and write it into the custom game
+directory:
 
 ```bash
 morrobroom FGD \
   --config /path/to/openmw.cfg \
-  --output Morrowind.fgd
+  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
 ```
+
+The destination is:
+
+- Windows: `%APPDATA%\TrenchBroom\games\Morrowind\Morrowind.fgd`
+- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind/Morrowind.fgd`
+- Linux: `~/.TrenchBroom/games/Morrowind/Morrowind.fgd`
+
+The generated file is a TrenchBroom resource, not an OpenMW data file.
 
 ### Compile a map
 
@@ -150,8 +166,8 @@ To stage all generated assets in a project-local directory:
 ```bash
 morrobroom compile \
   --map my_level.map \
-  --output-dir build \
-  --output build/my_level.omwaddon
+  --output-dir build/my_level \
+  --output build/my_level/my_level.omwaddon
 ```
 
 Lightmapping is enabled by default.
@@ -179,7 +195,7 @@ Supported plugin outputs:
 ```bash
 morrobroom FGD \
   --config /path/to/openmw.cfg \
-  --output Morrowind.fgd
+  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
 ```
 
 You can restrict generation to selected TES3 record types:
@@ -188,7 +204,7 @@ You can restrict generation to selected TES3 record types:
 morrobroom FGD \
   --config /path/to/openmw.cfg \
   --types STAT;DOOR;LIGH;ACTI \
-  --output Morrowind.fgd
+  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
 ```
 
 ## Why TrenchBroom?
