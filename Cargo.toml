@@ -17,6 +17,7 @@ nom = "8.0.0"
 vfstool_lib = { version = "0.9.0", features = ["zip"] }
 rayon = "1.12.0"
 glam = "0.33.5"
+lightmap = "0.7.0"
 serde = { version = "1.0.229", features = ["derive"] }
 usage = { version = "1.4.0", features = ["rayon"] }
 openmw-config = "1.1.0"
