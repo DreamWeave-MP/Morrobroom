@@ -317,7 +317,7 @@ impl BrushNiNode {
         }
 
         for face_id in faces.iter() {
-            let texture_id = map_data.geomap.face_textures.get(face_id).unwrap();
+            let texture_id = map_data.geomap.face_textures.get(*face_id).unwrap();
             let texture_name = map_data.geomap.textures.get(texture_id).unwrap();
 
             if texture_name == "skip" || texture_name.contains("skip_") {
@@ -327,7 +327,7 @@ impl BrushNiNode {
             let (_content_flags, mut surface_flags, _value) = match &map_data
                 .geomap
                 .face_extensions
-                .get(face_id)
+                .get(*face_id)
                 .unwrap_or(&repr::Extension::Standard)
             {
                 &repr::Extension::Quake2 {
@@ -407,7 +407,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
         let faces = map_data.geomap.brush_faces.get(brush_id).unwrap();
 
         for face in faces.iter() {
-            let texture_id = map_data.geomap.face_textures.get(face).unwrap();
+            let texture_id = map_data.geomap.face_textures.get(*face).unwrap();
             let texture_name = map_data.geomap.textures.get(texture_id).unwrap();
             if !face_textures.contains(texture_name) {
                 face_textures.push(texture_name.to_string())
@@ -419,7 +419,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
 
         for (index, texture) in face_textures.iter().enumerate() {
             for face in faces.iter() {
-                let texture_id = map_data.geomap.face_textures.get(face).unwrap();
+                let texture_id = map_data.geomap.face_textures.get(*face).unwrap();
                 let texture_name = map_data.geomap.textures.get(texture_id).unwrap();
 
                 if texture_name == texture {

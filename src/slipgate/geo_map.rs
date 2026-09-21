@@ -6,7 +6,7 @@ use crate::slipgate::repr::{
 use usage::Usage;
 
 use crate::slipgate::{
-    Vector2, assert_contiguous_ids, brush::BrushId, entity::EntityId, face::FaceId,
+    DenseStorage, Vector2, assert_contiguous_ids, brush::BrushId, entity::EntityId, face::FaceId,
     texture::TextureId,
 };
 
@@ -36,12 +36,12 @@ pub type EntityBrushes = Usage<EntityBrushesTag, BTreeMap<EntityId, Vec<BrushId>
 
 pub type BrushFaces = Usage<BrushFacesTag, BTreeMap<BrushId, Vec<FaceId>>>;
 
-pub type FaceTrianglePlanes = Usage<FaceTrianglePlanesTag, BTreeMap<FaceId, TrianglePlane>>;
-pub type FaceTextures = Usage<FaceTexturesTag, BTreeMap<FaceId, TextureId>>;
-pub type FaceOffsets = Usage<FaceOffsetsTag, BTreeMap<FaceId, TextureOffset>>;
-pub type FaceAngles = Usage<FaceAnglesTag, BTreeMap<FaceId, f32>>;
-pub type FaceScales = Usage<FaceScalesTag, BTreeMap<FaceId, Vector2>>;
-pub type FaceExtensions = Usage<FaceExtensionsTag, BTreeMap<FaceId, Extension>>;
+pub type FaceTrianglePlanes = Usage<FaceTrianglePlanesTag, DenseStorage<FaceId, TrianglePlane>>;
+pub type FaceTextures = Usage<FaceTexturesTag, DenseStorage<FaceId, TextureId>>;
+pub type FaceOffsets = Usage<FaceOffsetsTag, DenseStorage<FaceId, TextureOffset>>;
+pub type FaceAngles = Usage<FaceAnglesTag, DenseStorage<FaceId, f32>>;
+pub type FaceScales = Usage<FaceScalesTag, DenseStorage<FaceId, Vector2>>;
+pub type FaceExtensions = Usage<FaceExtensionsTag, DenseStorage<FaceId, Extension>>;
 
 pub type Textures = Usage<TexturesTag, BTreeMap<TextureId, String>>;
 
@@ -83,12 +83,12 @@ impl GeoMap {
 
         let mut brush_faces = BrushFaces::default();
 
-        let mut face_planes = FaceTrianglePlanes::default();
-        let mut face_textures = FaceTextures::default();
-        let mut face_offsets = FaceOffsets::default();
-        let mut face_angles = FaceAngles::default();
-        let mut face_scales = FaceScales::default();
-        let mut face_extensions = FaceExtensions::default();
+        let mut face_planes = Vec::new();
+        let mut face_textures = Vec::new();
+        let mut face_offsets = Vec::new();
+        let mut face_angles = Vec::new();
+        let mut face_scales = Vec::new();
+        let mut face_extensions = Vec::new();
 
         let mut textures = BTreeMap::<String, TextureId>::new();
 
@@ -126,7 +126,7 @@ impl GeoMap {
                     plane_head += 1;
 
                     faces.push(plane_id);
-                    face_planes.insert(plane_id, plane);
+                    face_planes.push(plane);
 
                     let texture_id = if let Some(texture_id) = textures.get(&texture) {
                         *texture_id
@@ -137,12 +137,12 @@ impl GeoMap {
                         texture_id
                     };
 
-                    face_textures.insert(plane_id, texture_id);
+                    face_textures.push(texture_id);
 
-                    face_offsets.insert(plane_id, texture_offset);
-                    face_angles.insert(plane_id, angle);
-                    face_scales.insert(plane_id, nalgebra::vector![scale_x, scale_y]);
-                    face_extensions.insert(plane_id, extension);
+                    face_offsets.push(texture_offset);
+                    face_angles.push(angle);
+                    face_scales.push(nalgebra::vector![scale_x, scale_y]);
+                    face_extensions.push(extension);
                     brush_faces.entry(brush_id).or_default().push(plane_id);
                 }
             }
@@ -168,12 +168,12 @@ impl GeoMap {
             entity_brushes,
             point_entities,
             brush_faces,
-            face_planes,
-            face_textures,
-            face_offsets,
-            face_angles,
-            face_scales,
-            face_extensions,
+            face_planes: DenseStorage::from_vec(face_planes).into(),
+            face_textures: DenseStorage::from_vec(face_textures).into(),
+            face_offsets: DenseStorage::from_vec(face_offsets).into(),
+            face_angles: DenseStorage::from_vec(face_angles).into(),
+            face_scales: DenseStorage::from_vec(face_scales).into(),
+            face_extensions: DenseStorage::from_vec(face_extensions).into(),
         }
     }
 }

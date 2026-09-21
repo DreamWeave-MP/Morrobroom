@@ -26,7 +26,7 @@ pub fn assert_contiguous_ids<K: DenseId>(ids: impl IntoIterator<Item = K>) {
 ///
 /// The type parameter prevents accidentally indexing one arena with another
 /// arena's ID while keeping the representation a plain `Vec<T>`.
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub struct DenseStorage<K, V> {
     values: Vec<V>,
     marker: PhantomData<K>,

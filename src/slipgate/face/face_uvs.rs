@@ -1,6 +1,6 @@
 use crate::slipgate::repr::{TextureOffset, TexturePlane};
 use crate::slipgate::{
-    DenseStorage, Plane3d, Vector2, Vector3,
+    DenseStorage, FaceAngles, FaceOffsets, FaceScales, FaceTextures, Plane3d, Vector2, Vector3,
     texture::{TextureId, TextureSizes},
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -76,19 +76,19 @@ impl TextureProjection {
 pub fn new(
     faces: &Vec<FaceId>,
     textures: &BTreeMap<TextureId, String>,
-    face_textures: &BTreeMap<FaceId, TextureId>,
+    face_textures: &FaceTextures,
     face_vertices: &FaceVertices,
     face_planes: &FacePlanes,
-    face_texture_offsets: &BTreeMap<FaceId, TextureOffset>,
-    face_texture_rotations: &BTreeMap<FaceId, f32>,
-    face_texture_scales: &BTreeMap<FaceId, Vector2>,
+    face_texture_offsets: &FaceOffsets,
+    face_texture_rotations: &FaceAngles,
+    face_texture_scales: &FaceScales,
     texture_sizes: &TextureSizes,
 ) -> FaceUvs {
     let uvs = faces
         .par_iter()
         .map(|face_id| {
             let face_id = *face_id;
-            let face_texture = &face_textures[&face_id];
+            let face_texture = &face_textures[face_id];
             let texture_size = texture_sizes.get(face_texture).copied().unwrap_or_else(|| {
                 println!(
                     "Warning: Texture {} not found, generating UV with default size of 256x256",
@@ -98,9 +98,9 @@ pub fn new(
             });
             let face_vertices = &face_vertices[face_id];
             let face_plane = face_planes[face_id];
-            let face_texture_offset = face_texture_offsets[&face_id];
-            let face_texture_rotation = face_texture_rotations[&face_id];
-            let face_texture_scale = face_texture_scales[&face_id];
+            let face_texture_offset = face_texture_offsets[face_id];
+            let face_texture_rotation = face_texture_rotations[face_id];
+            let face_texture_scale = face_texture_scales[face_id];
             let valve_projection = match face_texture_offset {
                 TextureOffset::Valve { u, v } => Some(TextureProjection::from_valve(
                     u,

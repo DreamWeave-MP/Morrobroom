@@ -29,7 +29,7 @@ pub fn face_indices(
         .enumerate()
         .map(|(face_index, vertices)| {
             let plane_id = FaceId(face_index);
-            let face_plane = &face_planes[&plane_id];
+            let face_plane = &face_planes[plane_id];
             let plane = &geo_planes[plane_id];
             let plane_center = &face_centers[plane_id];
 

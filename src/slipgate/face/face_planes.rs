@@ -1,22 +1,16 @@
-use std::collections::BTreeMap;
-
-use crate::slipgate::repr::TrianglePlane;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::ParallelIterator;
 use usage::Usage;
 
 use crate::slipgate::{DenseStorage, Plane3d};
 
 use super::FaceId;
+use crate::slipgate::FaceTrianglePlanes;
 
 pub enum FacePlanesTag {}
 
 pub type FacePlanes = Usage<FacePlanesTag, DenseStorage<FaceId, Plane3d>>;
 
-pub fn face_planes(face_triangle_planes: &BTreeMap<FaceId, TrianglePlane>) -> FacePlanes {
-    let mut planes: Vec<_> = face_triangle_planes
-        .par_iter()
-        .map(|(face_id, face_plane)| (*face_id, Plane3d::from(face_plane)))
-        .collect();
-    planes.sort_unstable_by_key(|(face_id, _)| face_id.0);
-    DenseStorage::from_pairs(planes).into()
+pub fn face_planes(face_triangle_planes: &FaceTrianglePlanes) -> FacePlanes {
+    let planes: Vec<_> = face_triangle_planes.par_iter().map(Plane3d::from).collect();
+    DenseStorage::from_vec(planes).into()
 }
