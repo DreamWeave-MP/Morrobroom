@@ -36,28 +36,53 @@ pub fn face_indices(
             let u_axis = (plane_v1 - plane_v0).normalize();
             let v_axis = plane.normal().cross(&u_axis);
 
+            let angles = vertices
+                .iter()
+                .map(|vertex| {
+                    let relative = vertex - plane_center;
+                    relative.dot(&v_axis).atan2(relative.dot(&u_axis))
+                })
+                .collect::<Vec<_>>();
+
             let mut indices = (0..vertices.len()).collect::<Vec<_>>();
             indices.sort_unstable_by(|lhs, rhs| {
-                let lhs_v = vertices[*lhs] - plane_center;
-                let rhs_v = vertices[*rhs] - plane_center;
-
-                let lhs_pu = lhs_v.dot(&u_axis);
-                let lhs_pv = lhs_v.dot(&v_axis);
-
-                let rhs_pu = rhs_v.dot(&u_axis);
-                let rhs_pv = rhs_v.dot(&v_axis);
-
-                let lhs_angle = lhs_pv.atan2(lhs_pu);
-                let rhs_angle = rhs_pv.atan2(rhs_pu);
-
-                if winding == FaceWinding::CounterClockwise {
-                    rhs_angle.partial_cmp(&lhs_angle)
-                } else {
-                    lhs_angle.partial_cmp(&rhs_angle)
-                }
-                .unwrap_or(Ordering::Equal)
+                angles[*lhs]
+                    .partial_cmp(&angles[*rhs])
+                    .unwrap_or(Ordering::Equal)
             });
+
+            if winding == FaceWinding::CounterClockwise {
+                indices.reverse();
+            }
+
             (*plane_id, indices)
         })
         .collect()
+}
+
+/// Generate both winding orders from one angular sort per face.
+pub fn face_indices_both(
+    face_planes: &FaceTrianglePlanes,
+    geo_planes: &FacePlanes,
+    face_vertices: &FaceVertices,
+    face_centers: &FaceCenters,
+) -> (FaceIndices, FaceIndices) {
+    let clockwise = face_indices(
+        face_planes,
+        geo_planes,
+        face_vertices,
+        face_centers,
+        FaceWinding::Clockwise,
+    );
+
+    let counter_clockwise: BTreeMap<FaceId, Vec<usize>> = clockwise
+        .iter()
+        .map(|(face_id, indices)| {
+            let mut reversed = indices.clone();
+            reversed.reverse();
+            (*face_id, reversed)
+        })
+        .collect();
+
+    (clockwise, counter_clockwise.into())
 }

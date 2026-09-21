@@ -6,8 +6,7 @@ use crate::slipgate::repr::Map;
 use crate::slipgate::{
     GeoMap, brush, face,
     face::{
-        FaceCenters, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices, FaceWinding,
-        OccludedFaces,
+        FaceCenters, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices, OccludedFaces,
     },
     line,
     texture::TextureSizes,
@@ -125,19 +124,11 @@ impl MapGeometry {
             face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
         let face_centers = face::face_centers(&face_vertices);
 
-        let face_indices_cw = face::face_indices(
+        let (face_indices_cw, face_indices_ccw) = face::face_indices_both(
             &geomap.face_planes,
             &face_planes,
             &face_vertices,
             &face_centers,
-            FaceWinding::Clockwise,
-        );
-        let face_indices_ccw = face::face_indices(
-            &geomap.face_planes,
-            &face_planes,
-            &face_vertices,
-            &face_centers,
-            FaceWinding::CounterClockwise,
         );
 
         let face_tri_indices = face::face_triangle_indices(&face_indices_cw);
