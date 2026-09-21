@@ -1,4 +1,4 @@
-![Morrobroom](morrobroom_header.png)
+![Morrobroom](header.png)
 
 # Morrobroom
 
