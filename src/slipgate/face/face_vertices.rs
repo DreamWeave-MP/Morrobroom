@@ -90,22 +90,25 @@ pub fn face_vertices(
 }
 
 pub fn triplanar_intersection(p0: &Plane3d, p1: &Plane3d, p2: &Plane3d) -> Option<Vector3> {
-    let n0 = p0.normal();
-    let n1 = p1.normal();
-    let n2 = p2.normal();
+    // Solve in f64 before converting back to the engine's f32 vertex type.
+    // The extra precision matters for tightly spaced planes in high-sided
+    // convex brushes.
+    let n0 = p0.normal().map(f64::from);
+    let n1 = p1.normal().map(f64::from);
+    let n2 = p2.normal().map(f64::from);
 
-    let denom = n0.cross(n1).dot(n2);
+    let denom = n0.cross(&n1).dot(&n2);
 
-    if denom.abs() < EPSILON {
+    if denom.abs() < f64::from(EPSILON) {
         return None;
     }
 
-    Some(
-        (n1.cross(n2) * p0.distance()
-            + n2.cross(n0) * p1.distance()
-            + n0.cross(n1) * p2.distance())
-            / denom,
-    )
+    let position = (n1.cross(&n2) * f64::from(p0.distance())
+        + n2.cross(&n0) * f64::from(p1.distance())
+        + n0.cross(&n1) * f64::from(p2.distance()))
+        / denom;
+
+    Some(position.map(|value| value as f32))
 }
 
 #[cfg(test)]

@@ -43,8 +43,13 @@ impl ConvexHull {
 
     pub fn contains(&self, vertex: &Vector3) -> bool {
         for plane in &self.0 {
-            let proj = plane.normal().dot(vertex);
-            if proj > plane.distance() && (proj - plane.distance()).abs() > EPSILON {
+            // Keep the classification in f64; a many-sided prism can put a
+            // vertex only a few f32 ulps from one of its side planes.
+            let normal = plane.normal().map(f64::from);
+            let point = vertex.map(f64::from);
+            let proj = normal.dot(&point);
+            let distance = f64::from(plane.distance());
+            if proj > distance && (proj - distance).abs() > f64::from(EPSILON) {
                 return false;
             }
         }

@@ -275,7 +275,7 @@ impl MapGeometry {
 
 #[cfg(test)]
 mod tests {
-    use crate::slipgate::repr::Map;
+    use crate::slipgate::repr::{Brush, Brushes, Entity, Map};
 
     use super::*;
 
@@ -388,7 +388,7 @@ mod tests {
                 .iter()
                 .map(|fragment| fragment.polygon.area())
                 .sum::<f64>()
-                - 90389929.2545853)
+                - 90_389_929.250_548_84)
                 .abs()
                 < 1.0e-6
         );
@@ -408,6 +408,76 @@ mod tests {
 
         assert_eq!(visible.len(), geometry.geomap.faces.len());
         assert_visible_fragment_invariants(&geometry, &visible);
+    }
+
+    #[test]
+    fn ninety_six_sided_prism_has_four_vertex_side_faces() {
+        let source = include_str!("../../tests/fixtures/maps/morrobroom_csg_apocalypse.map")
+            .parse::<Map>()
+            .expect("CSG apocalypse fixture should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(prism_map(&source, 96));
+
+        assert_eq!(geometry.geomap.faces.len(), 98);
+        assert!(
+            geometry
+                .face_polygons
+                .iter()
+                .all(|polygon| polygon.len() >= 3)
+        );
+        assert!(
+            geometry
+                .face_polygons
+                .iter()
+                .take(96)
+                .all(|polygon| polygon.len() == 4)
+        );
+        assert_eq!(geometry.face_polygons[FaceId(96)].len(), 96);
+        assert_eq!(geometry.face_polygons[FaceId(97)].len(), 96);
+    }
+
+    #[test]
+    fn prism_source_geometry_survives_reduced_side_counts() {
+        let source = include_str!("../../tests/fixtures/maps/morrobroom_csg_apocalypse.map")
+            .parse::<Map>()
+            .expect("CSG apocalypse fixture should parse");
+
+        for side_count in [3, 4, 6, 8, 12, 16, 24, 32, 48, 96] {
+            let geometry = MapGeometry::from_map_without_occlusion(prism_map(&source, side_count));
+            assert_eq!(geometry.geomap.faces.len(), side_count + 2);
+            assert!(
+                geometry
+                    .face_polygons
+                    .iter()
+                    .take(side_count)
+                    .all(|polygon| polygon.len() == 4)
+            );
+            assert_eq!(geometry.face_polygons[FaceId(side_count)].len(), side_count);
+            assert_eq!(
+                geometry.face_polygons[FaceId(side_count + 1)].len(),
+                side_count
+            );
+        }
+    }
+
+    fn prism_map(source: &Map, side_count: usize) -> Map {
+        assert!(side_count > 0 && 96 % side_count == 0);
+        let worldspawn = &source[0];
+        let prism = worldspawn
+            .brushes
+            .iter()
+            .find(|brush| brush.len() == 98)
+            .expect("fixture should contain the 96-sided prism");
+        let stride = 96 / side_count;
+        let planes = (0..96)
+            .step_by(stride)
+            .map(|index| prism[index].clone())
+            .chain([prism[96].clone(), prism[97].clone()])
+            .collect();
+
+        Map::from(vec![Entity {
+            properties: worldspawn.properties.clone(),
+            brushes: Brushes::new(vec![Brush::new(planes)]),
+        }])
     }
 
     #[test]
