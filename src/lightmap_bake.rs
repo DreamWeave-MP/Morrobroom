@@ -76,6 +76,10 @@ impl BakedRenderMesh {
     /// copies the complete [`RenderVertex`] when it asks for a seam clone, so
     /// normals, base UVs, and the `RenderMesh` boundary remain aligned with the
     /// generated topology.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the UV generator changes source triangle order or winding.
     #[must_use]
     pub fn from_render_mesh(render_mesh: &RenderMesh, spacing: f32) -> Option<Self> {
         let mut vertices = Vec::new();
@@ -116,10 +120,6 @@ impl BakedRenderMesh {
             return None;
         }
 
-        for (vertex, &lightmap_uv) in vertices.iter_mut().zip(&patch.second_tex_coords) {
-            vertex.lightmap_uv = lightmap_uv;
-        }
-
         if patch
             .triangles
             .iter()
@@ -127,6 +127,11 @@ impl BakedRenderMesh {
             .any(|&index| index as usize >= vertices.len())
         {
             return None;
+        }
+        assert_uvgen_preserves_topology(&vertices, &triangles, &patch.triangles);
+
+        for (vertex, &lightmap_uv) in vertices.iter_mut().zip(&patch.second_tex_coords) {
+            vertex.lightmap_uv = lightmap_uv;
         }
 
         let mut parts = (0..render_mesh.parts.len())
@@ -198,6 +203,37 @@ impl BakedRenderMesh {
             lights,
             texels_per_unit,
         ))
+    }
+}
+
+fn assert_uvgen_preserves_topology(
+    vertices: &[BakedVertex],
+    source_triangles: &[[u32; 3]],
+    generated_triangles: &[[u32; 3]],
+) {
+    for (generated, source) in generated_triangles.iter().zip(source_triangles) {
+        assert!(
+            generated.iter().zip(source).all(|(&generated, &source)| {
+                vertices[generated as usize].render.position
+                    == vertices[source as usize].render.position
+            }),
+            "lightmap UV generation reordered or reversed source triangles"
+        );
+
+        let source_a = vertices[source[0] as usize].render.position;
+        let source_b = vertices[source[1] as usize].render.position;
+        let source_c = vertices[source[2] as usize].render.position;
+        let source_normal = (source_b - source_a).cross(&(source_c - source_a));
+        let generated_a = vertices[generated[0] as usize].render.position;
+        let generated_b = vertices[generated[1] as usize].render.position;
+        let generated_c = vertices[generated[2] as usize].render.position;
+        assert!(
+            (generated_b - generated_a)
+                .cross(&(generated_c - generated_a))
+                .dot(&source_normal)
+                > f32::EPSILON,
+            "lightmap UV generation changed triangle winding"
+        );
     }
 }
 
@@ -283,6 +319,31 @@ mod tests {
                 })
             })
         }));
+        assert_eq!(baked.triangle_parts, vec![0; 12]);
+        assert_eq!(baked.parts.len(), 1);
+        assert_eq!(baked.parts[0].indices.len(), source.parts[0].indices.len());
+    }
+
+    #[test]
+    fn uv_generation_preserves_material_provenance() {
+        let mut source = cube_mesh();
+        let mut second = source.parts[0].clone();
+        for vertex in &mut second.vertices {
+            vertex.position.x += 4.0;
+        }
+        second.source_face = FaceId(1);
+        second.source_brush = BrushId(1);
+        source.parts.push(second);
+
+        let baked = BakedRenderMesh::from_render_mesh(&source, 0.005)
+            .expect("two-part cube UV generation should succeed");
+
+        assert_eq!(baked.triangles.len(), 24);
+        assert_eq!(&baked.triangle_parts[..12], &[0; 12]);
+        assert_eq!(&baked.triangle_parts[12..], &[1; 12]);
+        assert_eq!(baked.parts.len(), 2);
+        assert_eq!(baked.parts[0].indices.len(), source.parts[0].indices.len());
+        assert_eq!(baked.parts[1].indices.len(), source.parts[1].indices.len());
     }
 
     #[test]

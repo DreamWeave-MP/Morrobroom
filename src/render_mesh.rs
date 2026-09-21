@@ -126,10 +126,10 @@ impl RenderMesh {
                 emissive: geometry.geomap.textures[texture_id].eq_ignore_ascii_case("sky5_blu"),
             };
 
-            let normal = polygon_normal(
-                &fragment.polygon.vertices,
-                geometry.face_planes[face_id].normal(),
-            );
+            let outward_normal = *geometry.face_planes[face_id].normal();
+            let fragment_normal = polygon_normal(&fragment.polygon.vertices, outward_normal);
+            let reversed = fragment_normal.dot(&outward_normal) < 0.0;
+            let reverse_indices = reversed ^ invert_winding;
             let texture_size = texture_sizes
                 .get(&texture_id)
                 .copied()
@@ -153,14 +153,14 @@ impl RenderMesh {
                     );
                     RenderVertex {
                         position,
-                        normal,
+                        normal: outward_normal,
                         uv,
                     }
                 })
                 .collect::<Vec<_>>();
             let mut indices = Vec::with_capacity((vertices.len() - 2) * 3);
             for index in 1..(vertices.len() - 1) {
-                let triangle = if invert_winding {
+                let triangle = if reverse_indices {
                     [0, index + 1, index]
                 } else {
                     [0, index, index + 1]
@@ -182,7 +182,7 @@ impl RenderMesh {
     }
 }
 
-fn polygon_normal(vertices: &[crate::slipgate::csg::CsgVector], fallback: &Vector3) -> Vector3 {
+fn polygon_normal(vertices: &[crate::slipgate::csg::CsgVector], fallback: Vector3) -> Vector3 {
     let mut normal = crate::slipgate::csg::CsgVector::zeros();
     for (current, next) in vertices
         .iter()
@@ -193,14 +193,9 @@ fn polygon_normal(vertices: &[crate::slipgate::csg::CsgVector], fallback: &Vecto
     }
     let normal = normal.map(crate::slipgate::f64_to_f32);
     if normal.norm_squared() <= f32::EPSILON {
-        *fallback
+        fallback
     } else {
-        let normal = normal.normalize();
-        if normal.dot(fallback) < 0.0 {
-            -normal
-        } else {
-            normal
-        }
+        normal.normalize()
     }
 }
 
@@ -269,5 +264,24 @@ mod tests {
                     })
             })
         }));
+
+        for part in &mesh.parts {
+            let expected = *geometry.face_planes[part.source_face].normal();
+            for triangle in part.indices.chunks_exact(3) {
+                let a = part.vertices[triangle[0] as usize].position;
+                let b = part.vertices[triangle[1] as usize].position;
+                let c = part.vertices[triangle[2] as usize].position;
+                let geometric_normal = (b - a).cross(&(c - a));
+                let dot = geometric_normal.dot(&expected);
+                assert!(
+                    if part.material.invert_winding {
+                        dot < -f32::EPSILON
+                    } else {
+                        dot > f32::EPSILON
+                    },
+                    "render triangle winding disagrees with its canonical face normal"
+                );
+            }
+        }
     }
 }

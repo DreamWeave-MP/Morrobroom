@@ -81,7 +81,8 @@ pub struct MapGeometry {
     /// The raw struct-of-arrays map representation. Exposes entity properties,
     /// texture names, brush/face topology, and face plane data.
     pub geomap: GeoMap,
-    /// Plane equation for each face, derived from the three defining points.
+    /// Canonical outward plane equation for each face, derived from the three
+    /// defining points and normalized against its brush hull.
     pub face_planes: FacePlanes,
     /// World-space vertices for each face, computed via triplanar intersection.
     pub face_vertices: FaceVertices,
@@ -153,8 +154,9 @@ impl MapGeometry {
         let geomap = GeoMap::new(map);
 
         // ── Core geometry ─────────────────────────────────────────────────────
-        let face_planes = face::face_planes(&geomap.face_planes);
+        let mut face_planes = face::face_planes(&geomap.face_planes);
         let brush_hulls = brush::brush_hulls(&geomap.brush_faces, &face_planes);
+        canonicalize_face_planes(&mut face_planes, &geomap.brush_faces, &brush_hulls);
         let (face_vertices, face_vertex_planes) =
             face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
         let face_centers = face::face_centers(&face_vertices);
@@ -332,6 +334,35 @@ impl MapGeometry {
     }
 }
 
+/// Make the source-face planes agree with the normalized brush hulls.
+///
+/// Map editors are allowed to emit a consistently inside-out brush. The hull
+/// constructor already repairs that orientation for CSG; keeping the raw
+/// plane normals here would make render normals and triangle winding disagree
+/// with the actual brush boundary.
+fn canonicalize_face_planes(
+    face_planes: &mut FacePlanes,
+    brush_faces: &crate::slipgate::BrushFaces,
+    brush_hulls: &BrushHulls,
+) {
+    for (brush_index, face_ids) in brush_faces.iter().enumerate() {
+        let hull = &brush_hulls[BrushId(brush_index)];
+        assert_eq!(
+            face_ids.len(),
+            hull.planes().len(),
+            "brush hull must preserve source face order"
+        );
+        for (face_id, hull_plane) in face_ids.iter().zip(hull.planes()) {
+            let source_normal = face_planes[*face_id].normal();
+            if source_normal.dot(hull_plane.normal()) < 0.0 {
+                let plane = &mut face_planes[*face_id];
+                plane.n = -plane.n;
+                plane.d = -plane.d;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::slipgate::repr::{Brush, Brushes, Entity, Map};
@@ -357,6 +388,20 @@ mod tests {
         let geometry = MapGeometry::from_map(map);
 
         assert_eq!(geometry.geomap.entities.len(), 1);
+
+        let brush_center = geometry.geomap.brush_faces[BrushId(0)]
+            .iter()
+            .map(|face_id| geometry.face_centers[*face_id])
+            .sum::<crate::slipgate::Vector3>()
+            / 6.0;
+        for face_id in &geometry.geomap.brush_faces[BrushId(0)] {
+            let outward = *geometry.face_planes[*face_id].normal();
+            let away_from_center = geometry.face_centers[*face_id] - brush_center;
+            assert!(
+                outward.dot(&away_from_center) > 0.0,
+                "canonical face normal must point away from its brush interior"
+            );
+        }
         assert_eq!(geometry.geomap.brushes.len(), 1);
         assert_eq!(geometry.geomap.faces.len(), 6);
         assert!(
