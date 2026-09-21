@@ -1,6 +1,7 @@
 //! Map parsing and brush geometry owned by Morrobroom.
 
 pub mod brush;
+pub mod csg;
 pub mod entity;
 pub mod face;
 #[cfg(test)]
