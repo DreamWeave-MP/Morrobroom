@@ -24,7 +24,7 @@ pub fn brush_centers(
             let mut center = Vector3::zeros();
 
             for plane_id in plane_ids {
-                center += face_centers[plane_id];
+                center += face_centers[*plane_id];
             }
             center /= plane_ids.len() as f32;
 

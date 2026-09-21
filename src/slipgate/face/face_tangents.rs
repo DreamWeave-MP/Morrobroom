@@ -4,7 +4,7 @@ use crate::slipgate::{face::TextureProjection, repr::TextureOffset};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
-use crate::slipgate::{FacePlanes, Plane3d, Vector3, face::FaceId};
+use crate::slipgate::{DenseStorage, FacePlanes, Plane3d, Vector3, face::FaceId};
 
 // TODO: Replace GeoPlane usage with custom tangent type
 //       (Would storing a basis be viable? No need to conform to godot standards)
@@ -18,22 +18,18 @@ pub struct Basis {
 
 pub enum FaceBasesTag {}
 
-pub type FaceBases = Usage<FaceBasesTag, BTreeMap<FaceId, Basis>>;
+pub type FaceBases = Usage<FaceBasesTag, DenseStorage<FaceId, Basis>>;
 
 pub fn face_bases(
     planes: &Vec<FaceId>,
     geo_planes: &FacePlanes,
     face_offsets: &BTreeMap<FaceId, TextureOffset>,
 ) -> FaceBases {
-    planes
+    let bases = planes
         .par_iter()
-        .map(|plane_id| {
-            (
-                *plane_id,
-                face_basis(&geo_planes[plane_id], &face_offsets[plane_id]),
-            )
-        })
-        .collect()
+        .map(|plane_id| face_basis(&geo_planes[*plane_id], &face_offsets[plane_id]))
+        .collect::<Vec<_>>();
+    DenseStorage::from_vec(bases).into()
 }
 
 fn face_basis(geo_plane: &Plane3d, offset: &TextureOffset) -> Basis {

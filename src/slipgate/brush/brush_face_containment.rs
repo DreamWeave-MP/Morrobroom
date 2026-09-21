@@ -22,7 +22,7 @@ pub fn brush_face_containment(
         .par_iter()
         .map(|brush_id| {
             let brush_faces_set: BTreeSet<FaceId> = brush_faces[brush_id].iter().copied().collect();
-            let brush_hull = &brush_hulls[brush_id];
+            let brush_hull = &brush_hulls[*brush_id];
 
             (
                 *brush_id,
@@ -34,7 +34,7 @@ pub fn brush_face_containment(
                             return None;
                         }
 
-                        let face_verts = &face_vertices[face_id];
+                        let face_verts = &face_vertices[*face_id];
 
                         let contained = face_verts.iter().all(|vertex| brush_hull.contains(vertex));
 

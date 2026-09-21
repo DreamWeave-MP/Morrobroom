@@ -91,7 +91,7 @@ impl MapData {
                     let centroid = Mesh::centroid(
                         geometry
                             .face_vertices
-                            .get(face_id)
+                            .get(*face_id)
                             .expect("Face vertices should always be valid"),
                     );
                     let grid_position = [

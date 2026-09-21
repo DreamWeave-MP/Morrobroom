@@ -27,8 +27,8 @@ pub fn line_face_connections(
             .insert(*lhs_face);
 
         // Fetch LHS vertices
-        let lhs_v0 = &face_vertices[lhs_face][lhs.i0];
-        let lhs_v1 = &face_vertices[lhs_face][lhs.i1];
+        let lhs_v0 = &face_vertices[*lhs_face][lhs.i0];
+        let lhs_v1 = &face_vertices[*lhs_face][lhs.i1];
 
         // Iterate over RHS lines
         for (rhs_id, rhs) in lines.iter() {
@@ -47,8 +47,8 @@ pub fn line_face_connections(
                 .insert(*rhs_face);
 
             // Fetch RHS vertices
-            let rhs_v0 = &face_vertices[rhs_face][rhs.i0];
-            let rhs_v1 = &face_vertices[rhs_face][rhs.i1];
+            let rhs_v0 = &face_vertices[*rhs_face][rhs.i0];
+            let rhs_v1 = &face_vertices[*rhs_face][rhs.i1];
 
             // If the lines are equal, the LHS line connects to the RHS face and vice-versa
             let lhs_contain_rhs =

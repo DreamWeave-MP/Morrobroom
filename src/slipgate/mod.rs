@@ -12,12 +12,14 @@ pub mod repr;
 pub mod texture;
 
 mod convex_hull;
+mod dense_storage;
 mod geo_map;
 mod plane_3d;
 #[cfg(test)]
 mod unit_test_data;
 
 pub use convex_hull::*;
+pub use dense_storage::*;
 pub use geo_map::*;
 pub use plane_3d::*;
 

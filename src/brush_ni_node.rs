@@ -338,14 +338,14 @@ impl BrushNiNode {
                 _ => (0, 0, 0.0),
             };
 
-            let vertices = &map_data.face_vertices.get(&face_id).unwrap();
+            let vertices = &map_data.face_vertices.get(*face_id).unwrap();
 
             let indices = if surface_flags & surfaces::NiBroomSurface::InvertFaces as u32 != 0 {
-                map_data.inverted_face_tri_indices.get(&face_id).unwrap_or_else(|| {
+                map_data.inverted_face_tri_indices.get(*face_id).unwrap_or_else(|| {
 panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}", face_id)
 })
             } else {
-                map_data.face_tri_indices.get(&face_id).unwrap_or_else(|| {
+                map_data.face_tri_indices.get(*face_id).unwrap_or_else(|| {
                     panic!(
                         "Critical error: Missing face triangle indices for face_id: {:?} on brush: {:?}",
                         face_id,
@@ -373,16 +373,16 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
             // Get Texture uvs for this specific face out of parsed map data
             let uv_sets = &map_data
                 .face_uvs
-                .get(&face_id)
+                .get(*face_id)
                 .expect("Unable to collect face UVs for {face_id}");
 
             // For any texture that isn't a `clip`, apply the calculated normals, verts, tris, uv sets, and texture
             if texture_name != "clip" {
                 node.normals.extend(
                     if surface_flags & surfaces::NiBroomSurface::SmoothShading as u32 == 0 {
-                        &*map_data.flat_normals.get(&face_id).unwrap()
+                        &*map_data.flat_normals.get(*face_id).unwrap()
                     } else {
-                        &*map_data.smooth_normals.get(&face_id).unwrap()
+                        &*map_data.smooth_normals.get(*face_id).unwrap()
                     },
                 );
                 node.uv_sets.extend(*uv_sets);

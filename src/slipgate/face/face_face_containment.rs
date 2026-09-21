@@ -20,13 +20,13 @@ pub fn face_face_containment(
     face_lines: &FaceLines,
 ) -> FaceFaceContainment {
     let iter = faces.par_iter().flat_map_iter(|lhs_id| {
-        let lhs_verts = &face_vertices[lhs_id];
-        let lhs_plane = &face_planes[lhs_id];
-        let lhs_basis = &face_bases[lhs_id];
+        let lhs_verts = &face_vertices[*lhs_id];
+        let lhs_plane = &face_planes[*lhs_id];
+        let lhs_basis = &face_bases[*lhs_id];
 
         faces.iter().filter_map(move |rhs_id| {
-            let rhs_verts = &face_vertices[rhs_id];
-            let rhs_plane = &face_planes[rhs_id];
+            let rhs_verts = &face_vertices[*rhs_id];
+            let rhs_plane = &face_planes[*rhs_id];
 
             // Skip comparing with self
             if lhs_id == rhs_id {

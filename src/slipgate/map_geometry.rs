@@ -235,12 +235,12 @@ mod tests {
         );
 
         for face_id in geometry.geomap.faces.iter() {
-            let vertices = &geometry.face_vertices[face_id];
+            let vertices = &geometry.face_vertices[*face_id];
             assert_eq!(vertices.len(), 4, "face {face_id:?}");
-            assert_eq!(geometry.face_tri_indices[face_id].len(), 6);
-            assert_eq!(geometry.inverted_face_tri_indices[face_id].len(), 6);
-            assert_eq!(geometry.flat_normals[face_id].len(), vertices.len());
-            assert_eq!(geometry.smooth_normals[face_id].len(), vertices.len());
+            assert_eq!(geometry.face_tri_indices[*face_id].len(), 6);
+            assert_eq!(geometry.inverted_face_tri_indices[*face_id].len(), 6);
+            assert_eq!(geometry.flat_normals[*face_id].len(), vertices.len());
+            assert_eq!(geometry.smooth_normals[*face_id].len(), vertices.len());
             assert!(
                 vertices
                     .iter()
@@ -278,12 +278,15 @@ mod tests {
         assert!(geometry.occluded_faces.is_none());
         assert_eq!(geometry.geomap.faces.len(), 6);
         for face_id in geometry.geomap.faces.iter() {
-            assert_eq!(geometry.face_vertices[face_id].len(), 4);
-            assert_eq!(geometry.face_tri_indices[face_id].len(), 6);
-            assert_eq!(geometry.face_vertices[face_id], full.face_vertices[face_id]);
+            assert_eq!(geometry.face_vertices[*face_id].len(), 4);
+            assert_eq!(geometry.face_tri_indices[*face_id].len(), 6);
             assert_eq!(
-                geometry.face_tri_indices[face_id],
-                full.face_tri_indices[face_id]
+                geometry.face_vertices[*face_id],
+                full.face_vertices[*face_id]
+            );
+            assert_eq!(
+                geometry.face_tri_indices[*face_id],
+                full.face_tri_indices[*face_id]
             );
         }
     }

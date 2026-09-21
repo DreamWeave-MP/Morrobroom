@@ -4,7 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use crate::slipgate::{
-    EPSILON, FacePlanes, Plane3d, Vector3,
+    DenseStorage, EPSILON, FacePlanes, Plane3d, Vector3,
     brush::{BrushHulls, BrushId},
     face::FaceId,
 };
@@ -12,22 +12,22 @@ use crate::slipgate::{
 pub enum FaceVerticesTag {}
 pub enum FaceVertexPlanesTag {}
 
-pub type FaceVertices = Usage<FaceVerticesTag, BTreeMap<FaceId, Vec<Vector3>>>;
+pub type FaceVertices = Usage<FaceVerticesTag, DenseStorage<FaceId, Vec<Vector3>>>;
 pub type FaceVertexPlanes =
-    Usage<FaceVertexPlanesTag, BTreeMap<FaceId, Vec<(FaceId, FaceId, FaceId)>>>;
+    Usage<FaceVertexPlanesTag, DenseStorage<FaceId, Vec<(FaceId, FaceId, FaceId)>>>;
 
 pub fn face_vertices(
     brush_planes: &BTreeMap<BrushId, Vec<FaceId>>,
     face_planes: &FacePlanes,
     brush_hulls: &BrushHulls,
 ) -> (FaceVertices, FaceVertexPlanes) {
-    brush_planes
+    let mut values: Vec<_> = brush_planes
         .par_iter()
         .flat_map_iter(|(brush_id, face_ids)| {
-            let hull = &brush_hulls[brush_id];
+            let hull = &brush_hulls[*brush_id];
             let planes = face_ids
                 .iter()
-                .map(|face_id| (*face_id, face_planes[face_id]))
+                .map(|face_id| (*face_id, face_planes[*face_id]))
                 .collect::<Vec<_>>();
 
             let mut vertices = face_ids
@@ -73,7 +73,18 @@ pub fn face_vertices(
                 .map(|(face_id, (vertices, vertex_planes))| (face_id, vertices, vertex_planes))
         })
         .map(|(face_id, vertices, vertex_planes)| ((face_id, vertices), (face_id, vertex_planes)))
-        .unzip()
+        .collect();
+
+    values.sort_unstable_by_key(|((face_id, _), _)| face_id.0);
+    let (vertices, vertex_planes): (Vec<_>, Vec<_>) = values
+        .into_iter()
+        .map(|((_, vertices), (_, vertex_planes))| (vertices, vertex_planes))
+        .unzip();
+
+    (
+        DenseStorage::from_vec(vertices).into(),
+        DenseStorage::from_vec(vertex_planes).into(),
+    )
 }
 
 pub fn triplanar_intersection(p0: &Plane3d, p1: &Plane3d, p2: &Plane3d) -> Option<Vector3> {

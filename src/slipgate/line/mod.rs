@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 use crate::slipgate::{
     EPSILON, Vector3,
-    face::{FaceIndices, FaceLines},
+    face::{FaceId, FaceIndices, FaceLines},
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -33,7 +33,8 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
     let mut face_lines = FaceLines::default();
     let mut lines = Lines::default();
 
-    for (face_id, indices) in face_indices.iter() {
+    for (face_index, indices) in face_indices.iter().enumerate() {
+        let face_id = FaceId(face_index);
         if indices.len() < 2 {
             continue;
         }
@@ -49,7 +50,7 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
                     i1: indices[i + 1],
                 },
             );
-            face_lines.entry(*face_id).or_default().push(line_id);
+            face_lines.entry(face_id).or_default().push(line_id);
         }
 
         let line_id = LineId(line_head);
@@ -62,7 +63,7 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
                 i1: indices[0],
             },
         );
-        face_lines.entry(*face_id).or_default().push(line_id);
+        face_lines.entry(face_id).or_default().push(line_id);
     }
 
     (lines, face_lines)

@@ -54,7 +54,7 @@ pub fn interior_faces(
 
         interior_faces.insert(face);
 
-        let face_normal = face_normals[&face][0];
+        let face_normal = face_normals[face][0];
 
         for line_id in &face_lines[&face] {
             let mut connected_faces = line_face_connections[line_id]
@@ -66,8 +66,8 @@ pub fn interior_faces(
                 // Pick closest face via normal
                 let mut connected_faces = connected_faces.copied().collect::<Vec<_>>();
                 connected_faces.sort_unstable_by(|lhs, rhs| {
-                    let lhs_face_center = face_centers[lhs] - face_centers[&face];
-                    let rhs_face_center = face_centers[rhs] - face_centers[&face];
+                    let lhs_face_center = face_centers[*lhs] - face_centers[face];
+                    let rhs_face_center = face_centers[*rhs] - face_centers[face];
 
                     face_normal
                         .dot(&rhs_face_center)

@@ -1,10 +1,10 @@
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::cmp::Ordering;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use usage::Usage;
 
 use super::{FaceCenters, FaceId, FaceVertices};
-use crate::slipgate::{FacePlanes, FaceTrianglePlanes, vector3_from_point};
+use crate::slipgate::{DenseStorage, FacePlanes, FaceTrianglePlanes, vector3_from_point};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FaceWinding {
@@ -14,7 +14,7 @@ pub enum FaceWinding {
 
 pub enum FaceIndicesTag {}
 
-pub type FaceIndices = Usage<FaceIndicesTag, BTreeMap<FaceId, Vec<usize>>>;
+pub type FaceIndices = Usage<FaceIndicesTag, DenseStorage<FaceId, Vec<usize>>>;
 
 // Generate face indices with the specified winding
 pub fn face_indices(
@@ -24,10 +24,12 @@ pub fn face_indices(
     face_centers: &FaceCenters,
     winding: FaceWinding,
 ) -> FaceIndices {
-    face_vertices
+    let indices = face_vertices
         .par_iter()
-        .map(|(plane_id, vertices)| {
-            let face_plane = &face_planes[plane_id];
+        .enumerate()
+        .map(|(face_index, vertices)| {
+            let plane_id = FaceId(face_index);
+            let face_plane = &face_planes[&plane_id];
             let plane = &geo_planes[plane_id];
             let plane_center = &face_centers[plane_id];
 
@@ -55,9 +57,10 @@ pub fn face_indices(
                 indices.reverse();
             }
 
-            (*plane_id, indices)
+            indices
         })
-        .collect()
+        .collect::<Vec<_>>();
+    DenseStorage::from_vec(indices).into()
 }
 
 /// Generate both winding orders from one angular sort per face.
@@ -75,14 +78,14 @@ pub fn face_indices_both(
         FaceWinding::Clockwise,
     );
 
-    let counter_clockwise: BTreeMap<FaceId, Vec<usize>> = clockwise
+    let counter_clockwise = clockwise
         .iter()
-        .map(|(face_id, indices)| {
+        .map(|indices| {
             let mut reversed = indices.clone();
             reversed.reverse();
-            (*face_id, reversed)
+            reversed
         })
         .collect();
 
-    (clockwise, counter_clockwise.into())
+    (clockwise, DenseStorage::from_vec(counter_clockwise).into())
 }

@@ -1,6 +1,6 @@
 use crate::slipgate::repr::{TextureOffset, TexturePlane};
 use crate::slipgate::{
-    Plane3d, Vector2, Vector3,
+    DenseStorage, Plane3d, Vector2, Vector3,
     texture::{TextureId, TextureSizes},
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -11,7 +11,7 @@ use super::{FaceId, FacePlanes, FaceVertices};
 
 pub enum FaceUvsTag {}
 
-pub type FaceUvs = Usage<FaceUvsTag, BTreeMap<FaceId, Vec<Vector2>>>;
+pub type FaceUvs = Usage<FaceUvsTag, DenseStorage<FaceId, Vec<Vector2>>>;
 
 /// A prepared Valve 220 texture projection for one source face.
 ///
@@ -84,10 +84,11 @@ pub fn new(
     face_texture_scales: &BTreeMap<FaceId, Vector2>,
     texture_sizes: &TextureSizes,
 ) -> FaceUvs {
-    faces
+    let uvs = faces
         .par_iter()
         .map(|face_id| {
-            let face_texture = &face_textures[face_id];
+            let face_id = *face_id;
+            let face_texture = &face_textures[&face_id];
             let texture_size = texture_sizes.get(face_texture).copied().unwrap_or_else(|| {
                 println!(
                     "Warning: Texture {} not found, generating UV with default size of 256x256",
@@ -97,9 +98,9 @@ pub fn new(
             });
             let face_vertices = &face_vertices[face_id];
             let face_plane = face_planes[face_id];
-            let face_texture_offset = face_texture_offsets[face_id];
-            let face_texture_rotation = face_texture_rotations[face_id];
-            let face_texture_scale = face_texture_scales[face_id];
+            let face_texture_offset = face_texture_offsets[&face_id];
+            let face_texture_rotation = face_texture_rotations[&face_id];
+            let face_texture_scale = face_texture_scales[&face_id];
             let valve_projection = match face_texture_offset {
                 TextureOffset::Valve { u, v } => Some(TextureProjection::from_valve(
                     u,
@@ -110,25 +111,23 @@ pub fn new(
                 TextureOffset::Standard { .. } => None,
             };
 
-            (
-                *face_id,
-                face_vertices
-                    .iter()
-                    .map(|vertex| {
-                        prepared_vertex_uv(
-                            *vertex,
-                            face_plane,
-                            face_texture_offset,
-                            face_texture_rotation,
-                            face_texture_scale,
-                            nalgebra::vector![texture_size.0 as f32, texture_size.1 as f32],
-                            valve_projection.as_ref(),
-                        )
-                    })
-                    .collect(),
-            )
+            face_vertices
+                .iter()
+                .map(|vertex| {
+                    prepared_vertex_uv(
+                        *vertex,
+                        face_plane,
+                        face_texture_offset,
+                        face_texture_rotation,
+                        face_texture_scale,
+                        nalgebra::vector![texture_size.0 as f32, texture_size.1 as f32],
+                        valve_projection.as_ref(),
+                    )
+                })
+                .collect()
         })
-        .collect()
+        .collect::<Vec<_>>();
+    DenseStorage::from_vec(uvs).into()
 }
 
 pub fn vertex_uv(
