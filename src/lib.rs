@@ -5,6 +5,7 @@ use std::{
 };
 
 pub mod fgd;
+pub mod slipgate;
 
 pub mod util;
 pub use util::FindLowest;

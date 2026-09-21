@@ -1,7 +1,13 @@
 use std::collections::HashSet;
 
-use shalrath;
-use shambler::{Vector2 as SV2, Vector3 as SV3, brush::BrushId, entity::EntityId, face::FaceId};
+use morrobroom::slipgate::repr;
+use morrobroom::slipgate::{
+    brush::BrushId,
+    entity::EntityId,
+    face::FaceId,
+    Vector2 as SV2,
+    Vector3 as SV3,
+};
 use tes3::nif::{NiTriShape, NiTriShapeData};
 
 use crate::{Mesh, map_data::MapData, surfaces};
@@ -326,9 +332,9 @@ impl BrushNiNode {
                 .geomap
                 .face_extensions
                 .get(face_id)
-                .unwrap_or(&shalrath::repr::Extension::Standard)
+                .unwrap_or(&repr::Extension::Standard)
             {
-                &shalrath::repr::Extension::Quake2 {
+                    &repr::Extension::Quake2 {
                     content_flags,
                     surface_flags,
                     value,

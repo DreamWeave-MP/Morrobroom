@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use shambler::Vector3 as SV3;
+use morrobroom::slipgate::Vector3 as SV3;
 use tes3::esp::{self, Cell, EditorId, Header, Plugin, Static, TES3Object};
 
 use morrobroom::{FindLowest, create_workdir, get_prop};

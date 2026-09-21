@@ -1,7 +1,7 @@
 use imagesize::size;
 use openmw_cfg::{Ini, find_file, get_config};
-use shalrath::repr::*;
-use shambler::{
+use morrobroom::slipgate::repr::*;
+use morrobroom::slipgate::{
     GeoMap, Textures,
     entity::EntityId,
     face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
@@ -18,7 +18,7 @@ const GRID_SIZE: u8 = 128;
 
 pub struct MapData {
     pub geomap: GeoMap,
-    pub face_grid: HashMap<[i32; 3], Vec<shambler::face::FaceId>>,
+    pub face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>>,
     pub face_vertices: FaceVertices,
     pub face_tri_indices: FaceTriangleIndices,
     pub inverted_face_tri_indices: FaceTriangleIndices,
@@ -29,7 +29,7 @@ pub struct MapData {
 
 impl MapData {
     pub fn new(map_name: &String) -> Self {
-        // First load the map from the FS and parse it using shalrath
+        // First load the map from the filesystem and parse it using Slipgate.
         let map = fs::read_to_string(map_name)
             .expect("Reading file failed. Bad news! Does it exist?")
             .parse::<Map>()
@@ -39,41 +39,41 @@ impl MapData {
         let geomap = GeoMap::new(map);
 
         // Boilerplate for generating hulls, textures, etc
-        let face_planes = shambler::face::face_planes(&geomap.face_planes);
+        let face_planes = morrobroom::slipgate::face::face_planes(&geomap.face_planes);
 
-        let brush_hulls = shambler::brush::brush_hulls(&geomap.brush_faces, &face_planes);
+        let brush_hulls = morrobroom::slipgate::brush::brush_hulls(&geomap.brush_faces, &face_planes);
 
         let (face_vertices, face_vertex_planes) =
-            shambler::face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
+            morrobroom::slipgate::face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
 
-        let face_centers = shambler::face::face_centers(&face_vertices);
+        let face_centers = morrobroom::slipgate::face::face_centers(&face_vertices);
 
-        let face_indices = shambler::face::face_indices(
+        let face_indices = morrobroom::slipgate::face::face_indices(
             &geomap.face_planes,
             &face_planes,
             &face_vertices,
             &face_centers,
-            shambler::face::FaceWinding::Clockwise,
+            morrobroom::slipgate::face::FaceWinding::Clockwise,
         );
 
         // If a brush is marked as "inside-out", we use these indices instead
-        let inverted_face_indices = shambler::face::face_indices(
+        let inverted_face_indices = morrobroom::slipgate::face::face_indices(
             &geomap.face_planes,
             &face_planes,
             &face_vertices,
             &face_centers,
-            shambler::face::FaceWinding::CounterClockwise,
+            morrobroom::slipgate::face::FaceWinding::CounterClockwise,
         );
 
-        let face_tri_indices = shambler::face::face_triangle_indices(&face_indices);
+        let face_tri_indices = morrobroom::slipgate::face::face_triangle_indices(&face_indices);
 
         let inverted_face_tri_indices =
-            shambler::face::face_triangle_indices(&inverted_face_indices);
+            morrobroom::slipgate::face::face_triangle_indices(&inverted_face_indices);
 
-        let flat_normals = shambler::face::normals_flat(&face_vertices, &face_planes);
+        let flat_normals = morrobroom::slipgate::face::normals_flat(&face_vertices, &face_planes);
 
         let smooth_normals =
-            shambler::face::normals_phong_averaged(&face_vertex_planes, &face_planes);
+            morrobroom::slipgate::face::normals_phong_averaged(&face_vertex_planes, &face_planes);
 
         let texture_names = MapData::collect_textures(&geomap.textures);
         let texture_paths = MapData::find_textures_in_vfs(&texture_names);
@@ -112,7 +112,7 @@ impl MapData {
         let mut textures_with_paths: Textures = Textures::default();
         textures_with_paths.data = modified_textures;
 
-        let face_uvs = shambler::face::new(
+        let face_uvs = morrobroom::slipgate::face::new(
             &geomap.faces,
             &geomap.textures,
             &geomap.face_textures,
@@ -121,10 +121,10 @@ impl MapData {
             &geomap.face_offsets,
             &geomap.face_angles,
             &geomap.face_scales,
-            &shambler::texture::texture_sizes(&textures_with_paths, texture_sizes),
+            &morrobroom::slipgate::texture::texture_sizes(&textures_with_paths, texture_sizes),
         );
 
-        let face_grid: HashMap<[i32; 3], Vec<shambler::face::FaceId>> = geomap
+        let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geomap
             .brush_faces
             .iter()
             .flat_map(|(_, brush_faces)| {
