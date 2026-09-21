@@ -117,7 +117,8 @@ fn resample_lightmap(
 /// an independent baseline and is applied in LDR space here because the
 /// upstream crate does not expose its per-texel accumulation step.
 pub fn add_ambient(lightmap: &mut lightmap::LightMap, ambient: [u8; 3]) {
-    for pixel in lightmap.pixels.chunks_exact_mut(3) {
+    let (pixels, _) = lightmap.pixels.as_chunks_mut::<3>();
+    for pixel in pixels {
         for (channel, value) in pixel.iter_mut().enumerate() {
             *value = value.saturating_add(ambient[channel]);
         }
@@ -139,7 +140,8 @@ fn interpolation_axis(index: usize, target: usize, source: usize) -> (usize, usi
 
 fn expand_rgb_to_rgba(lightmap: &lightmap::LightMap) -> Vec<u8> {
     let mut rgba = Vec::with_capacity(lightmap.width * lightmap.height * 4);
-    for source in lightmap.pixels.chunks_exact(3) {
+    let (sources, _) = lightmap.pixels.as_chunks::<3>();
+    for source in sources {
         rgba.extend_from_slice(&[source[0], source[1], source[2], u8::MAX]);
     }
     rgba
@@ -199,7 +201,8 @@ impl BakedRenderMesh {
         let mut triangle_parts = Vec::new();
 
         for (part_index, part) in render_mesh.parts.iter().enumerate() {
-            if !part.indices.chunks_exact(3).remainder().is_empty() {
+            let (triangles_for_part, remainder) = part.indices.as_chunks::<3>();
+            if !remainder.is_empty() {
                 return None;
             }
             let vertex_offset = u32::try_from(vertices.len()).ok()?;
@@ -207,7 +210,7 @@ impl BakedRenderMesh {
                 render,
                 lightmap_uv: Vector2::zeros(),
             }));
-            for indices in part.indices.chunks_exact(3) {
+            for indices in triangles_for_part {
                 let triangle = [
                     indices[0].checked_add(vertex_offset)?,
                     indices[1].checked_add(vertex_offset)?,

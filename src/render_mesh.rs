@@ -267,7 +267,7 @@ mod tests {
 
         for part in &mesh.parts {
             let expected = *geometry.face_planes[part.source_face].normal();
-            for triangle in part.indices.chunks_exact(3) {
+            for triangle in part.indices.as_chunks::<3>().0 {
                 let a = part.vertices[triangle[0] as usize].position;
                 let b = part.vertices[triangle[1] as usize].position;
                 let c = part.vertices[triangle[2] as usize].position;

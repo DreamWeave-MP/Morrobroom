@@ -1416,7 +1416,7 @@ fn emit_face(
 }
 
 fn source_for_edge(sources: &[Segment], a: Coord<f64>, b: Coord<f64>) -> Option<&Segment> {
-    let midpoint = p2((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
+    let midpoint = p2(f64::midpoint(a.x, b.x), f64::midpoint(a.y, b.y));
     sources.iter().find(|source| {
         point_segment_distance(source.a, source.b, a) <= 2e-3
             && point_segment_distance(source.a, source.b, b) <= 2e-3

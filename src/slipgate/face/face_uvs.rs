@@ -101,7 +101,7 @@ pub fn new(
             let texture_size = texture_sizes.get(face_texture).copied().unwrap_or_else(|| {
                 println!(
                     "Warning: Texture {} not found, generating UV with default size of 256x256",
-                    &textures[*face_texture],
+                    textures[*face_texture],
                 );
                 (256, 256)
             });

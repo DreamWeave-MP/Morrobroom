@@ -975,7 +975,7 @@ impl WriteFGDProp for Clothing {
                 if biped_object.male_bodypart != String::default() {
                     format!(
                         "PartSlot_{}_{idx}_male",
-                        &biped_object.biped_object_type.display()
+                        biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.male_bodypart)?;
                 }
@@ -985,7 +985,7 @@ impl WriteFGDProp for Clothing {
                 } else {
                     format!(
                         "PartSlot_{}_{idx}_female",
-                        &biped_object.biped_object_type.display()
+                        biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.female_bodypart)
                 }
@@ -1134,7 +1134,7 @@ impl WriteFGDProp for Armor {
                 if biped_object.male_bodypart != String::default() {
                     format!(
                         "PartSlot_{}_{idx}_male",
-                        &biped_object.biped_object_type.display()
+                        biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.male_bodypart)?;
                 }
@@ -1144,7 +1144,7 @@ impl WriteFGDProp for Armor {
                 } else {
                     format!(
                         "PartSlot_{}_{idx}_female",
-                        &biped_object.biped_object_type.display()
+                        biped_object.biped_object_type.display()
                     )
                     .write_fgd(fgd_string, "", &biped_object.female_bodypart)
                 }
