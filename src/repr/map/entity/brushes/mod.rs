@@ -39,11 +39,10 @@ impl DerefMut for Brushes {
 
 impl Display for Brushes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for i in 0..self.len().checked_sub(1).unwrap_or_default() {
-            writeln!(f, "{}", self[i])?;
-        }
-
-        if let Some(last) = self.last() {
+        if let Some((last, rest)) = self.split_last() {
+            for item in rest {
+                writeln!(f, "{}", item)?;
+            }
             write!(f, "{}", last)?;
         }
 

@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
 /// Enum representing format-specific brush plane extension data.
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Default, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Extension {
     /// Standard format, no extension.
+    #[default]
     Standard,
     /// Hexen 2 format, unknown numeric value.
     Hexen2(f32),
@@ -21,12 +22,6 @@ pub enum Extension {
         unknown: (u32, u32, u32),
         color: (u32, u32, u32),
     },
-}
-
-impl Default for Extension {
-    fn default() -> Self {
-        Extension::Standard
-    }
 }
 
 impl Display for Extension {

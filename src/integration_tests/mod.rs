@@ -13,13 +13,13 @@ macro_rules! test_map {
             let data = include_str!($map);
 
             // Parse
-            let (_, map) = crate::parser::repr::parse_map(data)?;
+            let (_, map) = $crate::parser::repr::parse_map(data)?;
 
             // Ensure it's non-empty
             assert!(!map.is_empty());
 
             // Ensure the map can make a lossless round trip from AST > String > AST
-            assert_eq!(map.to_string().parse::<crate::repr::Map>()?, map);
+            assert_eq!(map.to_string().parse::<$crate::repr::Map>()?, map);
 
             Ok(())
         }
@@ -32,13 +32,13 @@ macro_rules! test_map {
             let data = include_str!($map);
 
             // Parse
-            let (_, map) = crate::parser::repr::parse_map(data)?;
+            let (_, map) = $crate::parser::repr::parse_map(data)?;
 
             // Ensure it matches the comparison data
             assert_eq!(map, $cmp);
 
             // Ensure the map can make a lossless round trip from AST > String > AST
-            assert_eq!(map.to_string().parse::<crate::repr::Map>()?, map);
+            assert_eq!(map.to_string().parse::<$crate::repr::Map>()?, map);
             Ok(())
         }
     };

@@ -61,7 +61,7 @@
 //!         }]),
 //!         brushes: Brushes::new(vec![Brush::new(vec![
 //!             BrushPlane {
-//!                 plane: Triangle {
+//!                 plane: TrianglePlane {
 //!                     v0: Point {
 //!                         x: 0.0,
 //!                         y: 1.0,

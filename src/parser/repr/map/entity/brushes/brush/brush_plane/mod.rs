@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_brush_plane() {
         assert_eq!(
-            parse_brush_plane(&test_brush_plane_in()),
+            parse_brush_plane(test_brush_plane_in()),
             Ok(("", test_brush_plane_out()))
         );
     }
