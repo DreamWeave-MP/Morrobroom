@@ -37,45 +37,68 @@ pub struct BakedPart {
 
 const MAX_LIGHTMAP_DIMENSION: usize = 8192;
 
-/// Keep the baked atlas within the 8K texture limit used by the compiler
-/// pipeline and supported by the target runtime hardware.
+/// Prepare the baked atlas for the BC7/OpenMW texture path.
+///
+/// `OpenSceneGraph`'s NIF texture path attempts to resize non-power-of-two
+/// images before upload, but cannot resize an already-compressed BC7 image.
+/// Keep the final atlas power-of-two so the runtime accepts it, while also
+/// retaining the existing 8K dimension limit.
 ///
 /// # Panics
 ///
-/// Panics if the source dimensions cannot be represented by the intermediate
-/// resampling calculations or if the source contains no samples to average.
+/// Panics if the source atlas has zero dimensions or malformed RGB data.
 #[must_use]
 pub fn constrain_lightmap(lightmap: lightmap::LightMap) -> lightmap::LightMap {
-    if lightmap.width <= MAX_LIGHTMAP_DIMENSION && lightmap.height <= MAX_LIGHTMAP_DIMENSION {
+    assert!(lightmap.width > 0 && lightmap.height > 0);
+    assert_eq!(
+        lightmap.pixels.len(),
+        lightmap.width * lightmap.height * 3,
+        "lightmap RGB data must match its dimensions"
+    );
+    let width = normalized_dimension(lightmap.width);
+    let height = normalized_dimension(lightmap.height);
+    if width == lightmap.width && height == lightmap.height {
         return lightmap;
     }
 
-    let source_max = lightmap.width.max(lightmap.height);
-    let width = scaled_dimension(lightmap.width, source_max);
-    let height = scaled_dimension(lightmap.height, source_max);
+    resample_lightmap(&lightmap, width, height)
+}
+
+fn normalized_dimension(value: usize) -> usize {
+    value
+        .checked_next_power_of_two()
+        .unwrap_or(MAX_LIGHTMAP_DIMENSION)
+        .clamp(1, MAX_LIGHTMAP_DIMENSION)
+}
+
+fn resample_lightmap(
+    lightmap: &lightmap::LightMap,
+    width: usize,
+    height: usize,
+) -> lightmap::LightMap {
     let mut pixels = vec![0_u8; width * height * 3];
 
     for y in 0..height {
-        let y0 = y * lightmap.height / height;
-        let y1 = ((y + 1) * lightmap.height / height).max(y0 + 1);
+        let (y0, y1, y_remainder, y_denominator) = interpolation_axis(y, height, lightmap.height);
         for x in 0..width {
-            let x0 = x * lightmap.width / width;
-            let x1 = ((x + 1) * lightmap.width / width).max(x0 + 1);
-            let mut sums = [0_u64; 3];
-            let mut samples = 0_u64;
-            for source_y in y0..y1.min(lightmap.height) {
-                for source_x in x0..x1.min(lightmap.width) {
-                    let offset = (source_y * lightmap.width + source_x) * 3;
-                    for (channel, sum) in sums.iter_mut().enumerate() {
-                        *sum += u64::from(lightmap.pixels[offset + channel]);
-                    }
-                    samples += 1;
-                }
-            }
+            let (x0, x1, x_remainder, x_denominator) = interpolation_axis(x, width, lightmap.width);
+            let top_left = (y0 * lightmap.width + x0) * 3;
+            let top_right = (y0 * lightmap.width + x1) * 3;
+            let bottom_left = (y1 * lightmap.width + x0) * 3;
+            let bottom_right = (y1 * lightmap.width + x1) * 3;
             let output_offset = (y * width + x) * 3;
-            for (channel, sum) in sums.into_iter().enumerate() {
+            for channel in 0..3 {
+                let top = u64::from(lightmap.pixels[top_left + channel])
+                    * (x_denominator - x_remainder)
+                    + u64::from(lightmap.pixels[top_right + channel]) * x_remainder;
+                let bottom = u64::from(lightmap.pixels[bottom_left + channel])
+                    * (x_denominator - x_remainder)
+                    + u64::from(lightmap.pixels[bottom_right + channel]) * x_remainder;
+                let numerator = top * (y_denominator - y_remainder) + bottom * y_remainder;
+                let denominator = x_denominator * y_denominator;
                 pixels[output_offset + channel] =
-                    u8::try_from(sum / samples).expect("RGB average must fit in a byte");
+                    u8::try_from((numerator + denominator / 2) / denominator)
+                        .expect("bilinear RGB sample must fit in a byte");
             }
         }
     }
@@ -101,15 +124,17 @@ pub fn add_ambient(lightmap: &mut lightmap::LightMap, ambient: [u8; 3]) {
     }
 }
 
-fn scaled_dimension(value: usize, source_max: usize) -> usize {
-    let value = u128::from(u64::try_from(value).expect("usize must fit in u64"));
-    let source_max = u128::from(u64::try_from(source_max).expect("usize must fit in u64"));
-    let max_dimension =
-        u128::from(u64::try_from(MAX_LIGHTMAP_DIMENSION).expect("lightmap limit must fit in u64"));
-    let numerator = value * max_dimension + source_max / 2;
-    usize::try_from(numerator / source_max)
-        .expect("scaled lightmap dimension must fit in usize")
-        .max(1)
+fn interpolation_axis(index: usize, target: usize, source: usize) -> (usize, usize, u64, u64) {
+    if target <= 1 || source <= 1 {
+        return (0, 0, 0, 1);
+    }
+    let denominator = u64::try_from(target - 1).expect("texture dimension must fit in u64");
+    let numerator = u64::try_from(index).expect("texture coordinate must fit in u64")
+        * u64::try_from(source - 1).expect("texture dimension must fit in u64");
+    let lower = usize::try_from(numerator / denominator)
+        .expect("source texture coordinate must fit in usize");
+    let upper = (lower + 1).min(source - 1);
+    (lower, upper, numerator % denominator, denominator)
 }
 
 fn expand_rgb_to_rgba(lightmap: &lightmap::LightMap) -> Vec<u8> {
@@ -464,6 +489,44 @@ mod tests {
         assert_eq!(constrained.width, MAX_LIGHTMAP_DIMENSION);
         assert_eq!(constrained.height, 1);
         assert_eq!(constrained.pixels.len(), MAX_LIGHTMAP_DIMENSION * 3);
+    }
+
+    #[test]
+    fn final_lightmaps_are_power_of_two_and_capped() {
+        for (width, height) in [(694, 694), (700, 700), (1024, 1024), (8193, 1)] {
+            let lightmap = lightmap::LightMap {
+                pixels: vec![128; width * height * 3],
+                width,
+                height,
+            };
+            let prepared = constrain_lightmap(lightmap);
+
+            assert!(prepared.width.is_power_of_two());
+            assert!(prepared.height.is_power_of_two());
+            assert!(prepared.width <= MAX_LIGHTMAP_DIMENSION);
+            assert!(prepared.height <= MAX_LIGHTMAP_DIMENSION);
+            assert_eq!(prepared.pixels.len(), prepared.width * prepared.height * 3);
+        }
+    }
+
+    #[test]
+    fn lightmap_resampling_preserves_atlas_corners() {
+        let lightmap = lightmap::LightMap {
+            pixels: vec![
+                255, 0, 0, 128, 128, 0, 0, 255, 0, 128, 0, 128, 128, 128, 128, 0, 128, 128, 0, 0,
+                255, 64, 64, 64, 255, 255, 255,
+            ],
+            width: 3,
+            height: 3,
+        };
+
+        let prepared = constrain_lightmap(lightmap);
+
+        assert_eq!((prepared.width, prepared.height), (4, 4));
+        assert_eq!(&prepared.pixels[0..3], &[255, 0, 0]);
+        assert_eq!(&prepared.pixels[9..12], &[0, 255, 0]);
+        assert_eq!(&prepared.pixels[36..39], &[0, 0, 255]);
+        assert_eq!(&prepared.pixels[45..48], &[255, 255, 255]);
     }
 
     #[test]
