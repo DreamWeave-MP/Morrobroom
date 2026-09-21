@@ -31,7 +31,7 @@ pub type Faces = Usage<FacesTag, Vec<FaceId>>;
 
 pub type PointEntities = Usage<PointEntitiesTag, Vec<EntityId>>;
 
-pub type EntityProperties = Usage<EntityPropertiesTag, BTreeMap<EntityId, Properties>>;
+pub type EntityProperties = Usage<EntityPropertiesTag, DenseStorage<EntityId, Properties>>;
 pub type EntityBrushes = Usage<EntityBrushesTag, BTreeMap<EntityId, Vec<BrushId>>>;
 
 pub type BrushFaces = Usage<BrushFacesTag, DenseStorage<BrushId, Vec<FaceId>>>;
@@ -78,7 +78,7 @@ impl GeoMap {
         let mut brushes = Brushes::default();
         let mut faces = Faces::default();
 
-        let mut entity_properties = EntityProperties::default();
+        let mut entity_properties = Vec::new();
         let mut entity_brushes = EntityBrushes::default();
 
         let mut brush_faces = Vec::new();
@@ -104,7 +104,7 @@ impl GeoMap {
             let entity_id = EntityId(entity_head);
 
             entities.push(entity_id);
-            entity_properties.insert(entity_id, properties);
+            entity_properties.push(properties);
 
             for Brush(ps) in bs {
                 let brush_id = BrushId(brush_head);
@@ -165,7 +165,7 @@ impl GeoMap {
             brushes,
             faces,
             textures: DenseStorage::from_vec(texture_names).into(),
-            entity_properties,
+            entity_properties: DenseStorage::from_vec(entity_properties).into(),
             entity_brushes,
             point_entities,
             brush_faces: DenseStorage::from_vec(brush_faces).into(),

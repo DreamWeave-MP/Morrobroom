@@ -150,7 +150,7 @@ impl MapData {
     }
 
     pub fn get_entity_properties(&self, entity_id: &EntityId) -> HashMap<&String, &String> {
-        let entity_properties = self.geomap.entity_properties.get(&entity_id);
+        let entity_properties = self.geomap.entity_properties.get(*entity_id);
 
         // Group names are powers of 2 and have different keys in the group definition and separate entities which reference it
         if let None = entity_properties {
