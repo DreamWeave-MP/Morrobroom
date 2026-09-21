@@ -119,7 +119,7 @@ pub fn generate_fgd(
 ) -> Result<(), FgdGenerationError> {
     // The public function deliberately preserves the command's fallible file/config boundary.
     let config_path =
-        config_path.map_or_else(openmw_config::default_config_path, Path::to_path_buf);
+        config_path.map_or_else(openmw_config::default_user_config_file, Path::to_path_buf);
     let config_path_str = config_path
         .to_str()
         .ok_or_else(|| FgdGenerationError::NonUtf8ConfigPath(config_path.clone()))?;
@@ -364,6 +364,7 @@ mod cfgmgr_test {
         fs::{self, File},
         io::BufWriter,
         path::PathBuf,
+        sync::OnceLock,
     };
 
     use crate::fgd::{ConfigurationManager, generate_fgd, serialize};
@@ -374,9 +375,20 @@ mod cfgmgr_test {
         output_dir.join(file_name)
     }
 
+    fn test_config_path() -> PathBuf {
+        static CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
+        CONFIG_PATH
+            .get_or_init(|| {
+                let path = test_output_path("openmw.cfg");
+                fs::write(&path, "").expect("create empty OpenMW test configuration");
+                path
+            })
+            .clone()
+    }
+
     #[test]
     fn test_default_path() {
-        let path = openmw_config::default_config_path();
+        let path = test_config_path();
         let object_types: &[&'static str] = &["NONE"];
         assert!(ConfigurationManager::try_from((path.to_str().unwrap(), object_types)).is_ok(),);
     }
@@ -384,11 +396,19 @@ mod cfgmgr_test {
     #[test]
     fn test_serialize_all() {
         let output_path = test_output_path("FGDOut_ALL.fgd");
-        assert!(generate_fgd(None, &serialize::SERIALIZABLE_TYPES, 1.0, &output_path,).is_ok());
+        assert!(
+            generate_fgd(
+                Some(&test_config_path()),
+                &serialize::SERIALIZABLE_TYPES,
+                1.0,
+                &output_path,
+            )
+            .is_ok()
+        );
     }
 
     fn serialize_by_type(object_type: &'static str, config_path: Option<std::path::PathBuf>) {
-        let path = config_path.unwrap_or(openmw_config::default_config_path());
+        let path = config_path.unwrap_or_else(test_config_path);
 
         let types_slice: &[&'static str] = &[object_type];
 
