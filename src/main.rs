@@ -12,7 +12,7 @@ use tes3::esp::{self, Cell, EditorId, Header, Plugin, Static, TES3Object};
 use morrobroom::{FindLowest, create_workdir, get_prop};
 
 mod broom_args;
-use broom_args::{BroomCommand, MorrobroomArgs};
+use broom_args::{BroomCommand, MorrobroomArgs, default_object_types};
 
 mod brush_ni_node;
 use brush_ni_node::BrushNiNode;
@@ -44,10 +44,21 @@ fn main() -> io::Result<()> {
             output_path,
             openmw_config,
         } => {
-            eprintln!(
-                "FGD Compilation arguments not yet implemented! Please use `cargo test` to compile an FGD set. Sorry!"
-            );
-            std::process::exit(420);
+            let object_types = object_types.unwrap_or_else(|| default_object_types().into());
+            let object_type_tags: Vec<&'static str> = object_types
+                .iter()
+                .map(|object_type| object_type.as_str())
+                .collect();
+
+            morrobroom::fgd::generate_fgd(
+                openmw_config.as_deref(),
+                &object_type_tags,
+                object_scale,
+                &output_path,
+            )
+            .map_err(|error| io::Error::other(error.to_string()))?;
+
+            return Ok(());
         }
     };
 

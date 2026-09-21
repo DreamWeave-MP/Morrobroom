@@ -569,7 +569,6 @@ impl WriteFGDProp for Light {
         bounds: Option<&[i32; 6]>,
     ) -> Result<(), io::Error> {
         let half_size = (self.data.radius / 2) as i32;
-        eprintln!("HalfSize for {} is {half_size}", self.id);
 
         if self.data.flags.contains(LightFlags::CAN_CARRY) {
             write_point_class(

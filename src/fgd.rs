@@ -1,6 +1,8 @@
 use std::{
     collections::{BTreeMap, HashSet},
-    path::PathBuf,
+    fs::File,
+    io::{self, BufWriter, Write},
+    path::{Path, PathBuf},
 };
 
 use openmw_config::{ConfigError, OpenMWConfiguration};
@@ -22,6 +24,7 @@ mod serialize;
 pub enum ConfigManagerError {
     OpenMWConfigError(ConfigError),
     MissingPluginErr(String),
+    InvalidObjectScale(f32),
 }
 
 impl std::fmt::Display for ConfigManagerError {
@@ -29,6 +32,9 @@ impl std::fmt::Display for ConfigManagerError {
         match self {
             Self::OpenMWConfigError(err) => write!(f, "Failed reading openmw.cfg chain: {err}"),
             Self::MissingPluginErr(plugin) => write!(f, "Failed to find plugin: {plugin}"),
+            Self::InvalidObjectScale(scale) => {
+                write!(f, "object scale must be finite and positive, got {scale}")
+            }
         }
     }
 }
@@ -38,6 +44,43 @@ impl std::error::Error for ConfigManagerError {}
 impl From<ConfigError> for ConfigManagerError {
     fn from(err: ConfigError) -> ConfigManagerError {
         Self::OpenMWConfigError(err)
+    }
+}
+
+#[derive(Debug)]
+pub enum FgdGenerationError {
+    NonUtf8ConfigPath(PathBuf),
+    ConfigManager(ConfigManagerError),
+    Io(io::Error),
+}
+
+impl std::fmt::Display for FgdGenerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NonUtf8ConfigPath(path) => {
+                write!(
+                    f,
+                    "OpenMW config path is not valid UTF-8: {}",
+                    path.display()
+                )
+            }
+            Self::ConfigManager(err) => write!(f, "{err}"),
+            Self::Io(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl std::error::Error for FgdGenerationError {}
+
+impl From<ConfigManagerError> for FgdGenerationError {
+    fn from(err: ConfigManagerError) -> Self {
+        Self::ConfigManager(err)
+    }
+}
+
+impl From<io::Error> for FgdGenerationError {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err)
     }
 }
 
@@ -51,6 +94,30 @@ pub struct ConfigurationManager {
     vfs: VFS,
     openmw_config: OpenMWConfiguration,
     object_types: HashSet<&'static str>,
+    object_scale: f32,
+}
+
+pub fn generate_fgd(
+    config_path: Option<&Path>,
+    object_types: &[&'static str],
+    object_scale: f32,
+    output_path: &Path,
+) -> Result<(), FgdGenerationError> {
+    let config_path = config_path
+        .map(Path::to_path_buf)
+        .unwrap_or_else(openmw_config::default_config_path);
+    let config_path_str = config_path
+        .to_str()
+        .ok_or_else(|| FgdGenerationError::NonUtf8ConfigPath(config_path.clone()))?;
+    let config_manager =
+        ConfigurationManager::try_from_with_scale(config_path_str, object_types, object_scale)?;
+
+    let file = File::create(output_path)?;
+    let mut writer = BufWriter::new(file);
+    serialize::serialize_objects_as_fgd(&config_manager, &mut writer)?;
+    writer.flush()?;
+
+    Ok(())
 }
 
 pub fn get_object_model_path(object: &TES3Object) -> Option<String> {
@@ -90,7 +157,11 @@ pub fn get_object_model_path(object: &TES3Object) -> Option<String> {
     }
 }
 
-fn get_object_bounds_from_nif(vfs: &VFS, object: &TES3Object) -> Option<[i32; 6]> {
+fn get_object_bounds_from_nif(
+    vfs: &VFS,
+    object: &TES3Object,
+    object_scale: f32,
+) -> Option<[i32; 6]> {
     let object_model = PathBuf::from("Meshes/").join(match object {
         TES3Object::Activator(record) => &record.mesh,
         TES3Object::Alchemy(record) => &record.mesh,
@@ -126,12 +197,12 @@ fn get_object_bounds_from_nif(vfs: &VFS, object: &TES3Object) -> Option<[i32; 6]
         if let Ok(stream) = tes3::nif::NiStream::from_path(vfs_file.path()) {
             if let Some((min, max)) = stream.bounding_box() {
                 Some([
-                    min.x as i32,
-                    min.y as i32,
-                    min.z as i32,
-                    max.x as i32,
-                    max.y as i32,
-                    max.z as i32,
+                    (min.x * object_scale) as i32,
+                    (min.y * object_scale) as i32,
+                    (min.z * object_scale) as i32,
+                    (max.x * object_scale) as i32,
+                    (max.y * object_scale) as i32,
+                    (max.z * object_scale) as i32,
                 ])
             } else {
                 None
@@ -176,9 +247,11 @@ impl ConfigurationManager {
 
                         if let Some(model) = get_object_model_path(&tes3_object) {
                             if let None = self.object_bounds.get(&model) {
-                                if let Some(bounds) =
-                                    get_object_bounds_from_nif(&self.vfs, &tes3_object)
-                                {
+                                if let Some(bounds) = get_object_bounds_from_nif(
+                                    &self.vfs,
+                                    &tes3_object,
+                                    self.object_scale,
+                                ) {
                                     self.object_bounds.insert(model, bounds);
                                 };
                             };
@@ -204,6 +277,20 @@ impl TryFrom<(&str, &[&'static str])> for ConfigurationManager {
     type Error = ConfigManagerError;
 
     fn try_from((config_path, object_types): (&str, &[&'static str])) -> Result<Self, Self::Error> {
+        Self::try_from_with_scale(config_path, object_types, 1.0)
+    }
+}
+
+impl ConfigurationManager {
+    pub fn try_from_with_scale(
+        config_path: &str,
+        object_types: &[&'static str],
+        object_scale: f32,
+    ) -> Result<Self, ConfigManagerError> {
+        if !object_scale.is_finite() || object_scale <= 0.0 {
+            return Err(ConfigManagerError::InvalidObjectScale(object_scale));
+        }
+
         let config_path = PathBuf::from(config_path);
 
         let openmw_config = OpenMWConfiguration::new(Some(config_path))?;
@@ -228,6 +315,7 @@ impl TryFrom<(&str, &[&'static str])> for ConfigurationManager {
             vfs,
             openmw_config,
             object_types,
+            object_scale,
             merged_objects: BTreeMap::new(),
             object_bounds: HashMap::new(),
         };
@@ -240,9 +328,9 @@ impl TryFrom<(&str, &[&'static str])> for ConfigurationManager {
 
 #[cfg(test)]
 mod cfgmgr_test {
-    use std::{fs::File, io::BufWriter};
+    use std::{fs::File, io::BufWriter, path::PathBuf};
 
-    use crate::fgd::{ConfigurationManager, serialize};
+    use crate::fgd::{ConfigurationManager, generate_fgd, serialize};
 
     #[test]
     fn test_default_path() {
@@ -253,17 +341,8 @@ mod cfgmgr_test {
 
     #[test]
     fn test_serialize_all() {
-        let path = openmw_config::default_config_path();
-        let config = ConfigurationManager::try_from((
-            path.to_str().unwrap(),
-            &serialize::SERIALIZABLE_TYPES[..],
-        ))
-        .unwrap();
-
-        let mut file = File::create("./FGDOut_ALL.fgd").unwrap();
-        let mut writer = BufWriter::new(&mut file);
-
-        assert!(serialize::serialize_objects_as_fgd(&config, &mut writer).is_ok());
+        let output_path = PathBuf::from("./FGDOut_ALL.fgd");
+        assert!(generate_fgd(None, &serialize::SERIALIZABLE_TYPES, 1.0, &output_path,).is_ok());
     }
 
     fn serialize_by_type(object_type: &'static str, config_path: Option<std::path::PathBuf>) {
