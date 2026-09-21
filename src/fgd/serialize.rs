@@ -18,8 +18,10 @@ use std_write_fgd::STDWriteFGD;
 pub mod write_fgd_prop;
 use write_fgd_prop::WriteFGDProp;
 
+#[allow(dead_code)] // Reserved for grouping records by owning plugin in typed output.
 type PluginRecordMap<'a> = BTreeMap<&'a String, BTreeSet<Cow<'a, str>>>;
 
+#[allow(dead_code)] // Shared inventory retained alongside the CLI's typed enum list.
 pub static SERIALIZABLE_TYPES: [&'static str; 18] = [
     tes3::esp::Activator::TAG_STR,
     tes3::esp::Alchemy::TAG_STR,
@@ -43,6 +45,7 @@ pub static SERIALIZABLE_TYPES: [&'static str; 18] = [
     // tes3::esp::Npc::TAG_STR,
 ];
 
+#[allow(dead_code)] // Record-level filter retained for callers that already parsed objects.
 pub fn is_serializable_type(object: &TES3Object) -> bool {
     match object {
         TES3Object::Activator(_)
@@ -138,6 +141,7 @@ pub fn encode_fgd_token<S: AsRef<str>>(input: &S) -> Cow<'_, str> {
 
 /// Decode back to the original UTF‑8 string.
 /// Returns Err on malformed sequence.
+#[allow(dead_code)] // Kept as the inverse of encode_fgd_token for round-trip consumers.
 pub fn decode_fgd_token<S: AsRef<str>>(input: &S) -> Result<Cow<'_, str>, &'static str> {
     let s = input.as_ref();
     if !s.contains("_x") {
@@ -162,6 +166,7 @@ pub fn decode_fgd_token<S: AsRef<str>>(input: &S) -> Result<Cow<'_, str>, &'stat
     Ok(Cow::Owned(String::from_utf8(out).map_err(|_| "utf8")?))
 }
 
+#[allow(dead_code)] // Used by the retained FGD token decoder.
 fn hex_val(b: u8) -> Result<u8, &'static str> {
     match b {
         b'0'..=b'9' => Ok(b - b'0'),
@@ -467,6 +472,7 @@ pub fn get_object_type_data(
     }
 }
 
+#[allow(dead_code)] // Retained for per-type FGD files in addition to combined output.
 pub fn serialize_typed_objects_as_fgd<W: Write>(
     config_manager: &crate::fgd::ConfigurationManager,
     fgd_string: &mut W,

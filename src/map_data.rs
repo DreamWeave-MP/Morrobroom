@@ -18,6 +18,7 @@ const GRID_SIZE: u8 = 128;
 
 pub struct MapData {
     pub geomap: GeoMap,
+    #[allow(dead_code)] // Retained for future spatial face queries and broad-phase work.
     pub face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>>,
     pub face_vertices: FaceVertices,
     pub face_tri_indices: FaceTriangleIndices,

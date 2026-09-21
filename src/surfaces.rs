@@ -16,4 +16,5 @@ impl std::fmt::Display for NiBroomSurface {
     }
 }
 
+#[allow(dead_code)] // Reserved for the content categories emitted by the NIF bridge.
 pub enum NiBroomContent {}
