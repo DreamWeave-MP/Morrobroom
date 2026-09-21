@@ -31,7 +31,7 @@ pub fn interior_faces(
             let lines = face_lines.get(face).unwrap();
 
             let non_manifold: usize = lines
-                .par_iter()
+                .iter()
                 .map(|line_id| non_manifold_lines.contains(line_id) as usize)
                 .sum();
 

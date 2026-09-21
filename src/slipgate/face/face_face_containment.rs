@@ -19,12 +19,12 @@ pub fn face_face_containment(
     face_vertices: &FaceVertices,
     face_lines: &FaceLines,
 ) -> FaceFaceContainment {
-    let iter = faces.par_iter().flat_map(|lhs_id| {
+    let iter = faces.par_iter().flat_map_iter(|lhs_id| {
         let lhs_verts = &face_vertices[lhs_id];
         let lhs_plane = &face_planes[lhs_id];
         let lhs_basis = &face_bases[lhs_id];
 
-        faces.par_iter().flat_map(move |rhs_id| {
+        faces.iter().filter_map(move |rhs_id| {
             let rhs_verts = &face_vertices[rhs_id];
             let rhs_plane = &face_planes[rhs_id];
 
@@ -38,7 +38,7 @@ pub fn face_face_containment(
                 return None;
             }
 
-            let contained = &face_lines[lhs_id].par_iter().all(|line_id| {
+            let contained = face_lines[lhs_id].iter().all(|line_id| {
                 let line = lines[line_id];
 
                 let v0 = lhs_verts[line.i0];
@@ -50,7 +50,7 @@ pub fn face_face_containment(
                 let u = (vd1 - vd0).normalize();
                 let v = nalgebra::vector![-u.y, u.x];
 
-                rhs_verts.par_iter().all(|vert| {
+                rhs_verts.iter().all(|vert| {
                     let vert = nalgebra::vector![vert.dot(&lhs_basis.x), vert.dot(&lhs_basis.y)];
                     vert.dot(&v) > vd0.dot(&v) + EPSILON
                 })

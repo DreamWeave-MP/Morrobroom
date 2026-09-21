@@ -19,7 +19,7 @@ pub fn normals_flat(face_vertices: &FaceVertices, face_planes: &FacePlanes) -> F
 
             (
                 *face_id,
-                vertices.par_iter().map(|_| *face_plane.normal()).collect(),
+                vertices.iter().map(|_| *face_plane.normal()).collect(),
             )
         })
         .collect()
@@ -38,7 +38,7 @@ pub fn normals_phong_averaged(
             (
                 *face_id,
                 vertex_planes
-                    .par_iter()
+                    .iter()
                     .map(|(p0, p1, p2)| {
                         let p0 = &face_planes[p0];
                         let p1 = &face_planes[p1];
@@ -65,7 +65,7 @@ pub fn normals_phong_threshold(
             (
                 *face_id,
                 vertex_planes
-                    .par_iter()
+                    .iter()
                     .map(|(p0, p1, p2)| {
                         let p0 = &face_planes[p0];
                         let p1 = &face_planes[p1];

@@ -12,6 +12,6 @@ pub type BrushEntities = Usage<BrushEntitiesTag, BTreeMap<BrushId, EntityId>>;
 pub fn brush_entities(entity_brushes: &EntityBrushes) -> BrushEntities {
     entity_brushes
         .par_iter()
-        .flat_map(|(entity, brushes)| brushes.par_iter().map(move |brush| (*brush, *entity)))
+        .flat_map_iter(|(entity, brushes)| brushes.iter().map(move |brush| (*brush, *entity)))
         .collect()
 }

@@ -18,7 +18,7 @@ pub fn brush_hulls(
         .par_iter()
         .map(|(brush_id, plane_ids)| {
             let planes = plane_ids
-                .par_iter()
+                .iter()
                 .map(|plane_id| geo_planes[plane_id])
                 .collect::<Vec<_>>();
             (*brush_id, planes.into())

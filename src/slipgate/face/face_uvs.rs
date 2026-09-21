@@ -113,7 +113,7 @@ pub fn new(
             (
                 *face_id,
                 face_vertices
-                    .par_iter()
+                    .iter()
                     .map(|vertex| {
                         prepared_vertex_uv(
                             *vertex,

@@ -22,7 +22,7 @@ pub fn entity_centers(
         .par_iter()
         .map(|(entity_id, brush_ids)| {
             let center: Vector3 = brush_ids
-                .par_iter()
+                .iter()
                 .map(|brush_id| brush_centers[brush_id])
                 .sum();
 

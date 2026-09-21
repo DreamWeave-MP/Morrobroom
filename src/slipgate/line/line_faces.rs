@@ -14,6 +14,6 @@ pub type LineFaces = Usage<LineFacesTag, BTreeMap<LineId, FaceId>>;
 pub fn line_faces(face_lines: &FaceLines) -> LineFaces {
     face_lines
         .par_iter()
-        .flat_map(|(face, lines)| lines.par_iter().map(move |line| (*line, *face)))
+        .flat_map_iter(|(face, lines)| lines.iter().map(move |line| (*line, *face)))
         .collect()
 }

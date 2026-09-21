@@ -27,8 +27,8 @@ pub fn brush_face_containment(
             (
                 *brush_id,
                 faces
-                    .par_iter()
-                    .flat_map(|face_id| {
+                    .iter()
+                    .filter_map(|face_id| {
                         // Skip checking own vertices
                         if brush_faces_set.contains(face_id) {
                             return None;
@@ -36,9 +36,7 @@ pub fn brush_face_containment(
 
                         let face_verts = &face_vertices[face_id];
 
-                        let contained = face_verts
-                            .par_iter()
-                            .all(|vertex| brush_hull.contains(vertex));
+                        let contained = face_verts.iter().all(|vertex| brush_hull.contains(vertex));
 
                         if !contained {
                             return None;
