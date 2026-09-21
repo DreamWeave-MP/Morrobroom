@@ -5,13 +5,13 @@ pub use brush::*;
 use std::str::FromStr;
 
 use nom::{
-    branch::alt, character::complete::line_ending, combinator::map_res, error::Error,
-    multi::separated_list0, Finish, IResult,
+    Finish, IResult, branch::alt, character::complete::line_ending, combinator::map_res,
+    error::Error, multi::separated_list0,
 };
 
 use crate::slipgate::{
-    repr::{Brush, Brushes},
     parser::parse_eol_comment,
+    repr::{Brush, Brushes},
 };
 
 impl FromStr for Brushes {

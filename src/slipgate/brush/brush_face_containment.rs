@@ -21,8 +21,7 @@ pub fn brush_face_containment(
     brushes
         .par_iter()
         .map(|brush_id| {
-            let brush_faces_set: BTreeSet<FaceId> =
-                brush_faces[brush_id].iter().copied().collect();
+            let brush_faces_set: BTreeSet<FaceId> = brush_faces[brush_id].iter().copied().collect();
             let brush_hull = &brush_hulls[brush_id];
 
             (

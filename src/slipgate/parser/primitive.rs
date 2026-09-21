@@ -1,7 +1,7 @@
 //! [`nom`] functions for parsing Rust primitives.
-use nom::{branch::alt, combinator::map_res, IResult};
+use nom::{IResult, branch::alt, combinator::map_res};
 
-use super::{parse_integer_unsigned, parse_float, parse_integer_signed};
+use super::{parse_float, parse_integer_signed, parse_integer_unsigned};
 
 /// Parse an unsigned decimal literal into a u32
 pub fn parse_u32(input: &str) -> IResult<&str, u32> {

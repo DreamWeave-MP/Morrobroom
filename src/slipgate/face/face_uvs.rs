@@ -1,9 +1,9 @@
+use crate::slipgate::repr::{TextureOffset, TexturePlane};
 use crate::slipgate::{
-    texture::{TextureId, TextureSizes},
     Plane3d, Vector2, Vector3,
+    texture::{TextureId, TextureSizes},
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use crate::slipgate::repr::{TextureOffset, TexturePlane};
 use std::collections::BTreeMap;
 use usage::Usage;
 

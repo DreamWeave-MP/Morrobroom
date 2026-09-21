@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::slipgate::repr::TextureOffset;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
-use crate::slipgate::{face::FaceId, vector3_from_texture_plane, FacePlanes, Plane3d, Vector3};
+use crate::slipgate::{FacePlanes, Plane3d, Vector3, face::FaceId, vector3_from_texture_plane};
 
 // TODO: Replace GeoPlane usage with custom tangent type
 //       (Would storing a basis be viable? No need to conform to godot standards)
@@ -30,10 +30,7 @@ pub fn face_bases(
         .map(|plane_id| {
             (
                 *plane_id,
-                face_basis(
-                    &geo_planes[plane_id],
-                    &face_offsets[plane_id],
-                ),
+                face_basis(&geo_planes[plane_id], &face_offsets[plane_id]),
             )
         })
         .collect()

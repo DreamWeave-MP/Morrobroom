@@ -1,15 +1,15 @@
 use std::str::FromStr;
 
 use nom::{
+    Finish, IResult,
     bytes::complete::tag,
     character::complete::space1,
     combinator::{opt, recognize},
     error::Error,
     sequence::{delimited, preceded, terminated, tuple},
-    Finish, IResult,
 };
 
-use crate::slipgate::{repr::Point, parser::primitive::parse_f32};
+use crate::slipgate::{parser::primitive::parse_f32, repr::Point};
 
 impl FromStr for Point {
     type Err = Error<String>;

@@ -13,11 +13,23 @@ impl Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "( {}{} {}{} {}{} )",
-            if self.x == 0.0 && self.x.is_sign_negative() { "-" } else { "" },
+            if self.x == 0.0 && self.x.is_sign_negative() {
+                "-"
+            } else {
+                ""
+            },
             if self.x == 0.0 { self.x.abs() } else { self.x },
-            if self.y == 0.0 && self.y.is_sign_negative() { "-" } else { "" },
+            if self.y == 0.0 && self.y.is_sign_negative() {
+                "-"
+            } else {
+                ""
+            },
             if self.y == 0.0 { self.y.abs() } else { self.y },
-            if self.z == 0.0 && self.z.is_sign_negative() { "-" } else { "" },
+            if self.z == 0.0 && self.z.is_sign_negative() {
+                "-"
+            } else {
+                ""
+            },
             if self.z == 0.0 { self.z.abs() } else { self.z },
         ))
     }

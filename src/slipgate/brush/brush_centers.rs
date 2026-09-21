@@ -5,8 +5,8 @@ use usage::Usage;
 
 use super::BrushId;
 use crate::slipgate::{
-    face::{FaceCenters, FaceId},
     Vector3,
+    face::{FaceCenters, FaceId},
 };
 
 pub enum BrushCentersTag {}
@@ -14,7 +14,10 @@ pub enum BrushCentersTag {}
 pub type BrushCenters = Usage<BrushCentersTag, BTreeMap<BrushId, Vector3>>;
 
 // Calculate brush centers
-pub fn brush_centers(brush_planes: &BTreeMap<BrushId, Vec<FaceId>>, face_centers: &FaceCenters) -> BrushCenters {
+pub fn brush_centers(
+    brush_planes: &BTreeMap<BrushId, Vec<FaceId>>,
+    face_centers: &FaceCenters,
+) -> BrushCenters {
     brush_planes
         .par_iter()
         .map(|(brush_id, plane_ids)| {

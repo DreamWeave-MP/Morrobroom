@@ -5,7 +5,9 @@ use crate::slipgate::repr::{
 };
 use usage::Usage;
 
-use crate::slipgate::{brush::BrushId, entity::EntityId, face::FaceId, texture::TextureId, Vector2};
+use crate::slipgate::{
+    Vector2, brush::BrushId, entity::EntityId, face::FaceId, texture::TextureId,
+};
 
 pub enum EntitiesTag {}
 pub enum BrushesTag {}
@@ -151,10 +153,7 @@ impl GeoMap {
             .copied()
             .collect();
 
-        let textures = textures
-            .into_iter()
-            .map(|(k, v)| (v, k))
-            .collect();
+        let textures = textures.into_iter().map(|(k, v)| (v, k)).collect();
 
         GeoMap {
             entities,

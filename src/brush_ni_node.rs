@@ -2,11 +2,7 @@ use std::collections::HashSet;
 
 use morrobroom::slipgate::repr;
 use morrobroom::slipgate::{
-    brush::BrushId,
-    entity::EntityId,
-    face::FaceId,
-    Vector2 as SV2,
-    Vector3 as SV3,
+    Vector2 as SV2, Vector3 as SV3, brush::BrushId, entity::EntityId, face::FaceId,
 };
 use tes3::nif::{NiTriShape, NiTriShapeData};
 
@@ -334,7 +330,7 @@ impl BrushNiNode {
                 .get(face_id)
                 .unwrap_or(&repr::Extension::Standard)
             {
-                    &repr::Extension::Quake2 {
+                &repr::Extension::Quake2 {
                     content_flags,
                     surface_flags,
                     value,

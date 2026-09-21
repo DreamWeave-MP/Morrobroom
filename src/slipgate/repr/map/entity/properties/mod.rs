@@ -2,7 +2,10 @@ mod property;
 
 pub use property::*;
 
-use std::{fmt::Display, ops::{Deref, DerefMut}};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 /// A set of [`Property`]s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]

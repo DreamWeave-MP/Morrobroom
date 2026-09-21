@@ -8,4 +8,3 @@ impl Display for EntityId {
         Display::fmt(&self.0, f)
     }
 }
-

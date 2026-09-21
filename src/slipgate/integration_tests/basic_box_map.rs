@@ -1,9 +1,10 @@
-use crate::{test_map, slipgate::{
-    repr::{
+use crate::{
+    slipgate::repr::{
         Brush, BrushPlane, Brushes, Entity, Extension, Map, Point, Properties, Property,
         TextureOffset, TrianglePlane,
     },
-}};
+    test_map,
+};
 
 test_map!(
     test_basic_box_map,

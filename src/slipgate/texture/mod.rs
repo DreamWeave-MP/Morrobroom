@@ -10,4 +10,3 @@ impl std::fmt::Display for TextureId {
         std::fmt::Display::fmt(&self.0, f)
     }
 }
-

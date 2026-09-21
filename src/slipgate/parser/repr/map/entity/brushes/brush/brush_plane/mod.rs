@@ -9,11 +9,11 @@ pub use triangle::*;
 use std::str::FromStr;
 
 use nom::{
-    bytes::complete::take_until, character::complete::space1, combinator::opt, error::Error,
-    sequence::terminated, Finish, IResult,
+    Finish, IResult, bytes::complete::take_until, character::complete::space1, combinator::opt,
+    error::Error, sequence::terminated,
 };
 
-use crate::slipgate::{repr::BrushPlane, parser::primitive::parse_f32};
+use crate::slipgate::{parser::primitive::parse_f32, repr::BrushPlane};
 
 impl FromStr for BrushPlane {
     type Err = Error<String>;

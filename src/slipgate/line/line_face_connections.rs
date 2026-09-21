@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::slipgate::face::{FaceId, FaceVertices};
 use usage::{AsUsage, Usage};
 
-use super::{point_in_line, LineFaces, LineId, Lines};
+use super::{LineFaces, LineId, Lines, point_in_line};
 pub enum LineFaceConnectionsTag {}
 pub type LineFaceConnections = Usage<LineFaceConnectionsTag, BTreeMap<LineId, BTreeSet<FaceId>>>;
 

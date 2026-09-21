@@ -2,7 +2,10 @@ mod brush;
 
 pub use brush::*;
 
-use std::{fmt::Display, ops::{Deref, DerefMut}};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 #[cfg(doc)]
 use crate::slipgate::repr::Entity;

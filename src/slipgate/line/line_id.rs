@@ -6,4 +6,3 @@ impl std::fmt::Display for LineId {
         self.0.fmt(f)
     }
 }
-

@@ -4,14 +4,13 @@ use std::path::Path;
 use crate::slipgate::repr::Map;
 
 use crate::slipgate::{
-    brush, face,
+    GeoMap, brush, face,
     face::{
         FaceCenters, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices, FaceWinding,
         OccludedFaces,
     },
     line,
     texture::TextureSizes,
-    GeoMap,
 };
 
 // ── Error ────────────────────────────────────────────────────────────────────
@@ -87,16 +86,15 @@ impl MapGeometry {
     /// [`face_uvs`](Self::face_uvs) separately.
     pub fn new(path: impl AsRef<Path>) -> Result<Self, MapGeometryError> {
         let map_string = fs::read_to_string(path)?;
-        let map = map_string.parse::<Map>().map_err(|e| {
-            MapGeometryError::Parse(format!("at '{}' ({:?})", e.input, e.code))
-        })?;
+        let map = map_string
+            .parse::<Map>()
+            .map_err(|e| MapGeometryError::Parse(format!("at '{}' ({:?})", e.input, e.code)))?;
 
         Ok(Self::from_map(map))
     }
 
     /// Process an already parsed map without performing filesystem I/O.
     pub fn from_map(map: Map) -> Self {
-
         let geomap = GeoMap::new(map);
 
         // ── Core geometry ─────────────────────────────────────────────────────
@@ -127,8 +125,7 @@ impl MapGeometry {
         let smooth_normals = face::normals_phong_averaged(&face_vertex_planes, &face_planes);
 
         // ── Occlusion ─────────────────────────────────────────────────────────
-        let face_duplicates =
-            face::face_duplicates(&geomap.faces, &face_planes, &face_vertices);
+        let face_duplicates = face::face_duplicates(&geomap.faces, &face_planes, &face_vertices);
         let brush_face_containment = brush::brush_face_containment(
             &geomap.brushes,
             &geomap.faces,
@@ -136,11 +133,7 @@ impl MapGeometry {
             &brush_hulls,
             &face_vertices,
         );
-        let face_bases = face::face_bases(
-            &geomap.faces,
-            &face_planes,
-            &geomap.face_offsets,
-        );
+        let face_bases = face::face_bases(&geomap.faces, &face_planes, &geomap.face_offsets);
         // Edge topology is winding-independent; CW indices are sufficient here.
         let (lines, face_lines) = line::lines(&face_indices_cw);
         let face_face_containment = face::face_face_containment(
@@ -225,7 +218,11 @@ mod tests {
             assert_eq!(geometry.inverted_face_tri_indices[face_id].len(), 6);
             assert_eq!(geometry.flat_normals[face_id].len(), vertices.len());
             assert_eq!(geometry.smooth_normals[face_id].len(), vertices.len());
-            assert!(vertices.iter().all(|vertex| vertex.iter().all(|value| value.is_finite())));
+            assert!(
+                vertices
+                    .iter()
+                    .all(|vertex| vertex.iter().all(|value| value.is_finite()))
+            );
         }
     }
 

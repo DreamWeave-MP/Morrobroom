@@ -3,11 +3,11 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use usage::Usage;
 
-use super::{line_eq, LineId, Lines};
+use super::{LineId, Lines, line_eq};
 
 use crate::slipgate::{
-    face::{FaceDuplicates, FaceId, FaceLines, FaceVertices},
     BrushFaces, Brushes,
+    face::{FaceDuplicates, FaceId, FaceLines, FaceVertices},
 };
 
 pub enum LineDuplicatesTag {}
@@ -21,9 +21,8 @@ pub fn line_duplicates(
     face_vertices: &FaceVertices,
     face_lines: &FaceLines,
 ) -> LineDuplicates {
-    let duplicate_face_ids: Arc<BTreeSet<FaceId>> = Arc::new(
-        face_duplicates.iter().map(|(a, _)| *a).collect()
-    );
+    let duplicate_face_ids: Arc<BTreeSet<FaceId>> =
+        Arc::new(face_duplicates.iter().map(|(a, _)| *a).collect());
 
     brushes
         .par_iter()

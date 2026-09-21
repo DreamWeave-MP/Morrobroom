@@ -2,7 +2,10 @@ mod brush_plane;
 
 pub use brush_plane::*;
 
-use std::{fmt::Display, ops::{Deref, DerefMut}};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 /// The convex volume represented by a set of [`BrushPlane`]s.
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]

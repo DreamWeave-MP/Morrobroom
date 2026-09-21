@@ -1,4 +1,4 @@
-use crate::slipgate::{Plane3d, Vector3, EPSILON};
+use crate::slipgate::{EPSILON, Plane3d, Vector3};
 
 /// A convex hull described by a set of planes
 #[derive(Debug, Clone)]
@@ -20,5 +20,4 @@ impl ConvexHull {
         }
         true
     }
-
 }

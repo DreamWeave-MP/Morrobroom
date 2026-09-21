@@ -1,12 +1,12 @@
 use nom::{
+    IResult,
     bytes::complete::tag,
     character::complete::space1,
     combinator::map_res,
     sequence::{delimited, preceded, tuple},
-    IResult,
 };
 
-use crate::slipgate::{repr::TexturePlane, parser::primitive::parse_f32};
+use crate::slipgate::{parser::primitive::parse_f32, repr::TexturePlane};
 
 /// Parse a [`TexturePlane`] from `&str`
 pub fn parse_texture_plane(input: &str) -> IResult<&str, TexturePlane> {

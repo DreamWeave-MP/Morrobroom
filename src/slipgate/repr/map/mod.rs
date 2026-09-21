@@ -2,7 +2,10 @@ mod entity;
 
 pub use entity::*;
 
-use std::{fmt::Display, ops::{Deref, DerefMut}};
+use std::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 /// A Quake [`map`](https://www.gamers.org/dEngine/quake/QDP/qmapspec.html) containing one or more [`Entity`]s.
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]

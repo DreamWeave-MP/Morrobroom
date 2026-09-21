@@ -7,12 +7,12 @@ pub use properties::*;
 use std::str::FromStr;
 
 use nom::{
+    Finish, IResult,
     bytes::complete::tag,
     character::complete::line_ending,
     combinator::opt,
     error::Error,
     sequence::{delimited, preceded, separated_pair, terminated},
-    Finish, IResult,
 };
 
 use crate::slipgate::repr::Entity;
@@ -57,12 +57,16 @@ mod tests {
     fn test_entity() {
         // No properties, brushes
         assert_eq!(
-            parse_entity(&("{\n".to_string() + &crate::slipgate::unit_test_data::test_brush_in() + "\n}")),
+            parse_entity(
+                &("{\n".to_string() + &crate::slipgate::unit_test_data::test_brush_in() + "\n}")
+            ),
             Ok((
                 "",
                 Entity {
                     properties: Default::default(),
-                    brushes: crate::slipgate::repr::Brushes::new(vec![crate::slipgate::unit_test_data::test_brush_out()])
+                    brushes: crate::slipgate::repr::Brushes::new(vec![
+                        crate::slipgate::unit_test_data::test_brush_out()
+                    ])
                 }
             ))
         );
@@ -73,10 +77,12 @@ mod tests {
             Ok((
                 "",
                 Entity {
-                    properties: crate::slipgate::repr::Properties::new(vec![crate::slipgate::repr::Property {
-                        key: "classname".into(),
-                        value: "worldspawn".into()
-                    }]),
+                    properties: crate::slipgate::repr::Properties::new(vec![
+                        crate::slipgate::repr::Property {
+                            key: "classname".into(),
+                            value: "worldspawn".into()
+                        }
+                    ]),
                     brushes: Default::default()
                 }
             ))

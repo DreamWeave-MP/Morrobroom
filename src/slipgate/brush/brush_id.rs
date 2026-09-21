@@ -8,4 +8,3 @@ impl Display for BrushId {
         Display::fmt(&self.0, f)
     }
 }
-

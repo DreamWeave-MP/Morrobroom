@@ -8,13 +8,13 @@ use crate::slipgate::repr::Map;
 pub mod repr;
 
 use nom::{
+    IResult,
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
     character::complete::{char, none_of, one_of, space1},
     combinator::{opt, recognize},
     multi::many1,
     sequence::{delimited, pair, preceded, terminated, tuple},
-    IResult,
 };
 
 /// Recognize an unsigned integer literal.
@@ -31,7 +31,11 @@ pub fn parse_integer_signed(input: &str) -> IResult<&str, &str> {
 pub fn parse_float(input: &str) -> IResult<&str, &str> {
     alt((
         // Case one: +.42 / -.42 / .42
-        recognize(tuple((opt(one_of("+-")), char('.'), parse_integer_unsigned))),
+        recognize(tuple((
+            opt(one_of("+-")),
+            char('.'),
+            parse_integer_unsigned,
+        ))),
         // Case two: 42e42 and 42.42e42
         recognize(tuple((
             parse_integer_signed,
@@ -41,7 +45,11 @@ pub fn parse_float(input: &str) -> IResult<&str, &str> {
             parse_integer_unsigned,
         ))),
         // Case two: 42. and 42.42
-        recognize(tuple((parse_integer_signed, char('.'), opt(parse_integer_unsigned)))),
+        recognize(tuple((
+            parse_integer_signed,
+            char('.'),
+            opt(parse_integer_unsigned),
+        ))),
     ))(input)
 }
 
@@ -80,7 +88,10 @@ mod tests {
     fn test_string() {
         assert_eq!(parse_string("\"Foo\""), Ok(("", "Foo")));
         assert_eq!(parse_string("'Foo'"), Ok(("", "Foo")));
-        assert_eq!(parse_string("\"Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0.\""), Ok(("", "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0.")));
+        assert_eq!(
+            parse_string("\"Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0.\""),
+            Ok(("", "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0."))
+        );
     }
 
     #[test]

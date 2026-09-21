@@ -14,8 +14,8 @@ use usage::Usage;
 use std::collections::BTreeMap;
 
 use crate::slipgate::{
+    EPSILON, Vector3,
     face::{FaceIndices, FaceLines},
-    Vector3, EPSILON,
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -91,7 +91,7 @@ fn point_in_line(point: &Vector3, v0: &Vector3, v1: &Vector3) -> bool {
 
     let cross = dc.cross(&dl);
     if cross.magnitude() > EPSILON {
-        return false
+        return false;
     }
 
     let norm = dc;

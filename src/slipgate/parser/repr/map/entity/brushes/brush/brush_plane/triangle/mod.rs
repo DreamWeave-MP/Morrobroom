@@ -5,10 +5,10 @@ pub use point::*;
 use std::str::FromStr;
 
 use nom::{
+    Finish, IResult,
     character::complete::space1,
     error::Error,
     sequence::{preceded, terminated, tuple},
-    Finish, IResult,
 };
 
 use crate::slipgate::repr::TrianglePlane;

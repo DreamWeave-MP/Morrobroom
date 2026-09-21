@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use usage::Usage;
 
-use crate::slipgate::{brush::BrushId, BrushFaces};
+use crate::slipgate::{BrushFaces, brush::BrushId};
 
 use super::FaceId;
 

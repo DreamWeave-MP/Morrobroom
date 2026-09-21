@@ -5,8 +5,8 @@ use usage::Usage;
 
 use super::EntityId;
 use crate::slipgate::{
-    brush::{BrushCenters, BrushId},
     Vector3,
+    brush::{BrushCenters, BrushId},
 };
 
 pub enum EntityCentersTag {}

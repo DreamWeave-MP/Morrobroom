@@ -1,6 +1,6 @@
+use morrobroom::slipgate::{Vector3 as SV3, brush::BrushId, entity::EntityId};
 use nalgebra::{Rotation3, Vector3};
 use openmw_cfg::{find_file, get_config};
-use morrobroom::slipgate::{brush::BrushId, entity::EntityId, Vector3 as SV3};
 use tes3::{
     esp,
     nif::{

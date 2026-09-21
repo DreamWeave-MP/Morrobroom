@@ -1,5 +1,4 @@
 use imagesize::size;
-use openmw_cfg::{Ini, find_file, get_config};
 use morrobroom::slipgate::repr::*;
 use morrobroom::slipgate::{
     GeoMap, Textures,
@@ -7,6 +6,7 @@ use morrobroom::slipgate::{
     face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
     texture::TextureId,
 };
+use openmw_cfg::{Ini, find_file, get_config};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
@@ -41,10 +41,14 @@ impl MapData {
         // Boilerplate for generating hulls, textures, etc
         let face_planes = morrobroom::slipgate::face::face_planes(&geomap.face_planes);
 
-        let brush_hulls = morrobroom::slipgate::brush::brush_hulls(&geomap.brush_faces, &face_planes);
+        let brush_hulls =
+            morrobroom::slipgate::brush::brush_hulls(&geomap.brush_faces, &face_planes);
 
-        let (face_vertices, face_vertex_planes) =
-            morrobroom::slipgate::face::face_vertices(&geomap.brush_faces, &face_planes, &brush_hulls);
+        let (face_vertices, face_vertex_planes) = morrobroom::slipgate::face::face_vertices(
+            &geomap.brush_faces,
+            &face_planes,
+            &brush_hulls,
+        );
 
         let face_centers = morrobroom::slipgate::face::face_centers(&face_vertices);
 

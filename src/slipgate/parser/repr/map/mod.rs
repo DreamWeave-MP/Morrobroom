@@ -5,13 +5,13 @@ pub use entity::*;
 use std::str::FromStr;
 
 use nom::{
-    branch::alt, character::complete::line_ending, combinator::map_res, error::Error,
-    multi::separated_list1, Finish, IResult,
+    Finish, IResult, branch::alt, character::complete::line_ending, combinator::map_res,
+    error::Error, multi::separated_list1,
 };
 
 use crate::slipgate::{
-    repr::{Entity, Map},
     parser::parse_eol_comment,
+    repr::{Entity, Map},
 };
 
 impl FromStr for Map {

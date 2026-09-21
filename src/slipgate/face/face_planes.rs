@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use crate::slipgate::repr::TrianglePlane;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use crate::slipgate::Plane3d;

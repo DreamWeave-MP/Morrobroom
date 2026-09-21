@@ -4,7 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use super::{FaceCenters, FaceId, FaceVertices};
-use crate::slipgate::{vector3_from_point, FacePlanes, FaceTrianglePlanes};
+use crate::slipgate::{FacePlanes, FaceTrianglePlanes, vector3_from_point};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FaceWinding {

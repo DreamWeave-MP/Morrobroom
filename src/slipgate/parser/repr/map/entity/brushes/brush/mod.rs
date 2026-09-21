@@ -5,13 +5,13 @@ pub use brush_plane::*;
 use std::str::FromStr;
 
 use nom::{
+    Finish, IResult,
     bytes::complete::tag,
     character::complete::line_ending,
     combinator::recognize,
     error::Error,
     multi::separated_list1,
     sequence::{delimited, preceded, terminated},
-    Finish, IResult,
 };
 
 use crate::slipgate::repr::Brush;

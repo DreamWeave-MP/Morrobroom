@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
-use crate::slipgate::{brush::BrushId, entity::EntityId, EntityBrushes};
+use crate::slipgate::{EntityBrushes, brush::BrushId, entity::EntityId};
 
 pub enum BrushEntitiesTag {}
 

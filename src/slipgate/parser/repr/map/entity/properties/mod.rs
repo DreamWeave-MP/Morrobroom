@@ -5,7 +5,7 @@ pub use property::*;
 use std::str::FromStr;
 
 use nom::{
-    character::complete::line_ending, error::Error, multi::separated_list0, Finish, IResult,
+    Finish, IResult, character::complete::line_ending, error::Error, multi::separated_list0,
 };
 
 use crate::slipgate::repr::Properties;

@@ -4,13 +4,16 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use super::BrushId;
-use crate::slipgate::{face::FaceId, ConvexHull, FacePlanes};
+use crate::slipgate::{ConvexHull, FacePlanes, face::FaceId};
 
 pub enum BrushHullsTag {}
 
 pub type BrushHulls = Usage<BrushHullsTag, BTreeMap<BrushId, ConvexHull>>;
 
-pub fn brush_hulls(brush_planes: &BTreeMap<BrushId, Vec<FaceId>>, geo_planes: &FacePlanes) -> BrushHulls {
+pub fn brush_hulls(
+    brush_planes: &BTreeMap<BrushId, Vec<FaceId>>,
+    geo_planes: &FacePlanes,
+) -> BrushHulls {
     brush_planes
         .par_iter()
         .map(|(brush_id, plane_ids)| {

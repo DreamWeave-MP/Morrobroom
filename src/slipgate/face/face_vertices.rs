@@ -4,9 +4,9 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use crate::slipgate::{
+    EPSILON, FacePlanes, Plane3d, Vector3,
     brush::{BrushHulls, BrushId},
     face::FaceId,
-    FacePlanes, Plane3d, Vector3, EPSILON,
 };
 
 pub enum FaceVerticesTag {}
@@ -44,10 +44,10 @@ pub fn face_vertices(
                     .clone()
                     .flat_map(|(p1_id, p1)| {
                         plane_iter.clone().map(move |(p2_id, p2)| {
-                            if let Some(position) = triplanar_intersection(&p0, &p1, &p2) {
-                                if hull.contains(&position) {
-                                    return Some(((p0_id, p1_id, p2_id), position));
-                                }
+                            if let Some(position) = triplanar_intersection(&p0, &p1, &p2)
+                                && hull.contains(&position)
+                            {
+                                return Some(((p0_id, p1_id, p2_id), position));
                             }
 
                             None

@@ -3,11 +3,11 @@ mod texture_plane;
 pub use texture_plane::*;
 
 use nom::{
-    branch::alt, character::complete::space1, combinator::map_res, sequence::separated_pair,
-    IResult,
+    IResult, branch::alt, character::complete::space1, combinator::map_res,
+    sequence::separated_pair,
 };
 
-use crate::slipgate::{repr::TextureOffset, parser::primitive::parse_f32};
+use crate::slipgate::{parser::primitive::parse_f32, repr::TextureOffset};
 
 /// Parse a [`TextureOffset`] from `&str`
 pub fn parse_texture_offset(input: &str) -> IResult<&str, TextureOffset> {

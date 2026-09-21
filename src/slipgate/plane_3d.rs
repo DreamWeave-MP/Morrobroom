@@ -1,5 +1,5 @@
-use crate::slipgate::{vector3_from_point, Vector3, EPSILON};
 use crate::slipgate::repr::{TexturePlane, TrianglePlane};
+use crate::slipgate::{EPSILON, Vector3, vector3_from_point};
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Plane3d {

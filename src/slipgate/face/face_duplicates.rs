@@ -4,7 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use super::{FaceId, FaceVertices};
-use crate::slipgate::{FacePlanes, EPSILON};
+use crate::slipgate::{EPSILON, FacePlanes};
 
 pub enum FaceDuplicatesTag {}
 

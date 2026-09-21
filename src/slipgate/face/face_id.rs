@@ -8,4 +8,3 @@ impl Display for FaceId {
         Display::fmt(&self.0, f)
     }
 }
-

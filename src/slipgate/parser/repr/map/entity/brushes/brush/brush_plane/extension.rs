@@ -1,9 +1,9 @@
 use nom::{
+    IResult,
     branch::alt,
     character::complete::space1,
     combinator::{map_res, opt},
     sequence::tuple,
-    IResult,
 };
 
 use crate::slipgate::{
@@ -14,7 +14,11 @@ use crate::slipgate::{
 /// Parse an [`Extension`] from `&str`.
 pub fn parse_extension(input: &str) -> IResult<&str, Extension> {
     map_res(
-        opt(alt((parse_extension_daikatana, parse_extension_quake_2, parse_extension_hexen_2))),
+        opt(alt((
+            parse_extension_daikatana,
+            parse_extension_quake_2,
+            parse_extension_hexen_2,
+        ))),
         |extension| {
             if let Some(extension) = extension {
                 Ok(extension) as Result<Extension, ()>

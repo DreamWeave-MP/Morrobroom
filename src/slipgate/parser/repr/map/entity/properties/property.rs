@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use nom::{character::complete::space1, error::Error, sequence::separated_pair, Finish, IResult};
+use nom::{Finish, IResult, character::complete::space1, error::Error, sequence::separated_pair};
 
-use crate::slipgate::{repr::Property, parser::parse_string};
+use crate::slipgate::{parser::parse_string, repr::Property};
 
 impl FromStr for Property {
     type Err = Error<String>;

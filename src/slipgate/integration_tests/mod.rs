@@ -53,22 +53,43 @@ test_map!(
     test_abstract_test_edited,
     "../../../tests/fixtures/maps/parser/abstract_test_edited.map"
 );
-test_map!(test_abstract_test_a, "../../../tests/fixtures/maps/parser/abstract_test.map");
-test_map!(test_abstract_test_b, "../../../tests/fixtures/maps/parser/abstract-test.map");
+test_map!(
+    test_abstract_test_a,
+    "../../../tests/fixtures/maps/parser/abstract_test.map"
+);
+test_map!(
+    test_abstract_test_b,
+    "../../../tests/fixtures/maps/parser/abstract-test.map"
+);
 test_map!(test_bevel, "../../../tests/fixtures/maps/parser/Bevel.map");
-test_map!(test_lighting_test, "../../../tests/fixtures/maps/parser/lighting_test.map");
+test_map!(
+    test_lighting_test,
+    "../../../tests/fixtures/maps/parser/lighting_test.map"
+);
 test_map!(
     test_mean_block_single,
     "../../../tests/fixtures/maps/parser/mean_block_single.map"
 );
-test_map!(test_mean_block, "../../../tests/fixtures/maps/parser/mean_block.map");
+test_map!(
+    test_mean_block,
+    "../../../tests/fixtures/maps/parser/mean_block.map"
+);
 test_map!(
     test_mean_pillar_single,
     "../../../tests/fixtures/maps/parser/mean_pillar_single.map"
 );
-test_map!(test_mean_pillar, "../../../tests/fixtures/maps/parser/mean_pillar.map");
-test_map!(test_test_cylinder, "../../../tests/fixtures/maps/parser/test_cylinder.map");
-test_map!(test_daikatana_color, "../../../tests/fixtures/maps/parser/daikatana-color-test.map");
+test_map!(
+    test_mean_pillar,
+    "../../../tests/fixtures/maps/parser/mean_pillar.map"
+);
+test_map!(
+    test_test_cylinder,
+    "../../../tests/fixtures/maps/parser/test_cylinder.map"
+);
+test_map!(
+    test_daikatana_color,
+    "../../../tests/fixtures/maps/parser/daikatana-color-test.map"
+);
 test_map!(
     test_trenchbroom_test_daikatana,
     "../../../tests/fixtures/maps/parser/trenchbroom-test-daikatana.map"
@@ -89,6 +110,12 @@ test_map!(
     test_trenchbroom_test_valve,
     "../../../tests/fixtures/maps/parser/trenchbroom-test-valve.map"
 );
-test_map!(test_unit_beveled, "../../../tests/fixtures/maps/parser/unit_beveled.map");
+test_map!(
+    test_unit_beveled,
+    "../../../tests/fixtures/maps/parser/unit_beveled.map"
+);
 test_map!(test_unit, "../../../tests/fixtures/maps/parser/unit.map");
-test_map!(test_uv_test, "../../../tests/fixtures/maps/parser/uv-test.map");
+test_map!(
+    test_uv_test,
+    "../../../tests/fixtures/maps/parser/uv-test.map"
+);

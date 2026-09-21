@@ -5,9 +5,9 @@ use usage::Usage;
 
 use super::{FaceCenters, FaceId, FaceNormals};
 use crate::slipgate::{
+    Faces,
     face::FaceLines,
     line::{LineFaceConnections, NonManifoldLines},
-    Faces,
 };
 
 pub enum InteriorFacesTag {}
