@@ -66,16 +66,29 @@ fn validate_compile_output_path(s: &str) -> Result<PathBuf, String> {
             .join(path)
     };
 
-    if let Some(parent) = abs_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            format!(
-                "Failed to create output directory {}: {e}",
-                parent.display()
-            )
-        })?;
-    }
+    let parent = abs_path.parent().ok_or_else(|| {
+        format!(
+            "Output path has no parent directory: {}",
+            abs_path.display()
+        )
+    })?;
+    fs::create_dir_all(parent).map_err(|e| {
+        format!(
+            "Failed to create output directory {}: {e}",
+            parent.display()
+        )
+    })?;
+    let canonical_parent = fs::canonicalize(parent).map_err(|e| {
+        format!(
+            "Failed to canonicalize output directory {}: {e}",
+            parent.display()
+        )
+    })?;
+    let file_name = abs_path
+        .file_name()
+        .ok_or_else(|| format!("Output path has no file name: {}", abs_path.display()))?;
 
-    Ok(abs_path)
+    Ok(canonical_parent.join(file_name))
 }
 
 fn validate_openmw_config_path(s: &str) -> Result<PathBuf, String> {
