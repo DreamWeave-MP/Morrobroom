@@ -80,8 +80,9 @@ impl MapData {
 
         let texture_sizes =
             morrobroom::slipgate::texture::texture_sizes(&geometry.geomap.textures, &texture_sizes);
-        let render_mesh = RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
-            .expect("map faces should compile into render geometry");
+        let render_mesh =
+            RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
+                .expect("map faces should compile into render geometry");
 
         let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
             .geomap
