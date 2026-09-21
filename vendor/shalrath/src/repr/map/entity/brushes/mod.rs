@@ -1,0 +1,62 @@
+mod brush;
+
+pub use brush::*;
+
+use std::{fmt::Display, ops::{Deref, DerefMut}};
+
+#[cfg(doc)]
+use crate::repr::Entity;
+/// The set of brushes inside an [`Entity`].
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Brushes(pub Vec<Brush>);
+
+impl Brushes {
+    pub fn new(brushes: Vec<Brush>) -> Self {
+        brushes.into()
+    }
+}
+
+impl From<Vec<Brush>> for Brushes {
+    fn from(brushes: Vec<Brush>) -> Self {
+        Brushes(brushes)
+    }
+}
+
+impl Deref for Brushes {
+    type Target = Vec<Brush>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Brushes {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for Brushes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some((last, rest)) = self.split_last() {
+            for item in rest {
+                writeln!(f, "{}", item)?;
+            }
+            write!(f, "{}", last)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_brushes_to_string() {
+        assert_eq!(
+            crate::unit_test_data::test_brushes_out().to_string(),
+            crate::unit_test_data::test_brushes_in()
+        )
+    }
+}
