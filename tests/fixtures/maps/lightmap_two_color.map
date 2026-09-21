@@ -1,0 +1,76 @@
+// Game: Generic
+// Format: Standard
+// Generator: Morrobroom lightmap release gate
+// The same closed room envelope as lightmap_single_light, without an occluder,
+// isolates left/right light position, RGB channels, and UV orientation.
+// entity 0
+{
+"classname" "worldspawn"
+"Ambient_color" "0 0 0"
+// brush 0: floor
+{
+( -128 -128 0 ) ( -128 -127 0 ) ( -128 -128 1 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 0 ) ( -128 -128 1 ) ( -127 -128 0 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 0 ) ( -127 -128 0 ) ( -128 -127 0 ) tx_wood_dark 0 0 0 1 1
+( 128 128 8 ) ( 128 129 8 ) ( 129 128 8 ) tx_wood_dark 0 0 0 1 1
+( 128 128 8 ) ( 129 128 8 ) ( 128 128 9 ) tx_wood_dark 0 0 0 1 1
+( 128 128 8 ) ( 128 128 9 ) ( 128 129 8 ) tx_wood_dark 0 0 0 1 1
+}
+// brush 1: ceiling
+{
+( -128 -128 120 ) ( -128 -127 120 ) ( -128 -128 121 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 120 ) ( -128 -128 121 ) ( -127 -128 120 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 120 ) ( -127 -128 120 ) ( -128 -127 120 ) tx_wood_dark 0 0 0 1 1
+( 128 128 128 ) ( 128 129 128 ) ( 129 128 128 ) tx_wood_dark 0 0 0 1 1
+( 128 128 128 ) ( 129 128 128 ) ( 128 128 129 ) tx_wood_dark 0 0 0 1 1
+( 128 128 128 ) ( 128 128 129 ) ( 128 129 128 ) tx_wood_dark 0 0 0 1 1
+}
+// brush 2: back wall
+{
+( -128 112 8 ) ( -128 113 8 ) ( -128 112 9 ) tx_wood_dark 0 0 0 1 1
+( -128 112 8 ) ( -128 112 9 ) ( -127 112 8 ) tx_wood_dark 0 0 0 1 1
+( -128 112 8 ) ( -127 112 8 ) ( -128 113 8 ) tx_wood_dark 0 0 0 1 1
+( 128 120 120 ) ( 128 121 120 ) ( 129 120 120 ) tx_wood_dark 0 0 0 1 1
+( 128 120 120 ) ( 129 120 120 ) ( 128 120 121 ) tx_wood_dark 0 0 0 1 1
+( 128 120 120 ) ( 128 120 121 ) ( 128 121 120 ) tx_wood_dark 0 0 0 1 1
+}
+// brush 3: front wall
+{
+( -128 -128 8 ) ( -128 -127 8 ) ( -128 -128 9 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 8 ) ( -128 -128 9 ) ( -127 -128 8 ) tx_wood_dark 0 0 0 1 1
+( -128 -128 8 ) ( -127 -128 8 ) ( -128 -127 8 ) tx_wood_dark 0 0 0 1 1
+( 128 -120 120 ) ( 128 -119 120 ) ( 129 -120 120 ) tx_wood_dark 0 0 0 1 1
+( 128 -120 120 ) ( 129 -120 120 ) ( 128 -120 121 ) tx_wood_dark 0 0 0 1 1
+( 128 -120 120 ) ( 128 -120 121 ) ( 128 -119 120 ) tx_wood_dark 0 0 0 1 1
+}
+// brush 4: left wall
+{
+( -128 -120 8 ) ( -128 -119 8 ) ( -128 -120 9 ) tx_wood_dark 0 0 0 1 1
+( -128 -120 8 ) ( -128 -120 9 ) ( -127 -120 8 ) tx_wood_dark 0 0 0 1 1
+( -128 -120 8 ) ( -127 -120 8 ) ( -128 -119 8 ) tx_wood_dark 0 0 0 1 1
+( -120 112 120 ) ( -120 113 120 ) ( -119 112 120 ) tx_wood_dark 0 0 0 1 1
+( -120 112 120 ) ( -119 112 120 ) ( -120 112 121 ) tx_wood_dark 0 0 0 1 1
+( -120 112 120 ) ( -120 112 121 ) ( -120 113 120 ) tx_wood_dark 0 0 0 1 1
+}
+// brush 5: right wall
+{
+( 120 -120 8 ) ( 120 -119 8 ) ( 120 -120 9 ) tx_wood_dark 0 0 0 1 1
+( 120 -120 8 ) ( 120 -120 9 ) ( 121 -120 8 ) tx_wood_dark 0 0 0 1 1
+( 120 -120 8 ) ( 121 -120 8 ) ( 120 -119 8 ) tx_wood_dark 0 0 0 1 1
+( 128 112 120 ) ( 128 113 120 ) ( 129 112 120 ) tx_wood_dark 0 0 0 1 1
+( 128 112 120 ) ( 129 112 120 ) ( 128 112 121 ) tx_wood_dark 0 0 0 1 1
+( 128 112 120 ) ( 128 112 121 ) ( 128 113 120 ) tx_wood_dark 0 0 0 1 1
+}
+}
+// entity 1: red light on the left
+{
+"classname" "Light_Point1024"
+"origin" "-64 0 72"
+"light_color" "255 0 0"
+}
+// entity 2: blue light on the right
+{
+"classname" "Light_Point1024"
+"origin" "64 0 72"
+"light_color" "0 0 255"
+}
