@@ -1,14 +1,12 @@
-use std::collections::BTreeMap;
-
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use super::{FaceBases, FaceId, FacePlanes, FaceVertices};
-use crate::slipgate::{EPSILON, face::FaceLines, line::Lines};
+use crate::slipgate::{DenseStorage, EPSILON, face::FaceLines, line::Lines};
 
 pub enum FaceFaceContainmentTag {}
 
-pub type FaceFaceContainment = Usage<FaceFaceContainmentTag, BTreeMap<FaceId, Vec<FaceId>>>;
+pub type FaceFaceContainment = Usage<FaceFaceContainmentTag, DenseStorage<FaceId, Vec<FaceId>>>;
 
 // Find contained faces
 pub fn face_face_containment(
@@ -65,9 +63,9 @@ pub fn face_face_containment(
     });
 
     let pairs: Vec<(FaceId, FaceId)> = iter.collect();
-    let mut map: BTreeMap<FaceId, Vec<FaceId>> = BTreeMap::default();
+    let mut contained_faces = vec![Vec::new(); faces.len()];
     for (lhs_id, rhs_id) in pairs {
-        map.entry(lhs_id).or_default().push(rhs_id);
+        contained_faces[lhs_id.0].push(rhs_id);
     }
-    map.into()
+    DenseStorage::from_vec(contained_faces).into()
 }

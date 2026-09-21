@@ -4,11 +4,14 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
 use super::{BrushHulls, BrushId};
-use crate::slipgate::face::{FaceId, FaceVertices};
+use crate::slipgate::{
+    DenseStorage,
+    face::{FaceId, FaceVertices},
+};
 
 pub enum BrushFaceContainmentTag {}
 
-pub type BrushFaceContainment = Usage<BrushFaceContainmentTag, BTreeMap<BrushId, Vec<FaceId>>>;
+pub type BrushFaceContainment = Usage<BrushFaceContainmentTag, DenseStorage<BrushId, Vec<FaceId>>>;
 
 // Find contained faces
 pub fn brush_face_containment(
@@ -18,34 +21,32 @@ pub fn brush_face_containment(
     brush_hulls: &BrushHulls,
     face_vertices: &FaceVertices,
 ) -> BrushFaceContainment {
-    brushes
+    let contained_faces = brushes
         .par_iter()
         .map(|brush_id| {
             let brush_faces_set: BTreeSet<FaceId> = brush_faces[brush_id].iter().copied().collect();
             let brush_hull = &brush_hulls[*brush_id];
 
-            (
-                *brush_id,
-                faces
-                    .iter()
-                    .filter_map(|face_id| {
-                        // Skip checking own vertices
-                        if brush_faces_set.contains(face_id) {
-                            return None;
-                        }
+            faces
+                .iter()
+                .filter_map(|face_id| {
+                    // Skip checking own vertices
+                    if brush_faces_set.contains(face_id) {
+                        return None;
+                    }
 
-                        let face_verts = &face_vertices[*face_id];
+                    let face_verts = &face_vertices[*face_id];
 
-                        let contained = face_verts.iter().all(|vertex| brush_hull.contains(vertex));
+                    let contained = face_verts.iter().all(|vertex| brush_hull.contains(vertex));
 
-                        if !contained {
-                            return None;
-                        }
+                    if !contained {
+                        return None;
+                    }
 
-                        Some(*face_id)
-                    })
-                    .collect::<Vec<_>>(),
-            )
+                    Some(*face_id)
+                })
+                .collect::<Vec<_>>()
         })
-        .collect()
+        .collect::<Vec<_>>();
+    DenseStorage::from_vec(contained_faces).into()
 }

@@ -38,13 +38,13 @@ pub fn occluded_faces(
     }
 
     // Case 2: Faces entirely inside another brush's solid volume.
-    for faces in brush_face_containment.values() {
+    for faces in brush_face_containment.as_slice() {
         occluded.extend(faces.iter().copied());
     }
 
     // Case 3: Faces whose polygon is fully covered by a larger coplanar opposing
     // face. The containing face is not necessarily occluded; only the contained one.
-    for contained in face_face_containment.values() {
+    for contained in face_face_containment.as_slice() {
         occluded.extend(contained.iter().copied());
     }
 
