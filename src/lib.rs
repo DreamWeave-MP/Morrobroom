@@ -35,16 +35,30 @@ pub fn get_prop<'a, S: BuildHasher>(
 /// Returns an error if the map path has no usable filename or parent directory, or if the
 /// working-directory tree cannot be created.
 pub fn create_workdir(map_path: &Path) -> Result<(PathBuf, String), String> {
+    let parent = map_path
+        .parent()
+        .ok_or("Provided map path has no parent directory")?;
+
+    create_workdir_at(map_path, parent)
+}
+
+/// Create the generated-asset tree under an explicit output directory.
+///
+/// The map stem remains part of generated asset names and plugin references, while the output
+/// directory controls where `Meshes/` and `Textures/` are staged. This allows a compilation
+/// profile to keep all generated files in a project-local build directory.
+///
+/// # Errors
+///
+/// Returns an error if the map has no usable filename or if the output directory tree cannot be
+/// created.
+pub fn create_workdir_at(map_path: &Path, output_dir: &Path) -> Result<(PathBuf, String), String> {
     let file_stem = map_path
         .file_stem()
         .and_then(|s| s.to_str())
         .ok_or("Failed to extract file name from map path")?;
 
-    let parent = map_path
-        .parent()
-        .ok_or("Provided map path has no parent directory")?;
-
-    let workdir = parent.to_path_buf();
+    let workdir = output_dir.to_path_buf();
     let meshes_dir = workdir.join("Meshes");
     let map_dir = meshes_dir.join(file_stem);
 

@@ -9,7 +9,7 @@ use clap::Parser;
 use morrobroom::slipgate::Vector3 as SV3;
 use tes3::esp::{self, Cell, EditorId, Header, Plugin, Static, TES3Object};
 
-use morrobroom::{FindLowest, create_workdir, get_prop, lightmap_bake};
+use morrobroom::{FindLowest, get_prop, lightmap_bake};
 
 mod broom_args;
 use broom_args::{BroomCommand, MorrobroomArgs, default_object_types};
@@ -35,11 +35,13 @@ fn main() -> io::Result<()> {
             map_path,
             object_scale,
             output_path,
+            output_dir,
             no_lightmaps,
         } => compile_map(
             &map_path,
             object_scale,
             output_path.as_deref(),
+            output_dir.as_deref(),
             !no_lightmaps,
         ),
         BroomCommand::Nif2Map {
@@ -103,9 +105,14 @@ fn compile_map(
     map_path: &Path,
     object_scale: f32,
     output_path: Option<&Path>,
+    output_dir: Option<&Path>,
     lightmaps_enabled: bool,
 ) -> io::Result<()> {
-    let (work_dir, map_dir) = create_workdir(map_path)
+    let workdir_result = output_dir.map_or_else(
+        || morrobroom::create_workdir(map_path),
+        |output_dir| morrobroom::create_workdir_at(map_path, output_dir),
+    );
+    let (work_dir, map_dir) = workdir_result
         .map_err(|error_string| io::Error::new(io::ErrorKind::InvalidInput, error_string))?;
     let map_name = map_path.to_string_lossy().to_string();
     let map_data = MapData::new(&map_name, lightmaps_enabled);

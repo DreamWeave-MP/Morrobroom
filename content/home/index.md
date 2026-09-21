@@ -72,6 +72,31 @@ After compiling, add the generated data directory and plugin to OpenMW in the
 usual way. The release archive contains the executable for your platform; it
 does not include Morrowind's game data.
 
+## TrenchBroom setup
+
+Copy the contents of the repository's `resources/` directory into the custom
+`Morrowind` game directory for TrenchBroom:
+
+- Windows: `%APPDATA%\TrenchBroom\games\Morrowind`
+- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind`
+- Linux: `~/.TrenchBroom/games/Morrowind`
+
+In **Preferences → Games → Morrowind**, set the game directory and configure
+the compilation tools:
+
+- `Morrobroom` — the downloaded Morrobroom executable
+- `OpenMW` — the OpenMW executable used to launch compiled maps
+- `OpenCS` — optional, for finishing plugins in OpenMW Construction Set
+
+The supplied **Map-to-Engine** profile uses those tool names and stages each
+map under its own `build/` directory. It does not assume `/usr/bin/openmw` or
+write generated assets into the global OpenMW data directory. Configure an
+OpenMW engine profile separately if you want TrenchBroom's normal **Launch**
+command as well.
+
+If the included object definitions do not match the installed game data,
+regenerate `Morrowind.fgd` from the active `openmw.cfg` with the `FGD` command.
+
 ## Lightmapping
 
 Static geometry uses UV set 0 for its base texture and UV set 1 for its baked

@@ -149,6 +149,11 @@ pub enum BroomCommand {
         #[arg(long = "output", short = 'o', value_parser = validate_compile_output_path)]
         output_path: Option<PathBuf>,
 
+        /// Root directory for generated meshes and lightmaps.
+        /// If omitted, generated assets are written beside the input map.
+        #[arg(long = "output-dir")]
+        output_dir: Option<PathBuf>,
+
         /// Disable generated lightmap UVs and lightmap baking.
         #[arg(long = "no-lightmaps")]
         no_lightmaps: bool,
@@ -460,6 +465,7 @@ mod tests {
                 map_path,
                 object_scale,
                 output_path,
+                output_dir,
                 no_lightmaps,
             } => {
                 assert!((object_scale - 2.0).abs() < f32::EPSILON);
@@ -470,6 +476,7 @@ mod tests {
                 );
 
                 assert_eq!(output_path, Some(tmp_out.canonicalize().unwrap()));
+                assert!(output_dir.is_none());
                 assert!(!no_lightmaps);
             }
             BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {

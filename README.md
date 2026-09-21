@@ -105,12 +105,53 @@ You will generally want:
 
 Morrobroom includes its TrenchBroom game configuration, compilation profile, editor assets, and base FGD data under `resources/`.
 
+### Configure TrenchBroom
+
+Copy the contents of `resources/` into TrenchBroom's custom `Morrowind` game
+directory:
+
+- Windows: `%APPDATA%\TrenchBroom\games\Morrowind`
+- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind`
+- Linux: `~/.TrenchBroom/games/Morrowind`
+
+Then open **Preferences → Games → Morrowind**, set the Morrowind game
+directory, and configure these compilation tools:
+
+- `Morrobroom`: the downloaded Morrobroom executable
+- `OpenMW`: the OpenMW executable used by **Map-to-Engine**
+- `OpenCS`: optional, for finishing generated plugins in OpenMW Construction
+  Set
+
+The supplied profile uses these names rather than embedding executable paths.
+It compiles into a project-local `build/` directory, so generated meshes,
+lightmaps, and the plugin stay together instead of being written into the
+global OpenMW data directory. Configure an OpenMW engine profile separately if
+you also want TrenchBroom's normal **Launch** command.
+
+If the supplied FGD does not match the user's installed data, regenerate it
+from the active OpenMW configuration:
+
+```bash
+morrobroom FGD \
+  --config /path/to/openmw.cfg \
+  --output Morrowind.fgd
+```
+
 ### Compile a map
 
 ```bash
 morrobroom compile \
   --map my_level.map \
   --output my_level.omwaddon
+```
+
+To stage all generated assets in a project-local directory:
+
+```bash
+morrobroom compile \
+  --map my_level.map \
+  --output-dir build \
+  --output build/my_level.omwaddon
 ```
 
 Lightmapping is enabled by default.
