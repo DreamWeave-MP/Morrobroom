@@ -87,6 +87,20 @@ pub fn constrain_lightmap(lightmap: lightmap::LightMap) -> lightmap::LightMap {
     }
 }
 
+/// Add a uniform interior-ambient floor to the baked RGB lightmap.
+///
+/// `lightmap` produces direct-light-only pixels, so an occluded texel is
+/// otherwise exactly black. The authored Morrowind interior ambient color is
+/// an independent baseline and is applied in LDR space here because the
+/// upstream crate does not expose its per-texel accumulation step.
+pub fn add_ambient(lightmap: &mut lightmap::LightMap, ambient: [u8; 3]) {
+    for pixel in lightmap.pixels.chunks_exact_mut(3) {
+        for (channel, value) in pixel.iter_mut().enumerate() {
+            *value = value.saturating_add(ambient[channel]);
+        }
+    }
+}
+
 fn scaled_dimension(value: usize, source_max: usize) -> usize {
     let value = u128::from(u64::try_from(value).expect("usize must fit in u64"));
     let source_max = u128::from(u64::try_from(source_max).expect("usize must fit in u64"));
@@ -451,6 +465,19 @@ mod tests {
         assert_eq!(constrained.width, MAX_LIGHTMAP_DIMENSION);
         assert_eq!(constrained.height, 1);
         assert_eq!(constrained.pixels.len(), MAX_LIGHTMAP_DIMENSION * 3);
+    }
+
+    #[test]
+    fn ambient_is_added_without_wrapping() {
+        let mut lightmap = lightmap::LightMap {
+            pixels: vec![0, 1, 250, 255, 255, 255],
+            width: 2,
+            height: 1,
+        };
+
+        add_ambient(&mut lightmap, [32, 32, 32]);
+
+        assert_eq!(lightmap.pixels, [32, 33, 255, 255, 255, 255]);
     }
 
     #[test]

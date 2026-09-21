@@ -90,6 +90,7 @@ impl MapData {
             RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
                 .expect("map faces should compile into render geometry");
         let lights = collect_point_lights(&geometry.geomap);
+        let ambient = collect_ambient_color(&geometry.geomap);
         let lightmap_geometry = lightmaps_enabled.then(|| {
             BakedRenderMesh::from_render_mesh(&render_mesh, 0.005)
                 .expect("render mesh should support lightmap UV generation")
@@ -104,6 +105,8 @@ impl MapData {
                 // appearance rather than becoming black when lightmapping is enabled.
                 if lights.is_empty() {
                     baked.pixels.fill(u8::MAX);
+                } else {
+                    morrobroom::lightmap_bake::add_ambient(&mut baked, ambient);
                 }
                 let baked = morrobroom::lightmap_bake::constrain_lightmap(baked);
                 (
@@ -259,6 +262,19 @@ fn collect_point_lights(geomap: &GeoMap) -> Vec<LightDefinition> {
         .collect()
 }
 
+fn collect_ambient_color(geomap: &GeoMap) -> [u8; 3] {
+    geomap
+        .entities
+        .iter()
+        .find_map(|entity_id| {
+            let properties = geomap.entity_properties.get(*entity_id)?;
+            (property(properties, "classname") == Some("worldspawn")).then(|| {
+                parse_byte_color(property(properties, "Ambient_color").unwrap_or("15 15 15"))
+            })
+        })
+        .unwrap_or([15, 15, 15])
+}
+
 fn property<'a>(
     properties: &'a morrobroom::slipgate::repr::Properties,
     name: &str,
@@ -292,6 +308,16 @@ fn parse_color(value: &str) -> nalgebra::Vector3<f32> {
         values.get(1).copied().unwrap_or(1.0),
         values.get(2).copied().unwrap_or(1.0),
     )
+}
+
+fn parse_byte_color(value: &str) -> [u8; 3] {
+    let mut color = [15; 3];
+    for (channel, component) in value.split_whitespace().take(3).enumerate() {
+        if let Ok(value) = component.parse() {
+            color[channel] = value;
+        }
+    }
+    color
 }
 
 // pub use crate::map_data::MapData;
