@@ -1,4 +1,5 @@
 mod basic_box_map;
+mod valve_quake2;
 
 #[macro_export]
 macro_rules! test_map {
