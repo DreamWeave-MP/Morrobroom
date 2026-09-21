@@ -11,8 +11,6 @@ pub use line_id::*;
 pub use manifold_lines::*;
 use usage::Usage;
 
-use std::collections::BTreeMap;
-
 use crate::slipgate::{
     DenseStorage, EPSILON, Vector3,
     face::{FaceId, FaceIndices, FaceLines},
@@ -25,13 +23,11 @@ pub struct Line {
 }
 
 pub enum LinesTag {}
-pub type Lines = Usage<LinesTag, BTreeMap<LineId, Line>>;
+pub type Lines = Usage<LinesTag, DenseStorage<LineId, Line>>;
 
 pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
-    let mut line_head = 0;
-
     let mut face_lines = vec![Vec::new(); face_indices.len()];
-    let mut lines = Lines::default();
+    let mut lines = Vec::new();
 
     for (face_index, indices) in face_indices.iter().enumerate() {
         let face_id = FaceId(face_index);
@@ -40,33 +36,28 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
         }
 
         for i in 0..indices.len() - 1 {
-            let line_id = LineId(line_head);
-            line_head += 1;
+            let line_id = LineId(lines.len());
 
-            lines.insert(
-                line_id,
-                Line {
-                    i0: indices[i],
-                    i1: indices[i + 1],
-                },
-            );
+            lines.push(Line {
+                i0: indices[i],
+                i1: indices[i + 1],
+            });
             face_lines[face_id.0].push(line_id);
         }
 
-        let line_id = LineId(line_head);
-        line_head += 1;
+        let line_id = LineId(lines.len());
 
-        lines.insert(
-            line_id,
-            Line {
-                i0: indices[indices.len() - 1],
-                i1: indices[0],
-            },
-        );
+        lines.push(Line {
+            i0: indices[indices.len() - 1],
+            i1: indices[0],
+        });
         face_lines[face_id.0].push(line_id);
     }
 
-    (lines, DenseStorage::from_vec(face_lines).into())
+    (
+        DenseStorage::from_vec(lines).into(),
+        DenseStorage::from_vec(face_lines).into(),
+    )
 }
 
 fn line_eq(a0: &Vector3, a1: &Vector3, b0: &Vector3, b1: &Vector3) -> bool {

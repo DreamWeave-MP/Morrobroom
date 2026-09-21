@@ -45,7 +45,7 @@ pub fn line_duplicates(
                     // Iterate over LHS face lines
                     lines_a.par_iter().flat_map(move |line_id_a| {
                         // Fetch LHS line indices
-                        let line_a = lines[line_id_a];
+                        let line_a = lines[*line_id_a];
 
                         // Fetch LHS line vertices
                         let v0_a = &verts_a[line_a.i0];
@@ -80,7 +80,7 @@ pub fn line_duplicates(
                                                 .par_iter()
                                                 .flat_map(move |line_id_b| {
                                                     // Fetch RHS line indices
-                                                    let line_b = lines[line_id_b];
+                                                    let line_b = lines[*line_id_b];
 
                                                     // Fetch RHS line vertices
                                                     let v0_b = &verts_b[line_b.i0];

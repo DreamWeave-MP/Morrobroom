@@ -1,37 +1,38 @@
 //! Lookup table from LineId to the FaceIds it connects to
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
+use crate::slipgate::DenseStorage;
 use crate::slipgate::face::{FaceId, FaceVertices};
-use usage::{AsUsage, Usage};
+use usage::Usage;
 
 use super::{LineFaces, LineId, Lines, point_in_line};
 pub enum LineFaceConnectionsTag {}
-pub type LineFaceConnections = Usage<LineFaceConnectionsTag, BTreeMap<LineId, BTreeSet<FaceId>>>;
+pub type LineFaceConnections =
+    Usage<LineFaceConnectionsTag, DenseStorage<LineId, BTreeSet<FaceId>>>;
 
 pub fn line_face_connections(
     lines: &Lines,
     line_faces: &LineFaces,
     face_vertices: &FaceVertices,
 ) -> LineFaceConnections {
-    let mut line_face_connections = BTreeMap::<LineId, BTreeSet<FaceId>>::default();
+    let mut line_face_connections = vec![BTreeSet::new(); lines.len()];
 
     // Iterate over LHS lines
-    for (lhs_id, lhs) in lines.iter() {
+    for (lhs_index, lhs) in lines.iter().enumerate() {
+        let lhs_id = LineId(lhs_index);
         // Fetch LHS parent face
         let lhs_face = &line_faces[lhs_id];
 
         // Add LHS parent face to connections
-        line_face_connections
-            .entry(*lhs_id)
-            .or_default()
-            .insert(*lhs_face);
+        line_face_connections[lhs_id.0].insert(*lhs_face);
 
         // Fetch LHS vertices
         let lhs_v0 = &face_vertices[*lhs_face][lhs.i0];
         let lhs_v1 = &face_vertices[*lhs_face][lhs.i1];
 
         // Iterate over RHS lines
-        for (rhs_id, rhs) in lines.iter() {
+        for (rhs_index, rhs) in lines.iter().enumerate() {
+            let rhs_id = LineId(rhs_index);
             // Skip comparing against self
             if lhs_id == rhs_id {
                 continue;
@@ -41,10 +42,7 @@ pub fn line_face_connections(
             let rhs_face = &line_faces[rhs_id];
 
             // Add RHS parent face to connections
-            line_face_connections
-                .entry(*rhs_id)
-                .or_default()
-                .insert(*rhs_face);
+            line_face_connections[rhs_id.0].insert(*rhs_face);
 
             // Fetch RHS vertices
             let rhs_v0 = &face_vertices[*rhs_face][rhs.i0];
@@ -61,18 +59,12 @@ pub fn line_face_connections(
             let eq = lhs_contain_rhs || rhs_contain_lhs;
 
             if eq {
-                line_face_connections
-                    .entry(*lhs_id)
-                    .or_default()
-                    .insert(*rhs_face);
+                line_face_connections[lhs_id.0].insert(*rhs_face);
 
-                line_face_connections
-                    .entry(*rhs_id)
-                    .or_default()
-                    .insert(*lhs_face);
+                line_face_connections[rhs_id.0].insert(*lhs_face);
             }
         }
     }
 
-    LineFaceConnectionsTag::as_usage(line_face_connections)
+    DenseStorage::from_vec(line_face_connections).into()
 }

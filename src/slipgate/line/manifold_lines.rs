@@ -15,11 +15,12 @@ pub fn manifold_lines(
 ) -> (ManifoldLines, NonManifoldLines) {
     let mut manifold_lines = BTreeSet::default();
     let mut non_manifold_lines = BTreeSet::default();
-    for (line, faces) in line_face_connections.iter() {
+    for (line_index, faces) in line_face_connections.iter().enumerate() {
+        let line = LineId(line_index);
         if faces.len() > 2 {
-            non_manifold_lines.insert(*line);
+            non_manifold_lines.insert(line);
         } else {
-            manifold_lines.insert(*line);
+            manifold_lines.insert(line);
         }
     }
     (
