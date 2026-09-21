@@ -404,7 +404,7 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {:?}
     fn collect_faces_with_textures(brush_id: &BrushId, map_data: &MapData) -> Vec<Vec<FaceId>> {
         let mut face_textures = Vec::new();
 
-        let faces = map_data.geomap.brush_faces.get(brush_id).unwrap();
+        let faces = map_data.geomap.brush_faces.get(*brush_id).unwrap();
 
         for face in faces.iter() {
             let texture_id = map_data.geomap.face_textures.get(*face).unwrap();

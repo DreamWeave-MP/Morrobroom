@@ -13,6 +13,10 @@ pub type FaceBrushes = Usage<FaceBrushesTag, BTreeMap<FaceId, BrushId>>;
 pub fn face_brushes(brush_faces: &BrushFaces) -> FaceBrushes {
     brush_faces
         .iter()
-        .flat_map(|(brush, faces)| faces.iter().map(move |face| (*face, *brush)))
+        .enumerate()
+        .flat_map(|(brush_index, faces)| {
+            let brush = BrushId(brush_index);
+            faces.iter().map(move |face| (*face, brush))
+        })
         .collect()
 }

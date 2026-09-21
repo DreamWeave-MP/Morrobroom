@@ -1,26 +1,22 @@
 use std::collections::BTreeMap;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use usage::Usage;
 
 use super::BrushId;
-use crate::slipgate::{
-    Vector3,
-    face::{FaceCenters, FaceId},
-};
+use crate::slipgate::{BrushFaces, Vector3, face::FaceCenters};
 
 pub enum BrushCentersTag {}
 
 pub type BrushCenters = Usage<BrushCentersTag, BTreeMap<BrushId, Vector3>>;
 
 // Calculate brush centers
-pub fn brush_centers(
-    brush_planes: &BTreeMap<BrushId, Vec<FaceId>>,
-    face_centers: &FaceCenters,
-) -> BrushCenters {
+pub fn brush_centers(brush_planes: &BrushFaces, face_centers: &FaceCenters) -> BrushCenters {
     brush_planes
         .par_iter()
-        .map(|(brush_id, plane_ids)| {
+        .enumerate()
+        .map(|(brush_index, plane_ids)| {
+            let brush_id = BrushId(brush_index);
             let mut center = Vector3::zeros();
 
             for plane_id in plane_ids {
@@ -28,7 +24,7 @@ pub fn brush_centers(
             }
             center /= plane_ids.len() as f32;
 
-            (*brush_id, center)
+            (brush_id, center)
         })
         .collect()
 }

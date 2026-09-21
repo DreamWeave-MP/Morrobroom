@@ -34,7 +34,7 @@ pub type PointEntities = Usage<PointEntitiesTag, Vec<EntityId>>;
 pub type EntityProperties = Usage<EntityPropertiesTag, BTreeMap<EntityId, Properties>>;
 pub type EntityBrushes = Usage<EntityBrushesTag, BTreeMap<EntityId, Vec<BrushId>>>;
 
-pub type BrushFaces = Usage<BrushFacesTag, BTreeMap<BrushId, Vec<FaceId>>>;
+pub type BrushFaces = Usage<BrushFacesTag, DenseStorage<BrushId, Vec<FaceId>>>;
 
 pub type FaceTrianglePlanes = Usage<FaceTrianglePlanesTag, DenseStorage<FaceId, TrianglePlane>>;
 pub type FaceTextures = Usage<FaceTexturesTag, DenseStorage<FaceId, TextureId>>;
@@ -81,7 +81,7 @@ impl GeoMap {
         let mut entity_properties = EntityProperties::default();
         let mut entity_brushes = EntityBrushes::default();
 
-        let mut brush_faces = BrushFaces::default();
+        let mut brush_faces = Vec::new();
 
         let mut face_planes = Vec::new();
         let mut face_textures = Vec::new();
@@ -110,6 +110,7 @@ impl GeoMap {
                 brush_head += 1;
 
                 brushes.push(brush_id);
+                brush_faces.push(Vec::new());
                 entity_brushes.entry(entity_id).or_default().push(brush_id);
 
                 for BrushPlane {
@@ -143,7 +144,7 @@ impl GeoMap {
                     face_angles.push(angle);
                     face_scales.push(nalgebra::vector![scale_x, scale_y]);
                     face_extensions.push(extension);
-                    brush_faces.entry(brush_id).or_default().push(plane_id);
+                    brush_faces[brush_id.0].push(plane_id);
                 }
             }
         }
@@ -167,7 +168,7 @@ impl GeoMap {
             entity_properties,
             entity_brushes,
             point_entities,
-            brush_faces,
+            brush_faces: DenseStorage::from_vec(brush_faces).into(),
             face_planes: DenseStorage::from_vec(face_planes).into(),
             face_textures: DenseStorage::from_vec(face_textures).into(),
             face_offsets: DenseStorage::from_vec(face_offsets).into(),

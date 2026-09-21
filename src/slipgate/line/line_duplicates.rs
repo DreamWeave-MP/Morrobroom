@@ -27,7 +27,7 @@ pub fn line_duplicates(
     brushes
         .par_iter()
         .flat_map(|brush_a| {
-            let faces_a = &brush_faces[brush_a];
+            let faces_a = &brush_faces[*brush_a];
             // Each invocation of this Fn closure gets its own clones.
             let dfi_filter = Arc::clone(&duplicate_face_ids);
             let dfi_face = Arc::clone(&duplicate_face_ids);
@@ -62,7 +62,7 @@ pub fn line_duplicates(
                                 }
 
                                 // Fetch each brush's faces
-                                let faces_b = &brush_faces[brush_b];
+                                let faces_b = &brush_faces[*brush_b];
                                 let dfi_rhs = Arc::clone(&dfi_brush);
 
                                 // Iterate over RHS brush faces

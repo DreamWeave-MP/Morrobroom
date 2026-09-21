@@ -86,7 +86,7 @@ impl MapData {
             .geomap
             .brush_faces
             .iter()
-            .flat_map(|(_, brush_faces)| {
+            .flat_map(|brush_faces| {
                 brush_faces.iter().map(|face_id| {
                     let centroid = Mesh::centroid(
                         geometry

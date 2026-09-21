@@ -1,11 +1,10 @@
 use std::collections::BTreeMap;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use usage::Usage;
 
 use crate::slipgate::{
-    DenseStorage, EPSILON, FacePlanes, Plane3d, Vector3,
-    brush::{BrushHulls, BrushId},
+    BrushFaces, DenseStorage, EPSILON, FacePlanes, Plane3d, Vector3, brush::BrushHulls,
     face::FaceId,
 };
 
@@ -17,14 +16,15 @@ pub type FaceVertexPlanes =
     Usage<FaceVertexPlanesTag, DenseStorage<FaceId, Vec<(FaceId, FaceId, FaceId)>>>;
 
 pub fn face_vertices(
-    brush_planes: &BTreeMap<BrushId, Vec<FaceId>>,
+    brush_planes: &BrushFaces,
     face_planes: &FacePlanes,
     brush_hulls: &BrushHulls,
 ) -> (FaceVertices, FaceVertexPlanes) {
     let mut values: Vec<_> = brush_planes
         .par_iter()
-        .flat_map_iter(|(brush_id, face_ids)| {
-            let hull = &brush_hulls[*brush_id];
+        .enumerate()
+        .flat_map_iter(|(brush_index, face_ids)| {
+            let hull = &brush_hulls[crate::slipgate::brush::BrushId(brush_index)];
             let planes = face_ids
                 .iter()
                 .map(|face_id| (*face_id, face_planes[*face_id]))
