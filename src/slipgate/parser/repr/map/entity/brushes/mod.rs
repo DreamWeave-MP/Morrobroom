@@ -5,7 +5,7 @@ pub use brush::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult, branch::alt, character::complete::line_ending, combinator::map_res,
+    Finish, IResult, Parser, branch::alt, character::complete::line_ending, combinator::map_res,
     error::Error, multi::separated_list0,
 };
 
@@ -34,7 +34,7 @@ pub fn parse_brushes(input: &str) -> IResult<&str, Brushes> {
         Ok(Some(res)) as Result<Option<Brush>, ()>
     });
     let none_comment = map_res(parse_eol_comment, |_| Ok(None) as Result<Option<Brush>, ()>);
-    let (i, o) = separated_list0(line_ending, alt((some_brush, none_comment)))(input)?;
+    let (i, o) = separated_list0(line_ending, alt((some_brush, none_comment))).parse(input)?;
 
     Ok((i, Brushes::new(o.into_iter().flatten().collect())))
 }

@@ -1,6 +1,5 @@
 use morrobroom::slipgate::{Vector3 as SV3, brush::BrushId, entity::EntityId};
 use nalgebra::{Rotation3, Vector3};
-use openmw_cfg::{find_file, get_config};
 use tes3::{
     esp,
     nif::{
@@ -8,6 +7,7 @@ use tes3::{
         NiTriShapeData, RootCollisionNode,
     },
 };
+use vfstool_lib::VFS;
 
 use crate::{
     BrushNiNode, MapData,
@@ -66,7 +66,7 @@ impl Mesh {
             let brush_nodes = BrushNiNode::from_brush(brush_id, entity_id, map_data);
 
             for node in brush_nodes {
-                mesh.attach_node(node);
+                mesh.attach_node(node, map_data.vfs());
             }
         }
         mesh
@@ -116,7 +116,7 @@ impl Mesh {
             .scale(1.0 / vertices.len() as f32)
     }
 
-    pub fn attach_node(&mut self, node: BrushNiNode) {
+    pub fn attach_node(&mut self, node: BrushNiNode, vfs: &VFS) {
         // HACK: This only gets used if the vis data and collision data are equal, so is always initialized when used
         let mut vis_data_index = NiLink::default();
 
@@ -125,7 +125,7 @@ impl Mesh {
 
             let vis_index = self.stream.insert(node.vis_shape);
 
-            self.assign_base_texture(vis_index, node.texture.clone());
+            self.assign_base_texture(vis_index, node.texture.clone(), vfs);
 
             self.assign_material(node.mat_props, vis_index);
 
@@ -159,9 +159,7 @@ impl Mesh {
         }
     }
 
-    fn assign_base_texture(&mut self, object: NiLink<NiTriShape>, file_path: String) {
-        let config =
-            get_config().expect("Openmw.cfg not located! Be sure you have a valid openmw setup.");
+    fn assign_base_texture(&mut self, object: NiLink<NiTriShape>, file_path: String, vfs: &VFS) {
         // Create and insert a NiTexturingProperty and NiSourceTexture.
         let tex_prop_link = self.stream.insert(nif::NiTexturingProperty::default());
         let texture_link = self.stream.insert(nif::NiSourceTexture::default());
@@ -170,7 +168,7 @@ impl Mesh {
 
         for extension_candidate in ["png", "dds", "tga"] {
             let candidate_path = format!("Textures/{file_path}.{extension_candidate}");
-            if let Ok(_) = find_file(&config, candidate_path.as_str()) {
+            if vfs.get_file(candidate_path.as_str()).is_some() {
                 extension = extension_candidate.to_string();
                 break;
             }

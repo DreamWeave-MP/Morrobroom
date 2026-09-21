@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use nom::{Finish, IResult, character::complete::space1, error::Error, sequence::separated_pair};
+use nom::{
+    Finish, IResult, Parser, character::complete::space1, error::Error, sequence::separated_pair,
+};
 
 use crate::slipgate::{parser::parse_string, repr::Property};
 
@@ -20,7 +22,7 @@ impl FromStr for Property {
 
 /// Parse a [`Property`] from `&str`.
 pub fn parse_property(input: &str) -> IResult<&str, Property> {
-    let (i, o) = separated_pair(parse_string, space1, parse_string)(input)?;
+    let (i, o) = separated_pair(parse_string, space1, parse_string).parse(input)?;
     Ok((
         i,
         Property {

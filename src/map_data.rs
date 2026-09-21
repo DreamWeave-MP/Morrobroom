@@ -1,4 +1,4 @@
-use imagesize::size;
+use imagesize::blob_size;
 use morrobroom::slipgate::repr::*;
 use morrobroom::slipgate::{
     GeoMap, Textures,
@@ -6,11 +6,13 @@ use morrobroom::slipgate::{
     face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
     map_geometry::MapGeometry,
 };
-use openmw_cfg::{Ini, find_file, get_config};
+use openmw_config::OpenMWConfiguration;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
+    io::Read,
 };
+use vfstool_lib::VFS;
 
 use crate::Mesh;
 
@@ -26,6 +28,7 @@ pub struct MapData {
     pub flat_normals: FaceNormals,
     pub smooth_normals: FaceNormals,
     pub face_uvs: FaceUvs,
+    vfs: VFS,
 }
 
 impl MapData {
@@ -40,45 +43,35 @@ impl MapData {
         // scans. Keep construction in MapGeometry so there is one dataflow.
         let geometry = MapGeometry::from_map_without_occlusion(map);
 
-        let texture_names = MapData::collect_textures(&geometry.geomap.textures);
-        let texture_paths = MapData::find_textures_in_vfs(&texture_names);
+        let openmw_config = OpenMWConfiguration::from_env()
+            .expect("Openmw.cfg not detected! Please ensure you have a valid OpenMW configuration file in the canonical system directory.");
+        let fallback_archives: Vec<&str> = openmw_config
+            .fallback_archives_iter()
+            .map(|archive| archive.value().as_str())
+            .collect();
+        let vfs = VFS::from_directories(
+            openmw_config
+                .data_directories_iter()
+                .map(|directory| directory.parsed()),
+            Some(fallback_archives),
+        );
 
-        let texture_sizes: BTreeMap<&str, (u32, u32)> = texture_paths
+        let texture_names = MapData::collect_textures(&geometry.geomap.textures);
+        let texture_sizes: BTreeMap<&str, (u32, u32)> = texture_names
             .iter()
-            .map(|texture_name| {
-                let texture_size = size(texture_name.clone()).expect(&format!(
-                    "Image Processing failed! Is there an issue with the path? {}",
-                    texture_name
-                ));
-                println!(
-                    "Mapping texture {0} with sizes: {1}, {2}",
-                    texture_name, texture_size.width, texture_size.height
-                );
-                (
-                    texture_name.as_str(),
-                    (texture_size.width as u32, texture_size.height as u32),
-                )
+            .filter_map(|texture_name| {
+                MapData::find_vfs_texture(texture_name, &vfs).map(|(path, dimensions)| {
+                    println!(
+                        "Mapping texture {0} with sizes: {1}, {2}",
+                        path, dimensions.0, dimensions.1
+                    );
+                    (texture_name.as_str(), dimensions)
+                })
             })
             .collect();
 
-        let mut modified_textures: Vec<String> = geometry.geomap.textures.iter().cloned().collect();
-
-        for (texture_id, texture_name) in geometry.geomap.textures.iter().enumerate() {
-            for texture_path in &texture_paths {
-                if texture_path
-                    .to_ascii_lowercase()
-                    .contains(&texture_name.to_ascii_lowercase())
-                {
-                    modified_textures[texture_id] = texture_path.to_string();
-                }
-            }
-        }
-
-        let mut textures_with_paths: Textures = Textures::default();
-        textures_with_paths.data = modified_textures.into();
-
         let face_uvs = geometry.face_uvs(morrobroom::slipgate::texture::texture_sizes(
-            &textures_with_paths,
+            &geometry.geomap.textures,
             texture_sizes,
         ));
 
@@ -116,6 +109,7 @@ impl MapData {
             flat_normals: geometry.flat_normals,
             smooth_normals: geometry.smooth_normals,
             face_uvs,
+            vfs,
         }
     }
 
@@ -123,31 +117,29 @@ impl MapData {
         textures.iter().map(|texture_name| texture_name).collect()
     }
 
-    pub fn find_vfs_texture(name: &str, config: &Ini) -> Option<String> {
+    pub fn find_vfs_texture(name: &str, vfs: &VFS) -> Option<(String, (u32, u32))> {
         let extensions = ["dds", "tga", "png"];
 
         extensions
          .iter()
          .find_map(|extension| {
-             let full_name = format!("Textures/{}.{}", name, extension);
-             println!("Searching for texture: {}", full_name);
-             match find_file(config, full_name.as_str()) {
-                 std::result::Result::Ok(path) => Some(path.to_string_lossy().to_string()),
-                 Err(_) => { None }
-             }
-         })
-         .or_else(|| {
-             eprintln!("ERROR: Texture not found! This map is using a texture which isn't in your OpenMW VFS: {}.[dds/tga/png]", name);
-             None
-         })
+              let full_name = format!("Textures/{}.{}", name, extension);
+              println!("Searching for texture: {}", full_name);
+              let file = vfs.get_file(full_name.as_str())?;
+              let mut reader = file.open().ok()?;
+              let mut bytes = Vec::new();
+              reader.read_to_end(&mut bytes).ok()?;
+              let image_size = blob_size(&bytes).ok()?;
+              Some((full_name, (image_size.width as u32, image_size.height as u32)))
+          })
+          .or_else(|| {
+              eprintln!("ERROR: Texture not found! This map is using a texture which isn't in your OpenMW VFS: {}.[dds/tga/png]", name);
+              None
+          })
     }
 
-    pub fn find_textures_in_vfs(textures: &HashSet<&String>) -> HashSet<String> {
-        let config = get_config().expect("Openmw.cfg not detected! Please ensure you have a valid openmw configuration file in the canonical system directory.");
-        textures
-            .iter()
-            .filter_map(|texture_name| MapData::find_vfs_texture(&texture_name, &config))
-            .collect()
+    pub fn vfs(&self) -> &VFS {
+        &self.vfs
     }
 
     pub fn get_entity_properties(&self, entity_id: &EntityId) -> HashMap<&String, &String> {

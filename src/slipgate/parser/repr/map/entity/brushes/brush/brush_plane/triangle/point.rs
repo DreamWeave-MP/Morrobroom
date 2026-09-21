@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult,
+    Finish, IResult, Parser,
     bytes::complete::tag,
     character::complete::space1,
     combinator::{opt, recognize},
     error::Error,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, terminated},
 };
 
 use crate::slipgate::{parser::primitive::parse_f32, repr::Point};
@@ -28,15 +28,15 @@ impl FromStr for Point {
 /// Parse a [`Point`] from `&str`.
 pub fn parse_point(input: &str) -> IResult<&str, Point> {
     let open_brace = recognize(terminated(tag("("), opt(space1)));
-    let triple = tuple((
+    let triple = (
         terminated(parse_f32, space1),
         parse_f32,
         preceded(space1, parse_f32),
-    ));
+    );
     let close_brace = recognize(preceded(opt(space1), tag(")")));
 
     let mut vertex = delimited(open_brace, triple, close_brace);
-    let (i, o) = vertex(input)?;
+    let (i, o) = vertex.parse(input)?;
     Ok((
         i,
         Point {

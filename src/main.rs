@@ -160,7 +160,7 @@ fn main() -> io::Result<()> {
                 }
 
                 for node in nodes {
-                    mesh.attach_node(node);
+                    mesh.attach_node(node, map_data.vfs());
                 }
             }
             None => {}

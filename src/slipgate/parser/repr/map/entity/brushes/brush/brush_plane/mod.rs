@@ -9,8 +9,8 @@ pub use triangle::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult, bytes::complete::take_until, character::complete::space1, combinator::opt,
-    error::Error, sequence::terminated,
+    Finish, IResult, Parser, bytes::complete::take_until, character::complete::space1,
+    combinator::opt, error::Error, sequence::terminated,
 };
 
 use crate::slipgate::{parser::primitive::parse_f32, repr::BrushPlane};
@@ -31,12 +31,12 @@ impl FromStr for BrushPlane {
 
 /// Parse a [`BrushPlane`] from `&str`
 pub fn parse_brush_plane(i: &str) -> IResult<&str, BrushPlane> {
-    let (i, plane) = terminated(parse_triangle, space1)(i)?;
-    let (i, texture) = terminated(take_until(" "), space1)(i)?;
-    let (i, texture_offset) = terminated(parse_texture_offset, space1)(i)?;
-    let (i, angle) = terminated(parse_f32, space1)(i)?;
-    let (i, scale_x) = terminated(parse_f32, space1)(i)?;
-    let (i, scale_y) = terminated(parse_f32, opt(space1))(i)?;
+    let (i, plane) = terminated(parse_triangle, space1).parse(i)?;
+    let (i, texture) = terminated(take_until(" "), space1).parse(i)?;
+    let (i, texture_offset) = terminated(parse_texture_offset, space1).parse(i)?;
+    let (i, angle) = terminated(parse_f32, space1).parse(i)?;
+    let (i, scale_x) = terminated(parse_f32, space1).parse(i)?;
+    let (i, scale_y) = terminated(parse_f32, opt(space1)).parse(i)?;
     let (i, extension) = parse_extension(i)?;
 
     Ok((

@@ -5,7 +5,7 @@ pub use brush_plane::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult,
+    Finish, IResult, Parser,
     bytes::complete::tag,
     character::complete::line_ending,
     combinator::recognize,
@@ -36,7 +36,8 @@ pub fn parse_brush(input: &str) -> IResult<&str, Brush> {
         recognize(terminated(tag("{"), line_ending)),
         separated_list1(line_ending, parse_brush_plane),
         preceded(line_ending, tag("}")),
-    )(input)?;
+    )
+    .parse(input)?;
 
     Ok((i, Brush::new(o)))
 }

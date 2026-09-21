@@ -7,7 +7,7 @@ pub use properties::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult,
+    Finish, IResult, Parser,
     bytes::complete::tag,
     character::complete::line_ending,
     combinator::opt,
@@ -37,7 +37,8 @@ pub fn parse_entity(input: &str) -> IResult<&str, Entity> {
         terminated(tag("{"), opt(line_ending)),
         separated_pair(parse_properties, opt(line_ending), parse_brushes),
         preceded(opt(line_ending), tag("}")),
-    )(input)?;
+    )
+    .parse(input)?;
 
     Ok((
         i,

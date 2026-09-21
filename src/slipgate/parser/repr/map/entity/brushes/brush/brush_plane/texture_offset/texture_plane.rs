@@ -1,9 +1,9 @@
 use nom::{
-    IResult,
+    IResult, Parser,
     bytes::complete::tag,
     character::complete::space1,
     combinator::map_res,
-    sequence::{delimited, preceded, tuple},
+    sequence::{delimited, preceded},
 };
 
 use crate::slipgate::{parser::primitive::parse_f32, repr::TexturePlane};
@@ -11,14 +11,15 @@ use crate::slipgate::{parser::primitive::parse_f32, repr::TexturePlane};
 /// Parse a [`TexturePlane`] from `&str`
 pub fn parse_texture_plane(input: &str) -> IResult<&str, TexturePlane> {
     map_res(
-        tuple((
+        (
             preceded(tag("[ "), parse_f32),
             preceded(space1, parse_f32),
             preceded(space1, parse_f32),
             delimited(space1, parse_f32, tag(" ]")),
-        )),
+        ),
         |(x, y, z, d)| Ok(TexturePlane { x, y, z, d }) as Result<TexturePlane, ()>,
-    )(input)
+    )
+    .parse(input)
 }
 
 #[cfg(test)]

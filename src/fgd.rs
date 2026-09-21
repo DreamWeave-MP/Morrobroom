@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     fs::File,
-    io::{self, BufWriter, Write},
+    io::{self, BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -194,7 +194,13 @@ fn get_object_bounds_from_nif(
     });
 
     if let Some(vfs_file) = vfs.get_file(&object_model) {
-        if let Ok(stream) = tes3::nif::NiStream::from_path(vfs_file.path()) {
+        let mut bytes = Vec::new();
+        if vfs_file
+            .open()
+            .and_then(|mut reader| reader.read_to_end(&mut bytes))
+            .is_ok()
+            && let Ok(stream) = tes3::nif::NiStream::from_bytes(&bytes)
+        {
             if let Some((min, max)) = stream.bounding_box() {
                 Some([
                     (min.x * object_scale) as i32,
@@ -217,8 +223,13 @@ fn get_object_bounds_from_nif(
 
 impl ConfigurationManager {
     pub fn collect_merged_objects(&mut self) -> Result<(), ConfigManagerError> {
-        self.openmw_config
-            .content_files()
+        let content_files: Vec<&String> = self
+            .openmw_config
+            .content_files_iter()
+            .map(|plugin| plugin.value())
+            .collect();
+
+        content_files
             .par_iter()
             .rev()
             .map(|plugin_name| {
@@ -296,12 +307,13 @@ impl ConfigurationManager {
         let openmw_config = OpenMWConfiguration::new(Some(config_path))?;
 
         let vfs = VFS::from_directories(
-            openmw_config.data_directories(),
+            openmw_config
+                .data_directories_iter()
+                .map(|directory| directory.parsed()),
             Some(
                 openmw_config
-                    .fallback_archives()
-                    .iter()
-                    .map(|archive| archive.as_ref())
+                    .fallback_archives_iter()
+                    .map(|archive| archive.value().as_str())
                     .collect(),
             ),
         );

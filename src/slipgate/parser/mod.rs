@@ -8,56 +8,49 @@ use crate::slipgate::repr::Map;
 pub mod repr;
 
 use nom::{
-    IResult,
+    IResult, Parser,
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
     character::complete::{char, none_of, one_of, space1},
     combinator::{opt, recognize},
     multi::many1,
-    sequence::{delimited, pair, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, terminated},
 };
 
 /// Recognize an unsigned integer literal.
 pub fn parse_integer_unsigned(input: &str) -> IResult<&str, &str> {
-    recognize(many1(one_of("0123456789")))(input)
+    recognize(many1(one_of("0123456789"))).parse(input)
 }
 
 /// Recognize a signed integer literal.
 pub fn parse_integer_signed(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((opt(one_of("+-")), parse_integer_unsigned)))(input)
+    recognize((opt(one_of("+-")), parse_integer_unsigned)).parse(input)
 }
 
 /// Recognize a floating-point literal.
 pub fn parse_float(input: &str) -> IResult<&str, &str> {
     alt((
         // Case one: +.42 / -.42 / .42
-        recognize(tuple((
-            opt(one_of("+-")),
-            char('.'),
-            parse_integer_unsigned,
-        ))),
+        recognize((opt(one_of("+-")), char('.'), parse_integer_unsigned)),
         // Case two: 42e42 and 42.42e42
-        recognize(tuple((
+        recognize((
             parse_integer_signed,
             opt(preceded(char('.'), parse_integer_unsigned)),
             one_of("eE"),
             opt(one_of("+-")),
             parse_integer_unsigned,
-        ))),
+        )),
         // Case two: 42. and 42.42
-        recognize(tuple((
-            parse_integer_signed,
-            char('.'),
-            opt(parse_integer_unsigned),
-        ))),
-    ))(input)
+        recognize((parse_integer_signed, char('.'), opt(parse_integer_unsigned))),
+    ))
+    .parse(input)
 }
 
 /// Parse a quoted string literal into string slice: `"Foo"` becomes an `&str` containing `Foo`.
 pub fn parse_string(input: &str) -> IResult<&str, &str> {
     let esc = escaped(none_of("\"\'"), '\\', one_of("\"\'"));
     let esc_or_empty = alt((esc, tag("")));
-    let res = delimited(one_of("\"\'"), esc_or_empty, one_of("\"\'"))(input)?;
+    let res = delimited(one_of("\"\'"), esc_or_empty, one_of("\"\'")).parse(input)?;
 
     Ok(res)
 }
@@ -67,7 +60,8 @@ pub fn parse_eol_comment(input: &str) -> IResult<&str, &str> {
     let (i, (_, o)) = pair(
         recognize(terminated(tag("//"), opt(space1))),
         is_not("\n\r"),
-    )(input)?;
+    )
+    .parse(input)?;
     Ok((i, o))
 }
 

@@ -5,10 +5,10 @@ pub use point::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult,
+    Finish, IResult, Parser,
     character::complete::space1,
     error::Error,
-    sequence::{preceded, terminated, tuple},
+    sequence::{preceded, terminated},
 };
 
 use crate::slipgate::repr::TrianglePlane;
@@ -29,11 +29,12 @@ impl FromStr for TrianglePlane {
 
 /// Parse a [`Triangle`] from `&str`.
 pub fn parse_triangle(input: &str) -> IResult<&str, TrianglePlane> {
-    let (i, (v0, v1, v2)) = tuple((
+    let (i, (v0, v1, v2)) = (
         terminated(parse_point, space1),
         parse_point,
         preceded(space1, parse_point),
-    ))(input)?;
+    )
+        .parse(input)?;
 
     Ok((i, TrianglePlane { v0, v1, v2 }))
 }

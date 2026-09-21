@@ -5,7 +5,7 @@ pub use property::*;
 use std::str::FromStr;
 
 use nom::{
-    Finish, IResult, character::complete::line_ending, error::Error, multi::separated_list0,
+    Finish, IResult, Parser, character::complete::line_ending, error::Error, multi::separated_list0,
 };
 
 use crate::slipgate::repr::Properties;
@@ -26,7 +26,7 @@ impl FromStr for Properties {
 
 /// Parse [`Properties`] from `&str`.
 pub fn parse_properties(input: &str) -> IResult<&str, Properties> {
-    let (i, o) = separated_list0(line_ending, parse_property)(input)?;
+    let (i, o) = separated_list0(line_ending, parse_property).parse(input)?;
 
     Ok((i, Properties::new(o)))
 }
