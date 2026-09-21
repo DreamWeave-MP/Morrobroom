@@ -1,9 +1,10 @@
-// Game: OpenMW
+// Game: Generic
 // Format: Standard
+// Generator: TrenchBroom 2026.2 (Build v2026.2 Release Linux)
 // entity 0
 {
 "classname" "worldspawn"
-// floor
+// brush 0
 {
 ( -128 -128 0 ) ( -128 -127 0 ) ( -128 -128 1 ) tx_steelgrid00 0 0 0 1 1
 ( -128 -128 0 ) ( -128 -128 1 ) ( -127 -128 0 ) tx_steelgrid00 0 0 0 1 1
@@ -12,7 +13,7 @@
 ( 128 128 8 ) ( 129 128 8 ) ( 128 128 9 ) tx_steelgrid00 0 0 0 1 1
 ( 128 128 8 ) ( 128 128 9 ) ( 128 129 8 ) tx_steelgrid00 0 0 0 1 1
 }
-// pillar
+// brush 1
 {
 ( -16 -16 8 ) ( -16 -15 8 ) ( -16 -16 9 ) tx_steelgrid00 0 0 0 1 1
 ( -16 -16 8 ) ( -16 -16 9 ) ( -15 -16 8 ) tx_steelgrid00 0 0 0 1 1
@@ -25,6 +26,108 @@
 // entity 1
 {
 "classname" "Light_Point256"
-"origin" "64 0 96"
+"origin" "48 80 96"
+"light_color" "255 240 200"
+}
+// entity 2
+{
+"classname" "Light_Point256"
+"origin" "80 16 96"
+"light_color" "255 240 200"
+}
+// entity 3
+{
+"classname" "Light_Point256"
+"origin" "32 -48 96"
+"light_color" "255 240 200"
+}
+// entity 4
+{
+"classname" "Light_Point256"
+"origin" "-48 -48 96"
+"light_color" "255 240 200"
+}
+// entity 5
+{
+"classname" "Light_Point256"
+"origin" "-32 48 96"
+"light_color" "255 240 200"
+}
+// entity 6
+{
+"classname" "Light_Point256"
+"origin" "-32 112 96"
+"light_color" "255 240 200"
+}
+// entity 7
+{
+"classname" "Light_Point256"
+"origin" "0 64 96"
+"light_color" "255 240 200"
+}
+// entity 8
+{
+"classname" "Light_Point256"
+"origin" "0 32 16"
+"light_color" "255 240 200"
+}
+// entity 9
+{
+"classname" "Light_Point256"
+"origin" "48 32 16"
+"light_color" "255 240 200"
+}
+// entity 10
+{
+"classname" "Light_Point256"
+"origin" "48 -32 16"
+"light_color" "255 240 200"
+}
+// entity 11
+{
+"classname" "Light_Point256"
+"origin" "-16 -80 16"
+"light_color" "255 240 200"
+}
+// entity 12
+{
+"classname" "Light_Point256"
+"origin" "-80 -80 16"
+"light_color" "255 240 200"
+}
+// entity 13
+{
+"classname" "Light_Point256"
+"origin" "-64 80 16"
+"light_color" "255 240 200"
+}
+// entity 14
+{
+"classname" "Light_Point256"
+"origin" "64 64 16"
+"light_color" "255 240 200"
+}
+// entity 15
+{
+"classname" "Light_Point256"
+"origin" "80 -96 16"
+"light_color" "255 240 200"
+}
+// entity 16
+{
+"classname" "Light_Point256"
+"origin" "48 -80 16"
+"light_color" "255 240 200"
+}
+// entity 17
+{
+"classname" "Light_Point256"
+"origin" "0 96 16"
+"light_color" "255 240 200"
+}
+// entity 18
+{
+"classname" "Light_Point256"
+"origin" "-96 32 16"
 "light_color" "255 240 200"
 }
