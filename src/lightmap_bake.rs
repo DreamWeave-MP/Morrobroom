@@ -112,6 +112,14 @@ fn scaled_dimension(value: usize, source_max: usize) -> usize {
         .max(1)
 }
 
+fn expand_rgb_to_rgba(lightmap: &lightmap::LightMap) -> Vec<u8> {
+    let mut rgba = Vec::with_capacity(lightmap.width * lightmap.height * 4);
+    for source in lightmap.pixels.chunks_exact(3) {
+        rgba.extend_from_slice(&[source[0], source[1], source[2], u8::MAX]);
+    }
+    rgba
+}
+
 /// Write a baked RGB lightmap as a BC7-compressed DDS accepted by `OpenMW`.
 ///
 /// # Errors
@@ -134,19 +142,10 @@ pub fn write_dds(path: &Path, lightmap: &lightmap::LightMap) -> io::Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let mut rgba = vec![0_u8; lightmap.width * lightmap.height * 4];
-    for y in 0..lightmap.height {
-        // LightMap's atlas rows are bottom-origin. DDS is marked top-origin by
-        // OpenMW, so flip rows while expanding RGB to RGBA for BC7.
-        let source_y = lightmap.height - 1 - y;
-        for x in 0..lightmap.width {
-            let source = (source_y * lightmap.width + x) * 3;
-            let destination = (y * lightmap.width + x) * 4;
-            rgba[destination..destination + 3]
-                .copy_from_slice(&lightmap.pixels[source..source + 3]);
-            rgba[destination + 3] = u8::MAX;
-        }
-    }
+    // UV generation and LightMap::new use the same row order. OpenMW's DDS
+    // loader consumes the payload without a second vertical flip, so preserve
+    // the atlas rows while expanding RGB to opaque RGBA for BC7.
+    let rgba = expand_rgb_to_rgba(lightmap);
 
     let layout = EncodeLayout::flat_2d(DecodeContent::Bc7, width, height);
     let dds = Dds::encode_from_rgba8(&rgba, layout)
@@ -478,6 +477,20 @@ mod tests {
         add_ambient(&mut lightmap, [32, 32, 32]);
 
         assert_eq!(lightmap.pixels, [32, 33, 255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn dds_input_preserves_atlas_row_order() {
+        let lightmap = lightmap::LightMap {
+            pixels: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            width: 2,
+            height: 2,
+        };
+
+        assert_eq!(
+            expand_rgb_to_rgba(&lightmap),
+            vec![1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12, 255]
+        );
     }
 
     #[test]
