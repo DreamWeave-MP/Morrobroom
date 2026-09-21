@@ -11,6 +11,7 @@ hide_download_bar = false
 use_toc = false
 is_binary = true
 game = "morrowind"
+binary_name = "morrobroom"
 version = "1.0.0"
 stable_title = "Download the latest Morrobroom release"
 dev_title = "Download the latest Morrobroom development build"

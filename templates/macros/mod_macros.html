@@ -126,8 +126,12 @@ config="{{- mod_macros::config() -}}"
 {% macro stable_url() %}
 {% set repo_url = mod_macros::repo_url() %}
 {% set version = mod_macros::version() %}
+{% if page.extra.is_binary %}
+{{- repo_url ~ "/releases/download/" ~ version -}}
+{% else %}
 {% set mod_name = page.title | lower | replace(from=" ", to="_") %}
 {{- repo_url ~ "/releases/download/" ~ mod_name ~ "-" ~ version -}}
+{% endif %}
 {% endmacro stable_url %}
 
 
@@ -144,3 +148,12 @@ config="{{- mod_macros::config() -}}"
 {%- endif -%}
 {{- version -}}
 {% endmacro version %}
+
+
+{% macro binary_name() %}
+{%- if page.extra.binary_name -%}
+{{- page.extra.binary_name -}}
+{%- else -%}
+{{- page.title | lower | replace(from=" ", to="_") -}}
+{%- endif -%}
+{% endmacro binary_name %}

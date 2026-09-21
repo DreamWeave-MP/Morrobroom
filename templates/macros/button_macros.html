@@ -83,9 +83,10 @@
 {%- set dev_url = mod_macros::dev_url() -%}
 {%- set stable_title = mod_macros::stable_title() -%}
 {%- set stable_url = mod_macros::stable_url() -%}
+{%- set binary_name = mod_macros::binary_name() -%}
 <div style="display:flex;">
-    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ page.title }}-Linux-X64.zip" title="{{ stable_title }}">Linux Stable</a>
-    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ page.title }}-Linux-X64.zip" title="{{ dev_title }}">Linux Dev</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ binary_name }}-Linux-X64.zip" title="{{ stable_title }}">Linux Stable</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ binary_name }}-Linux-X64.zip" title="{{ dev_title }}">Linux Dev</a>
 </div>
 {% endmacro linux_buttons %}
 
@@ -96,14 +97,15 @@
 {%- set dev_url = mod_macros::dev_url() -%}
 {%- set stable_title = mod_macros::stable_title() -%}
 {%- set stable_url = mod_macros::stable_url() -%}
+{%- set binary_name = mod_macros::binary_name() -%}
 <div style="display:flex;">
     <div class="button-stack">
-        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ page.title }}-macOS-ARM64.zip" title="{{ stable_title }}">ARM Mac Stable</a>
-        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ page.title }}-macOS-ARM64.zip" title="{{ dev_title }}">ARM Mac Dev</a>
+        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ binary_name }}-macOS-ARM64.zip" title="{{ stable_title }}">ARM Mac Stable</a>
+        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ binary_name }}-macOS-ARM64.zip" title="{{ dev_title }}">ARM Mac Dev</a>
     </div>
     <div class="button-stack">
-        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ page.title }}-macOS-X64.zip" title="{{ stable_title }}">Intel Mac Stable</a>
-        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ page.title }}-macOS-X64.zip" title="{{ dev_title }}">Intel Mac Dev</a>
+        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ binary_name }}-macOS-X64.zip" title="{{ stable_title }}">Intel Mac Stable</a>
+        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ binary_name }}-macOS-X64.zip" title="{{ dev_title }}">Intel Mac Dev</a>
     </div>
 </div>
 {% endmacro macos_buttons %}
@@ -114,8 +116,9 @@
 {%- set dev_url = mod_macros::dev_url() -%}
 {%- set stable_title = mod_macros::stable_title() -%}
 {%- set stable_url = mod_macros::stable_url() -%}
+{%- set binary_name = mod_macros::binary_name() -%}
 <div style="display:flex;">
-    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ page.title }}-Windows-X64.zip" title="{{ stable_title }}">Win Stable</a>
-    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ page.title }}-Windows-X64.zip" title="{{ dev_title }}">Win Dev</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ binary_name }}-Windows-X64.zip" title="{{ stable_title }}">Win Stable</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ binary_name }}-Windows-X64.zip" title="{{ dev_title }}">Win Dev</a>
 </div>
 {% endmacro windows_buttons %}
