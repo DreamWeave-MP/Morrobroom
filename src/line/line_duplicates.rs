@@ -1,11 +1,12 @@
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use usage::Usage;
 
 use super::{line_eq, LineId, Lines};
 
 use crate::{
-    face::{FaceDuplicates, FaceLines, FaceVertices},
+    face::{FaceDuplicates, FaceId, FaceLines, FaceVertices},
     BrushFaces, Brushes,
 };
 
@@ -20,19 +21,27 @@ pub fn line_duplicates(
     face_vertices: &FaceVertices,
     face_lines: &FaceLines,
 ) -> LineDuplicates {
+    let duplicate_face_ids: Arc<BTreeSet<FaceId>> = Arc::new(
+        face_duplicates.iter().map(|(a, _)| *a).collect()
+    );
+
     brushes
         .par_iter()
         .flat_map(|brush_a| {
             let faces_a = &brush_faces[brush_a];
+            // Each invocation of this Fn closure gets its own clones.
+            let dfi_filter = Arc::clone(&duplicate_face_ids);
+            let dfi_face = Arc::clone(&duplicate_face_ids);
 
             // Iterate over LHS brush faces
             faces_a
                 .par_iter()
-                .filter(|f| !face_duplicates.iter().any(|(a, _)| a == *f))
+                .filter(move |f| !dfi_filter.contains(*f))
                 .flat_map(move |face_a| {
                     // Fetch LHS vertex and line data
-                    let verts_a = &face_vertices[&face_a];
-                    let lines_a = &face_lines[&face_a];
+                    let verts_a = &face_vertices[face_a];
+                    let lines_a = &face_lines[face_a];
+                    let dfi_line = Arc::clone(&dfi_face);
 
                     // Iterate over LHS face lines
                     lines_a.par_iter().flat_map(move |line_id_a| {
@@ -42,6 +51,7 @@ pub fn line_duplicates(
                         // Fetch LHS line vertices
                         let v0_a = &verts_a[line_a.i0];
                         let v1_a = &verts_a[line_a.i1];
+                        let dfi_brush = Arc::clone(&dfi_line);
 
                         // Iterate over brushes again to compare
                         brushes
@@ -54,12 +64,13 @@ pub fn line_duplicates(
 
                                 // Fetch each brush's faces
                                 let faces_b = &brush_faces[brush_b];
+                                let dfi_rhs = Arc::clone(&dfi_brush);
 
                                 // Iterate over RHS brush faces
                                 Some(
                                     faces_b
                                         .par_iter()
-                                        .filter(|f| !face_duplicates.iter().any(|(a, _)| a == *f))
+                                        .filter(move |f| !dfi_rhs.contains(*f))
                                         .flat_map(|face_b| {
                                             // Fetch RHS vertex and line data
                                             let verts_b = &face_vertices[face_b];

@@ -69,13 +69,8 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
 }
 
 fn line_eq(a0: &Vector3, a1: &Vector3, b0: &Vector3, b1: &Vector3) -> bool {
-    if (a0 - b0).magnitude() < EPSILON && (a1 - b1).magnitude() < EPSILON {
-        true
-    } else if (a0 - b1).magnitude() < EPSILON && (a1 - b0).magnitude() < EPSILON {
-        true
-    } else {
-        false
-    }
+    ((a0 - b0).magnitude() < EPSILON && (a1 - b1).magnitude() < EPSILON)
+        || ((a0 - b1).magnitude() < EPSILON && (a1 - b0).magnitude() < EPSILON)
 }
 
 fn point_in_line(point: &Vector3, v0: &Vector3, v1: &Vector3) -> bool {
@@ -117,10 +112,10 @@ mod tests {
         let v0 = Vector3::new(1.0, 1.0, 1.0);
         let v1 = Vector3::new(-1.0, -1.0, -1.0);
         let contained = point_in_line(&point, &v0, &v1);
-        println!("Contained: {contained:?}");
+        assert!(contained);
 
-        let point = Vector3::new(0.0001, 0.0, 0.0);
+        let point = Vector3::new(0.01, 0.0, 0.0);
         let contained = point_in_line(&point, &v0, &v1);
-        println!("Contained: {contained:?}");
+        assert!(!contained);
     }
 }

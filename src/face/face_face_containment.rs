@@ -19,19 +19,18 @@ pub fn face_face_containment(
     face_vertices: &FaceVertices,
     face_lines: &FaceLines,
 ) -> FaceFaceContainment {
-    faces
+    let iter = faces
         .par_iter()
         .flat_map(|lhs_id| {
-            let lhs_verts = &face_vertices[&lhs_id];
-            let lhs_plane = &face_planes[&lhs_id];
-            let lhs_basis = &face_bases[&lhs_id];
+            let lhs_verts = &face_vertices[lhs_id];
+            let lhs_plane = &face_planes[lhs_id];
+            let lhs_basis = &face_bases[lhs_id];
 
             faces
                 .par_iter()
                 .flat_map(move |rhs_id| {
-                    let mut contained_faces = BTreeMap::<FaceId, Vec<FaceId>>::default();
-                    let rhs_verts = &face_vertices[&rhs_id];
-                    let rhs_plane = &face_planes[&rhs_id];
+                    let rhs_verts = &face_vertices[rhs_id];
+                    let rhs_plane = &face_planes[rhs_id];
 
                     // Skip comparing with self
                     if lhs_id == rhs_id {
@@ -66,10 +65,14 @@ pub fn face_face_containment(
                         return None;
                     }
 
-                    contained_faces.entry(*lhs_id).or_default().push(*rhs_id);
-                    Some(contained_faces)
+                    Some((*lhs_id, *rhs_id))
                 })
-                .flatten()
-        })
-        .collect()
+        });
+
+    let pairs: Vec<(FaceId, FaceId)> = iter.collect();
+    let mut map: BTreeMap<FaceId, Vec<FaceId>> = BTreeMap::default();
+    for (lhs_id, rhs_id) in pairs {
+        map.entry(lhs_id).or_default().push(rhs_id);
+    }
+    map.into()
 }

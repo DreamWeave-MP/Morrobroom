@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
@@ -6,7 +6,7 @@ use usage::Usage;
 use crate::{
     brush::{BrushHulls, BrushId},
     face::FaceId,
-    ConvexHull, FacePlanes, Plane3d, Vector3, EPSILON,
+    FacePlanes, Plane3d, Vector3, EPSILON,
 };
 
 pub enum FaceVerticesTag {}
@@ -26,8 +26,9 @@ pub fn face_vertices(
         .flat_map(|(brush_id, face_ids)| {
             let hull = &brush_hulls[brush_id];
 
+            let face_id_set: BTreeSet<FaceId> = face_ids.iter().copied().collect();
             let plane_iter = face_planes.par_iter().filter_map(move |(k, v)| {
-                if face_ids.contains(k) {
+                if face_id_set.contains(k) {
                     Some((*k, *v))
                 } else {
                     None

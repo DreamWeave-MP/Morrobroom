@@ -1,11 +1,9 @@
-// TODO: Implement BrushFaceContainment, rename existing FaceContainment to FaceFaceContainment
-//       Use brush hulls to check against each vertex of a face
-
 pub mod brush;
 pub mod entity;
 pub mod face;
 pub mod texture;
 pub mod line;
+pub mod map_geometry;
 
 mod convex_hull;
 mod geo_map;

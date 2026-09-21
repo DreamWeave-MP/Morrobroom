@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
@@ -21,7 +21,8 @@ pub fn brush_face_containment(
     brushes
         .par_iter()
         .map(|brush_id| {
-            let brush_faces = &brush_faces[brush_id];
+            let brush_faces_set: BTreeSet<FaceId> =
+                brush_faces[brush_id].iter().copied().collect();
             let brush_hull = &brush_hulls[brush_id];
 
             (
@@ -30,11 +31,11 @@ pub fn brush_face_containment(
                     .par_iter()
                     .flat_map(|face_id| {
                         // Skip checking own vertices
-                        if brush_faces.contains(face_id) {
+                        if brush_faces_set.contains(face_id) {
                             return None;
                         }
 
-                        let face_verts = &face_vertices[&face_id];
+                        let face_verts = &face_vertices[face_id];
 
                         let contained = face_verts
                             .par_iter()

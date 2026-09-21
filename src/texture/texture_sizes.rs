@@ -16,11 +16,9 @@ pub fn texture_sizes(
     textures
         .par_iter()
         .flat_map(|(texture_id, texture)| {
-            if let Some(texture_size) = texture_sizes.get(texture.as_str()) {
-                Some((*texture_id, *texture_size))
-            } else {
-                None
-            }
+            texture_sizes
+                .get(texture.as_str())
+                .map(|texture_size| (*texture_id, *texture_size))
         })
         .collect()
 }

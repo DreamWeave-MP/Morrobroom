@@ -12,6 +12,7 @@ mod face_normals;
 mod face_brushes;
 mod face_lines;
 mod interior_faces;
+mod occluded_faces;
 
 pub use face_centers::*;
 pub use face_face_containment::*;
@@ -27,3 +28,4 @@ pub use face_normals::*;
 pub use face_brushes::*;
 pub use face_lines::*;
 pub use interior_faces::*;
+pub use occluded_faces::*;

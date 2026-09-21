@@ -27,9 +27,9 @@ pub fn face_indices(
     face_vertices
         .par_iter()
         .map(|(plane_id, vertices)| {
-            let face_plane = &face_planes[&plane_id];
-            let plane = &geo_planes[&plane_id];
-            let plane_center = &face_centers[&plane_id];
+            let face_plane = &face_planes[plane_id];
+            let plane = &geo_planes[plane_id];
+            let plane_center = &face_centers[plane_id];
 
             let plane_v0 = vector3_from_point(face_plane.v0);
             let plane_v1 = vector3_from_point(face_plane.v1);
@@ -38,8 +38,8 @@ pub fn face_indices(
 
             let mut indices = (0..vertices.len()).collect::<Vec<_>>();
             indices.sort_unstable_by(|lhs, rhs| {
-                let lhs_v = &vertices[*lhs] - plane_center;
-                let rhs_v = &vertices[*rhs] - plane_center;
+                let lhs_v = vertices[*lhs] - plane_center;
+                let rhs_v = vertices[*rhs] - plane_center;
 
                 let lhs_pu = lhs_v.dot(&u_axis);
                 let lhs_pv = lhs_v.dot(&v_axis);

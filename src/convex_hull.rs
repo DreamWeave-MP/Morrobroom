@@ -4,7 +4,7 @@ use crate::{Plane3d, Vector3, EPSILON};
 #[derive(Debug, Clone)]
 pub struct ConvexHull(Vec<Plane3d>);
 
-impl<'a, T: IntoIterator<Item = Plane3d>> From<T> for ConvexHull {
+impl<T: IntoIterator<Item = Plane3d>> From<T> for ConvexHull {
     fn from(planes: T) -> Self {
         ConvexHull(planes.into_iter().collect())
     }
@@ -20,5 +20,5 @@ impl ConvexHull {
         }
         true
     }
-}
 
+}

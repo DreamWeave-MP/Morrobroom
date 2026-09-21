@@ -18,15 +18,15 @@ pub fn face_duplicates(
 ) -> FaceDuplicates {
     planes
         .par_iter()
-        .flat_map(|lhs_id| {
-            let lhs_verts = &face_vertices[&lhs_id];
-            let lhs_plane = &face_planes[&lhs_id];
+        .flat_map_iter(|lhs_id| {
+            let lhs_verts = &face_vertices[lhs_id];
+            let lhs_plane = &face_planes[lhs_id];
 
             planes
-                .par_iter()
+                .iter()
                 .flat_map(move |rhs_id| {
-                    let rhs_verts = &face_vertices[&rhs_id];
-                    let rhs_plane = &face_planes[&rhs_id];
+                    let rhs_verts = &face_vertices[rhs_id];
+                    let rhs_plane = &face_planes[rhs_id];
 
                     // Skip comparing with self
                     if lhs_id == rhs_id {
@@ -43,24 +43,14 @@ pub fn face_duplicates(
                         return None;
                     }
 
-                    let vert_count = lhs_verts.len();
+                    // Compare vertices — sequential with early exit
+                    let all_match = lhs_verts.iter().all(|lhs_vert| {
+                        rhs_verts
+                            .iter()
+                            .any(|rhs_vert| (lhs_vert - rhs_vert).magnitude() < EPSILON)
+                    });
 
-                    // Compare vertices
-                    let identical_count: usize = lhs_verts
-                        .par_iter()
-                        .flat_map(|lhs_vert| {
-                            rhs_verts.par_iter().map(move |rhs_vert| {
-                                let delta = (lhs_vert - rhs_vert).magnitude();
-                                if delta < EPSILON {
-                                    1
-                                } else {
-                                    0
-                                }
-                            })
-                        })
-                        .sum();
-
-                    if identical_count != vert_count {
+                    if !all_match {
                         return None;
                     }
 

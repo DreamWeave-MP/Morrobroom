@@ -67,7 +67,6 @@ pub struct GeoMap {
 
 impl GeoMap {
     pub fn new(shalrath::repr::Map(map): shalrath::repr::Map) -> Self {
-        let mut entity_head = 0;
         let mut brush_head = 0;
         let mut plane_head = 0;
         let mut texture_head = 0;
@@ -90,13 +89,15 @@ impl GeoMap {
 
         let mut textures = BTreeMap::<String, TextureId>::new();
 
-        for Entity {
-            properties,
-            brushes: shalrath::repr::Brushes(bs),
-        } in map.into_iter()
+        for (
+            entity_head,
+            Entity {
+                properties,
+                brushes: shalrath::repr::Brushes(bs),
+            },
+        ) in map.into_iter().enumerate()
         {
             let entity_id = EntityId(entity_head);
-            entity_head += 1;
 
             entities.push(entity_id);
             entity_properties.insert(entity_id, properties);

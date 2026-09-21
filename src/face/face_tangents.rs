@@ -4,7 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use shalrath::repr::TextureOffset;
 use usage::Usage;
 
-use crate::{face::FaceId, vector3_from_texture_plane, FacePlanes, Plane3d, Vector2, Vector3};
+use crate::{face::FaceId, vector3_from_texture_plane, FacePlanes, Plane3d, Vector3};
 
 // TODO: Replace GeoPlane usage with custom tangent type
 //       (Would storing a basis be viable? No need to conform to godot standards)
@@ -24,8 +24,6 @@ pub fn face_bases(
     planes: &Vec<FaceId>,
     geo_planes: &FacePlanes,
     face_offsets: &BTreeMap<FaceId, TextureOffset>,
-    face_angles: &BTreeMap<FaceId, f32>,
-    face_scales: &BTreeMap<FaceId, Vector2>,
 ) -> FaceBases {
     planes
         .par_iter()
@@ -35,22 +33,20 @@ pub fn face_bases(
                 face_basis(
                     &geo_planes[plane_id],
                     &face_offsets[plane_id],
-                    face_angles[plane_id],
-                    face_scales[plane_id],
                 ),
             )
         })
         .collect()
 }
 
-fn face_basis(geo_plane: &Plane3d, offset: &TextureOffset, angle: f32, scale: Vector2) -> Basis {
+fn face_basis(geo_plane: &Plane3d, offset: &TextureOffset) -> Basis {
     match &offset {
-        shalrath::repr::TextureOffset::Standard { .. } => standard_basis(geo_plane, angle, scale),
+        shalrath::repr::TextureOffset::Standard { .. } => standard_basis(geo_plane),
         shalrath::repr::TextureOffset::Valve { .. } => valve_basis(geo_plane, offset),
     }
 }
 
-fn standard_basis(plane: &Plane3d, angle: f32, scale: Vector2) -> Basis {
+fn standard_basis(plane: &Plane3d) -> Basis {
     let up_vector: &Vector3 = &Vector3::z_axis();
     let right_vector: &Vector3 = &Vector3::y_axis();
     let forward_vector: &Vector3 = &Vector3::x_axis();
@@ -69,7 +65,6 @@ fn standard_basis(plane: &Plane3d, angle: f32, scale: Vector2) -> Basis {
     let dr_sign = dr.signum();
     let df_sign = df.signum();
 
-    let quat = nalgebra::UnitQuaternion::new(normal * -angle.to_radians());
     if du_abs >= dr_abs && du_abs >= df_abs {
         let z = *plane.normal() * du_sign;
         let x = z.cross(forward_vector).normalize();

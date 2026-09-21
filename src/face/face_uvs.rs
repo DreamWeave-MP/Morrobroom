@@ -13,6 +13,7 @@ pub enum FaceUvsTag {}
 
 pub type FaceUvs = Usage<FaceUvsTag, BTreeMap<FaceId, Vec<Vector2>>>;
 
+#[allow(clippy::too_many_arguments)]
 pub fn new(
     faces: &Vec<FaceId>,
     textures: &BTreeMap<TextureId, String>,
@@ -122,9 +123,7 @@ pub fn standard_uv(
     uv.x /= texture_scale.x;
     uv.y /= texture_scale.y;
 
-    let uv = uv + nalgebra::vector![u_offset / texture_size.x, v_offset / texture_size.y];
-
-    uv
+    uv + nalgebra::vector![u_offset / texture_size.x, v_offset / texture_size.y]
 }
 
 pub fn valve_uv(
@@ -143,7 +142,5 @@ pub fn valve_uv(
     uv.x /= texture_scale.x;
     uv.y /= texture_scale.y;
 
-    let uv = uv + nalgebra::vector![u_plane.d / texture_size.x, v_plane.d / texture_size.y];
-
-    uv
+    uv + nalgebra::vector![u_plane.d / texture_size.x, v_plane.d / texture_size.y]
 }
