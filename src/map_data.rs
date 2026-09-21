@@ -105,9 +105,10 @@ impl MapData {
                 if lights.is_empty() {
                     baked.pixels.fill(u8::MAX);
                 }
+                let baked = morrobroom::lightmap_bake::constrain_lightmap(baked);
                 (
                     Some(baked),
-                    Some(format!("{}/lightmap.tga", map_stem(map_name))),
+                    Some(format!("{}/lightmap.dds", map_stem(map_name))),
                 )
             });
 

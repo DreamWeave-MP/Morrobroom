@@ -87,8 +87,8 @@ fn compile_map(
         let path = work_dir
             .join("Textures")
             .join(&map_dir)
-            .join("lightmap.tga");
-        lightmap_bake::write_tga(&path, lightmap)?;
+            .join("lightmap.dds");
+        lightmap_bake::write_dds(&path, lightmap)?;
     }
 
     let plugin_path = output_path.map_or_else(

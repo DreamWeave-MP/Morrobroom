@@ -1,6 +1,7 @@
-use std::{fs::File, io, io::Write, path::Path};
+use std::{fs::File, io, path::Path};
 
 use lightmap::input::WorldVertex;
+use rusty_dds::{Dds, DecodeContent, EncodeLayout};
 
 use crate::{
     render_mesh::{RenderMesh, RenderVertex},
@@ -34,17 +35,80 @@ pub struct BakedPart {
     pub indices: Vec<u32>,
 }
 
-/// Write a baked RGB lightmap as an uncompressed TGA accepted by `OpenMW`.
+const MAX_LIGHTMAP_DIMENSION: usize = 8192;
+
+/// Keep the baked atlas within the 8K texture limit used by the compiler
+/// pipeline and supported by the target runtime hardware.
+///
+/// # Panics
+///
+/// Panics if the source dimensions cannot be represented by the intermediate
+/// resampling calculations or if the source contains no samples to average.
+#[must_use]
+pub fn constrain_lightmap(lightmap: lightmap::LightMap) -> lightmap::LightMap {
+    if lightmap.width <= MAX_LIGHTMAP_DIMENSION && lightmap.height <= MAX_LIGHTMAP_DIMENSION {
+        return lightmap;
+    }
+
+    let source_max = lightmap.width.max(lightmap.height);
+    let width = scaled_dimension(lightmap.width, source_max);
+    let height = scaled_dimension(lightmap.height, source_max);
+    let mut pixels = vec![0_u8; width * height * 3];
+
+    for y in 0..height {
+        let y0 = y * lightmap.height / height;
+        let y1 = ((y + 1) * lightmap.height / height).max(y0 + 1);
+        for x in 0..width {
+            let x0 = x * lightmap.width / width;
+            let x1 = ((x + 1) * lightmap.width / width).max(x0 + 1);
+            let mut sums = [0_u64; 3];
+            let mut samples = 0_u64;
+            for source_y in y0..y1.min(lightmap.height) {
+                for source_x in x0..x1.min(lightmap.width) {
+                    let offset = (source_y * lightmap.width + source_x) * 3;
+                    for (channel, sum) in sums.iter_mut().enumerate() {
+                        *sum += u64::from(lightmap.pixels[offset + channel]);
+                    }
+                    samples += 1;
+                }
+            }
+            let output_offset = (y * width + x) * 3;
+            for (channel, sum) in sums.into_iter().enumerate() {
+                pixels[output_offset + channel] =
+                    u8::try_from(sum / samples).expect("RGB average must fit in a byte");
+            }
+        }
+    }
+
+    lightmap::LightMap {
+        pixels,
+        width,
+        height,
+    }
+}
+
+fn scaled_dimension(value: usize, source_max: usize) -> usize {
+    let value = u128::from(u64::try_from(value).expect("usize must fit in u64"));
+    let source_max = u128::from(u64::try_from(source_max).expect("usize must fit in u64"));
+    let max_dimension =
+        u128::from(u64::try_from(MAX_LIGHTMAP_DIMENSION).expect("lightmap limit must fit in u64"));
+    let numerator = value * max_dimension + source_max / 2;
+    usize::try_from(numerator / source_max)
+        .expect("scaled lightmap dimension must fit in usize")
+        .max(1)
+}
+
+/// Write a baked RGB lightmap as a BC7-compressed DDS accepted by `OpenMW`.
 ///
 /// # Errors
 ///
-/// Returns an error if the lightmap dimensions exceed the TGA limits, the
-/// pixel buffer is malformed, or the destination cannot be written.
-pub fn write_tga(path: &Path, lightmap: &lightmap::LightMap) -> io::Result<()> {
-    let width = u16::try_from(lightmap.width)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is wider than TGA"))?;
-    let height = u16::try_from(lightmap.height)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is taller than TGA"))?;
+/// Returns an error if the lightmap is malformed or the destination cannot be
+/// written.
+pub fn write_dds(path: &Path, lightmap: &lightmap::LightMap) -> io::Result<()> {
+    let width = u32::try_from(lightmap.width)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is too wide"))?;
+    let height = u32::try_from(lightmap.height)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is too tall"))?;
     let expected_len = lightmap.width * lightmap.height * 3;
     if lightmap.pixels.len() != expected_len {
         return Err(io::Error::new(
@@ -56,16 +120,26 @@ pub fn write_tga(path: &Path, lightmap: &lightmap::LightMap) -> io::Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let mut file = File::create(path)?;
-    let mut header = [0_u8; 18];
-    header[2] = 2;
-    header[12..14].copy_from_slice(&width.to_le_bytes());
-    header[14..16].copy_from_slice(&height.to_le_bytes());
-    header[16] = 24;
-    file.write_all(&header)?;
-    for pixel in lightmap.pixels.chunks_exact(3) {
-        file.write_all(&[pixel[2], pixel[1], pixel[0]])?;
+    let mut rgba = vec![0_u8; lightmap.width * lightmap.height * 4];
+    for y in 0..lightmap.height {
+        // LightMap's atlas rows are bottom-origin. DDS is marked top-origin by
+        // OpenMW, so flip rows while expanding RGB to RGBA for BC7.
+        let source_y = lightmap.height - 1 - y;
+        for x in 0..lightmap.width {
+            let source = (source_y * lightmap.width + x) * 3;
+            let destination = (y * lightmap.width + x) * 4;
+            rgba[destination..destination + 3]
+                .copy_from_slice(&lightmap.pixels[source..source + 3]);
+            rgba[destination + 3] = u8::MAX;
+        }
     }
+
+    let layout = EncodeLayout::flat_2d(DecodeContent::Bc7, width, height);
+    let dds = Dds::encode_from_rgba8(&rgba, layout)
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    let mut file = File::create(path)?;
+    dds.write(&mut file)
+        .map_err(|error| io::Error::other(error.to_string()))?;
     Ok(())
 }
 
@@ -364,5 +438,43 @@ mod tests {
         assert!(lightmap.width > 0);
         assert_eq!(lightmap.pixels.len(), lightmap.width * lightmap.height * 3);
         assert!(lightmap.pixels.iter().any(|&pixel| pixel != 0));
+    }
+
+    #[test]
+    fn oversized_lightmaps_are_reduced_to_eight_k() {
+        let lightmap = lightmap::LightMap {
+            pixels: vec![128; (MAX_LIGHTMAP_DIMENSION + 1) * 3],
+            width: MAX_LIGHTMAP_DIMENSION + 1,
+            height: 1,
+        };
+        let constrained = constrain_lightmap(lightmap);
+        assert_eq!(constrained.width, MAX_LIGHTMAP_DIMENSION);
+        assert_eq!(constrained.height, 1);
+        assert_eq!(constrained.pixels.len(), MAX_LIGHTMAP_DIMENSION * 3);
+    }
+
+    #[test]
+    fn dds_writer_emits_bc7() {
+        let path =
+            std::env::temp_dir().join(format!("morrobroom-lightmap-{}.dds", std::process::id()));
+        let lightmap = lightmap::LightMap {
+            pixels: (0..64)
+                .flat_map(|index| {
+                    let red = u8::try_from(index).expect("test pixel index must fit in a byte") * 4;
+                    [red, 255 - red, 128]
+                })
+                .collect(),
+            width: 8,
+            height: 8,
+        };
+
+        write_dds(&path, &lightmap).expect("BC7 lightmap should write");
+        let bytes = std::fs::read(&path).expect("written DDS should be readable");
+        let dds = Dds::read(bytes.as_slice()).expect("written DDS should parse");
+        assert_eq!(
+            dds.header10.expect("BC7 requires DXGI header").dxgi_format,
+            rusty_dds::DxgiFormat::BC7_UNorm
+        );
+        std::fs::remove_file(path).expect("temporary DDS should be removable");
     }
 }
