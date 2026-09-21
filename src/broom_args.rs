@@ -148,6 +148,10 @@ pub enum BroomCommand {
         /// If not present, defaults to the name of the map file used in generation.
         #[arg(long = "output", short = 'o', value_parser = validate_compile_output_path)]
         output_path: Option<PathBuf>,
+
+        /// Disable generated lightmap UVs and lightmap baking.
+        #[arg(long = "no-lightmaps")]
+        no_lightmaps: bool,
     },
     FGD {
         /// Scale to use when generating object bounding boxes.
@@ -389,6 +393,7 @@ mod tests {
                 map_path,
                 object_scale,
                 output_path,
+                no_lightmaps,
             } => {
                 assert!((object_scale - 2.0).abs() < f32::EPSILON);
 
@@ -398,7 +403,25 @@ mod tests {
                 );
 
                 assert_eq!(output_path, Some(tmp_out.canonicalize().unwrap()));
+                assert!(!no_lightmaps);
             }
+            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
+        }
+    }
+
+    #[test]
+    fn compile_command_can_disable_lightmaps() {
+        let map_file = temp_file("map", b"dummy");
+        let args = MorrobroomArgs::parse_from([
+            "morrobroom",
+            "compile",
+            "--map",
+            map_file.to_str().unwrap(),
+            "--no-lightmaps",
+        ]);
+
+        match args.command {
+            BroomCommand::Compile { no_lightmaps, .. } => assert!(no_lightmaps),
             BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
         }
     }

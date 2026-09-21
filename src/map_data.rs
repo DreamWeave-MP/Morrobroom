@@ -1,4 +1,5 @@
 use imagesize::blob_size;
+use morrobroom::lightmap_bake::BakedRenderMesh;
 use morrobroom::render_mesh::RenderMesh;
 use morrobroom::slipgate::csg::GeometryTolerance;
 use morrobroom::slipgate::repr::Map;
@@ -36,11 +37,13 @@ pub struct MapData {
     pub face_tri_indices: FaceTriangleIndices,
     pub inverted_face_tri_indices: FaceTriangleIndices,
     pub render_mesh: RenderMesh,
+    /// UV-prepared geometry for the optional lightmap pipeline.
+    pub lightmap_geometry: Option<BakedRenderMesh>,
     vfs: VFS,
 }
 
 impl MapData {
-    pub fn new(map_name: &String) -> Self {
+    pub fn new(map_name: &String, lightmaps_enabled: bool) -> Self {
         // First load the map from the filesystem and parse it using Slipgate.
         let map = fs::read_to_string(map_name)
             .expect("Reading file failed. Bad news! Does it exist?")
@@ -83,6 +86,10 @@ impl MapData {
         let render_mesh =
             RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
                 .expect("map faces should compile into render geometry");
+        let lightmap_geometry = lightmaps_enabled.then(|| {
+            BakedRenderMesh::from_render_mesh(&render_mesh, 0.005)
+                .expect("render mesh should support lightmap UV generation")
+        });
 
         let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
             .geomap
@@ -116,6 +123,7 @@ impl MapData {
             face_tri_indices: geometry.face_tri_indices,
             inverted_face_tri_indices: geometry.inverted_face_tri_indices,
             render_mesh,
+            lightmap_geometry,
             vfs,
         }
     }
@@ -153,6 +161,11 @@ impl MapData {
 
     pub fn vfs(&self) -> &VFS {
         &self.vfs
+    }
+
+    #[must_use]
+    pub const fn lightmap_geometry(&self) -> Option<&BakedRenderMesh> {
+        self.lightmap_geometry.as_ref()
     }
 
     pub fn get_entity_properties(&self, entity_id: EntityId) -> HashMap<&String, &String> {

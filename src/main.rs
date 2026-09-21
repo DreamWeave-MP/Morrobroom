@@ -35,7 +35,13 @@ fn main() -> io::Result<()> {
             map_path,
             object_scale,
             output_path,
-        } => compile_map(&map_path, object_scale, output_path.as_deref()),
+            no_lightmaps,
+        } => compile_map(
+            &map_path,
+            object_scale,
+            output_path.as_deref(),
+            !no_lightmaps,
+        ),
         BroomCommand::FGD {
             object_scale,
             object_types,
@@ -58,11 +64,21 @@ fn main() -> io::Result<()> {
     }
 }
 
-fn compile_map(map_path: &Path, object_scale: f32, output_path: Option<&Path>) -> io::Result<()> {
+fn compile_map(
+    map_path: &Path,
+    object_scale: f32,
+    output_path: Option<&Path>,
+    lightmaps_enabled: bool,
+) -> io::Result<()> {
     let (work_dir, map_dir) = create_workdir(map_path)
         .map_err(|error_string| io::Error::new(io::ErrorKind::InvalidInput, error_string))?;
     let map_name = map_path.to_string_lossy().to_string();
-    let map_data = MapData::new(&map_name);
+    let map_data = MapData::new(&map_name, lightmaps_enabled);
+    assert_eq!(
+        map_data.lightmap_geometry().is_some(),
+        lightmaps_enabled,
+        "lightmap preparation did not honor the compiler option"
+    );
     assert!(
         !map_data.geomap.entity_brushes.is_empty(),
         "No brushes found in map! You probably used an apostrophe in worldspawn properties."
