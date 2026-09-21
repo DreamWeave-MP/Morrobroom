@@ -4,6 +4,7 @@ use morrobroom::slipgate::{
     GeoMap, Textures,
     entity::EntityId,
     face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
+    map_geometry::MapGeometry,
     texture::TextureId,
 };
 use openmw_cfg::{Ini, find_file, get_config};
@@ -35,51 +36,11 @@ impl MapData {
             .parse::<Map>()
             .expect("Map parsing failed!");
 
-        // Then pass the map into the basic Shambler methods
-        let geomap = GeoMap::new(map);
+        // MapData needs the core geometry, but not the expensive occlusion
+        // scans. Keep construction in MapGeometry so there is one dataflow.
+        let geometry = MapGeometry::from_map_without_occlusion(map);
 
-        // Boilerplate for generating hulls, textures, etc
-        let face_planes = morrobroom::slipgate::face::face_planes(&geomap.face_planes);
-
-        let brush_hulls =
-            morrobroom::slipgate::brush::brush_hulls(&geomap.brush_faces, &face_planes);
-
-        let (face_vertices, face_vertex_planes) = morrobroom::slipgate::face::face_vertices(
-            &geomap.brush_faces,
-            &face_planes,
-            &brush_hulls,
-        );
-
-        let face_centers = morrobroom::slipgate::face::face_centers(&face_vertices);
-
-        let face_indices = morrobroom::slipgate::face::face_indices(
-            &geomap.face_planes,
-            &face_planes,
-            &face_vertices,
-            &face_centers,
-            morrobroom::slipgate::face::FaceWinding::Clockwise,
-        );
-
-        // If a brush is marked as "inside-out", we use these indices instead
-        let inverted_face_indices = morrobroom::slipgate::face::face_indices(
-            &geomap.face_planes,
-            &face_planes,
-            &face_vertices,
-            &face_centers,
-            morrobroom::slipgate::face::FaceWinding::CounterClockwise,
-        );
-
-        let face_tri_indices = morrobroom::slipgate::face::face_triangle_indices(&face_indices);
-
-        let inverted_face_tri_indices =
-            morrobroom::slipgate::face::face_triangle_indices(&inverted_face_indices);
-
-        let flat_normals = morrobroom::slipgate::face::normals_flat(&face_vertices, &face_planes);
-
-        let smooth_normals =
-            morrobroom::slipgate::face::normals_phong_averaged(&face_vertex_planes, &face_planes);
-
-        let texture_names = MapData::collect_textures(&geomap.textures);
+        let texture_names = MapData::collect_textures(&geometry.geomap.textures);
         let texture_paths = MapData::find_textures_in_vfs(&texture_names);
 
         let texture_sizes: BTreeMap<&str, (u32, u32)> = texture_paths
@@ -102,7 +63,7 @@ impl MapData {
 
         let mut modified_textures: BTreeMap<TextureId, String> = BTreeMap::new();
 
-        for (texture_id, texture_name) in geomap.textures.iter() {
+        for (texture_id, texture_name) in geometry.geomap.textures.iter() {
             for texture_path in &texture_paths {
                 if texture_path
                     .to_ascii_lowercase()
@@ -116,25 +77,20 @@ impl MapData {
         let mut textures_with_paths: Textures = Textures::default();
         textures_with_paths.data = modified_textures;
 
-        let face_uvs = morrobroom::slipgate::face::new(
-            &geomap.faces,
-            &geomap.textures,
-            &geomap.face_textures,
-            &face_vertices,
-            &face_planes,
-            &geomap.face_offsets,
-            &geomap.face_angles,
-            &geomap.face_scales,
-            &morrobroom::slipgate::texture::texture_sizes(&textures_with_paths, texture_sizes),
-        );
+        let face_uvs = geometry.face_uvs(morrobroom::slipgate::texture::texture_sizes(
+            &textures_with_paths,
+            texture_sizes,
+        ));
 
-        let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geomap
+        let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
+            .geomap
             .brush_faces
             .iter()
             .flat_map(|(_, brush_faces)| {
                 brush_faces.iter().map(|face_id| {
                     let centroid = Mesh::centroid(
-                        face_vertices
+                        geometry
+                            .face_vertices
                             .get(face_id)
                             .expect("Face vertices should always be valid"),
                     );
@@ -152,13 +108,13 @@ impl MapData {
             });
 
         MapData {
-            geomap,
+            geomap: geometry.geomap,
             face_grid,
-            face_vertices,
-            face_tri_indices,
-            inverted_face_tri_indices,
-            flat_normals,
-            smooth_normals,
+            face_vertices: geometry.face_vertices,
+            face_tri_indices: geometry.face_tri_indices,
+            inverted_face_tri_indices: geometry.inverted_face_tri_indices,
+            flat_normals: geometry.flat_normals,
+            smooth_normals: geometry.smooth_normals,
             face_uvs,
         }
     }

@@ -75,7 +75,11 @@ pub struct MapGeometry {
     pub smooth_normals: FaceNormals,
     /// Faces that are completely hidden by other solid geometry and can be
     /// skipped during mesh generation.
-    pub occluded_faces: OccludedFaces,
+    ///
+    /// This is `None` when the geometry was built with
+    /// [`MapGeometry::from_map_without_occlusion`]. An empty set therefore
+    /// means that occlusion was computed and no faces were hidden.
+    pub occluded_faces: Option<OccludedFaces>,
 }
 
 impl MapGeometry {
@@ -94,7 +98,24 @@ impl MapGeometry {
     }
 
     /// Process an already parsed map without performing filesystem I/O.
+    ///
+    /// This is the full constructor and includes the complete-face occlusion
+    /// pass. Call [`MapGeometry::from_map_without_occlusion`] when the caller
+    /// only needs the core geometry pipeline.
     pub fn from_map(map: Map) -> Self {
+        Self::build(map, true)
+    }
+
+    /// Process an already parsed map without running the occlusion pass.
+    ///
+    /// The core geometry stages are identical to [`MapGeometry::from_map`],
+    /// but the quadratic occlusion scans are skipped. This is the constructor
+    /// intended for frontends that do not consume complete-face occlusion.
+    pub fn from_map_without_occlusion(map: Map) -> Self {
+        Self::build(map, false)
+    }
+
+    fn build(map: Map, compute_occlusion: bool) -> Self {
         let geomap = GeoMap::new(map);
 
         // ── Core geometry ─────────────────────────────────────────────────────
@@ -125,30 +146,35 @@ impl MapGeometry {
         let smooth_normals = face::normals_phong_averaged(&face_vertex_planes, &face_planes);
 
         // ── Occlusion ─────────────────────────────────────────────────────────
-        let face_duplicates = face::face_duplicates(&geomap.faces, &face_planes, &face_vertices);
-        let brush_face_containment = brush::brush_face_containment(
-            &geomap.brushes,
-            &geomap.faces,
-            &geomap.brush_faces,
-            &brush_hulls,
-            &face_vertices,
-        );
-        let face_bases = face::face_bases(&geomap.faces, &face_planes, &geomap.face_offsets);
-        // Edge topology is winding-independent; CW indices are sufficient here.
-        let (lines, face_lines) = line::lines(&face_indices_cw);
-        let face_face_containment = face::face_face_containment(
-            &geomap.faces,
-            &lines,
-            &face_planes,
-            &face_bases,
-            &face_vertices,
-            &face_lines,
-        );
-        let occluded_faces = face::occluded_faces(
-            &face_duplicates,
-            &brush_face_containment,
-            &face_face_containment,
-        );
+        // Do not pay for the quadratic scans when the caller only needs core
+        // geometry. `Some(empty)` remains meaningful: it means the pass ran.
+        let occluded_faces = compute_occlusion.then(|| {
+            let face_duplicates =
+                face::face_duplicates(&geomap.faces, &face_planes, &face_vertices);
+            let brush_face_containment = brush::brush_face_containment(
+                &geomap.brushes,
+                &geomap.faces,
+                &geomap.brush_faces,
+                &brush_hulls,
+                &face_vertices,
+            );
+            let face_bases = face::face_bases(&geomap.faces, &face_planes, &geomap.face_offsets);
+            // Edge topology is winding-independent; CW indices are sufficient here.
+            let (lines, face_lines) = line::lines(&face_indices_cw);
+            let face_face_containment = face::face_face_containment(
+                &geomap.faces,
+                &lines,
+                &face_planes,
+                &face_bases,
+                &face_vertices,
+                &face_lines,
+            );
+            face::occluded_faces(
+                &face_duplicates,
+                &brush_face_containment,
+                &face_face_containment,
+            )
+        });
 
         MapGeometry {
             geomap,
@@ -209,7 +235,13 @@ mod tests {
         assert_eq!(geometry.geomap.entities.len(), 1);
         assert_eq!(geometry.geomap.brushes.len(), 1);
         assert_eq!(geometry.geomap.faces.len(), 6);
-        assert!(geometry.occluded_faces.is_empty());
+        assert!(
+            geometry
+                .occluded_faces
+                .as_ref()
+                .expect("full construction computes occlusion")
+                .is_empty()
+        );
 
         for face_id in geometry.geomap.faces.iter() {
             let vertices = &geometry.face_vertices[face_id];
@@ -235,6 +267,33 @@ mod tests {
 
         assert_eq!(geometry.geomap.brushes.len(), 2);
         assert_eq!(geometry.geomap.faces.len(), 8);
-        assert_eq!(geometry.occluded_faces.len(), 2);
+        assert_eq!(
+            geometry
+                .occluded_faces
+                .as_ref()
+                .expect("full construction computes occlusion")
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn map_geometry_can_skip_occlusion_without_changing_core_geometry() {
+        let full = MapGeometry::from_map(CUBE_MAP.parse().expect("cube fixture should parse"));
+        let geometry = MapGeometry::from_map_without_occlusion(
+            CUBE_MAP.parse().expect("cube fixture should parse"),
+        );
+
+        assert!(geometry.occluded_faces.is_none());
+        assert_eq!(geometry.geomap.faces.len(), 6);
+        for face_id in geometry.geomap.faces.iter() {
+            assert_eq!(geometry.face_vertices[face_id].len(), 4);
+            assert_eq!(geometry.face_tri_indices[face_id].len(), 6);
+            assert_eq!(geometry.face_vertices[face_id], full.face_vertices[face_id]);
+            assert_eq!(
+                geometry.face_tri_indices[face_id],
+                full.face_tri_indices[face_id]
+            );
+        }
     }
 }
