@@ -6,6 +6,7 @@ use std::{
 };
 
 pub mod fgd;
+pub mod render_mesh;
 pub mod slipgate;
 
 pub mod util;

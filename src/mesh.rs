@@ -256,3 +256,45 @@ impl Mesh {
             .push(mat_link.cast());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tes3::nif::{NiStream, NiTriShapeData, glam};
+
+    #[test]
+    fn nif_round_trip_preserves_a_second_uv_channel() {
+        let channel_0 = [
+            glam::vec2(0.0, 0.0),
+            glam::vec2(1.0, 0.0),
+            glam::vec2(0.0, 1.0),
+        ];
+        let channel_1 = [
+            glam::vec2(0.25, 0.25),
+            glam::vec2(0.75, 0.25),
+            glam::vec2(0.25, 0.75),
+        ];
+
+        let mut data = NiTriShapeData::default();
+        data.base.base.vertices = vec![
+            glam::vec3(0.0, 0.0, 0.0),
+            glam::vec3(1.0, 0.0, 0.0),
+            glam::vec3(0.0, 1.0, 0.0),
+        ];
+        data.base.base.uv_sets = channel_0.into_iter().chain(channel_1).collect();
+        data.triangles.push([0, 1, 2]);
+
+        let mut stream = NiStream::default();
+        let data_link = stream.insert(data);
+        stream.roots.push(data_link.cast());
+        let bytes = stream.save_bytes().expect("NIF data should serialize");
+        let loaded = NiStream::from_bytes(&bytes).expect("NIF data should deserialize");
+        let loaded_data = loaded
+            .objects_of_type::<NiTriShapeData>()
+            .next()
+            .expect("round-tripped geometry data should be reachable");
+
+        assert_eq!(loaded_data.base.base.num_uv_sets(), 2);
+        assert_eq!(loaded_data.base.base.uv_set(0).unwrap(), channel_0);
+        assert_eq!(loaded_data.base.base.uv_set(1).unwrap(), channel_1);
+    }
+}

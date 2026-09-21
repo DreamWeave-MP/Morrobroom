@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use morrobroom::render_mesh::RenderPart;
 use morrobroom::slipgate::repr;
 use morrobroom::slipgate::{
     Vector2 as SV2, Vector3 as SV3, brush::BrushId, entity::EntityId, face::FaceId,
@@ -307,6 +308,16 @@ impl BrushNiNode {
         map_data: &MapData,
         brush_id: BrushId,
     ) {
+        let parts = map_data
+            .render_mesh
+            .parts
+            .iter()
+            .filter(|part| part.source_brush == brush_id && faces.contains(&part.source_face))
+            .collect::<Vec<_>>();
+        for part in parts {
+            Self::append_render_part(node, part);
+        }
+
         for face_id in faces {
             let texture_id = map_data.geomap.face_textures.get(*face_id).unwrap();
             let texture_name = map_data.geomap.textures.get(*texture_id).unwrap();
@@ -359,34 +370,25 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {fac
                 println!("{face_id} interpreted as liquid, added NoClip flag");
             }
 
-            // Get Texture uvs for this specific face out of parsed map data
-            let uv_sets = &map_data
-                .face_uvs
-                .get(*face_id)
-                .expect("Unable to collect face UVs for {face_id}");
-
-            // For any texture that isn't a `clip`, apply the calculated normals, verts, tris, uv sets, and texture
-            if texture_name != "clip" {
-                node.normals.extend(
-                    if surface_flags & surfaces::NiBroomSurface::SmoothShading as u32 == 0 {
-                        map_data.flat_normals.get(*face_id).unwrap()
-                    } else {
-                        map_data.smooth_normals.get(*face_id).unwrap()
-                    },
-                );
-                node.uv_sets.extend(*uv_sets);
-
-                node.vis_verts.extend(*vertices);
-                node.vis_tris.push((*indices).clone());
-                node.texture.clone_from(texture_name);
-            }
-
             // The node will always have an RCN, only populate it if the NoClip flag is NOT applied to this surface
             if surface_flags & surfaces::NiBroomSurface::NoClip as u32 == 0 {
                 node.col_verts.extend(*vertices);
                 node.col_tris.push((*indices).clone());
             }
         }
+    }
+
+    fn append_render_part(node: &mut BrushNiNode, part: &RenderPart) {
+        node.use_emissive |= part.material.emissive;
+        node.texture.clone_from(&part.material.texture);
+        node.normals
+            .extend(part.vertices.iter().map(|vertex| vertex.normal));
+        node.uv_sets
+            .extend(part.vertices.iter().map(|vertex| vertex.uv));
+        node.vis_verts
+            .extend(part.vertices.iter().map(|vertex| vertex.position));
+        node.vis_tris
+            .push(part.indices.iter().map(|index| *index as usize).collect());
     }
 
     fn collect_faces_with_textures(brush_id: BrushId, map_data: &MapData) -> Vec<Vec<FaceId>> {

@@ -1,9 +1,11 @@
 use imagesize::blob_size;
+use morrobroom::render_mesh::RenderMesh;
+use morrobroom::slipgate::csg::GeometryTolerance;
 use morrobroom::slipgate::repr::Map;
 use morrobroom::slipgate::{
     GeoMap, Textures,
     entity::EntityId,
-    face::{FaceNormals, FaceTriangleIndices, FaceUvs, FaceVertices},
+    face::{FaceTriangleIndices, FaceVertices},
     map_geometry::MapGeometry,
 };
 use openmw_config::OpenMWConfiguration;
@@ -33,9 +35,7 @@ pub struct MapData {
     pub face_vertices: FaceVertices,
     pub face_tri_indices: FaceTriangleIndices,
     pub inverted_face_tri_indices: FaceTriangleIndices,
-    pub flat_normals: FaceNormals,
-    pub smooth_normals: FaceNormals,
-    pub face_uvs: FaceUvs,
+    pub render_mesh: RenderMesh,
     vfs: VFS,
 }
 
@@ -78,10 +78,10 @@ impl MapData {
             })
             .collect();
 
-        let face_uvs = geometry.face_uvs(&morrobroom::slipgate::texture::texture_sizes(
-            &geometry.geomap.textures,
-            &texture_sizes,
-        ));
+        let texture_sizes =
+            morrobroom::slipgate::texture::texture_sizes(&geometry.geomap.textures, &texture_sizes);
+        let render_mesh = RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
+            .expect("map faces should compile into render geometry");
 
         let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
             .geomap
@@ -114,9 +114,7 @@ impl MapData {
             face_vertices: geometry.face_vertices,
             face_tri_indices: geometry.face_tri_indices,
             inverted_face_tri_indices: geometry.inverted_face_tri_indices,
-            flat_normals: geometry.flat_normals,
-            smooth_normals: geometry.smooth_normals,
-            face_uvs,
+            render_mesh,
             vfs,
         }
     }
