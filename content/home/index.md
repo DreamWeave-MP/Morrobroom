@@ -28,6 +28,9 @@ assembling every wall from prebuilt meshes. Morrobroom can also bake static
 lighting, place real Morrowind objects, and turn compatible NIFs back into
 editable `.map` geometry.
 
+**TrenchBroom is the editor. Morrobroom is the compiler. OpenMW is where you
+play the result.**
+
 Download the build for your platform above, or
 [browse the source on GitHub](https://github.com/DreamWeave-MP/Morrobroom).
 
@@ -40,6 +43,28 @@ Download the build for your platform above, or
 - `nif2map` for bringing compatible NIF geometry into TrenchBroom.
 - Generated FGD data so TrenchBroom can place objects from your actual OpenMW setup.
 
+## New to TrenchBroom?
+
+You do **not** need to know Quake mapping, NIF internals, CSG, or Rust to use
+Morrobroom.
+
+A few words will get you surprisingly far:
+
+- **Brush** — a simple editable 3D solid. Walls, floors, ceilings, stairs, and
+  most architecture start here.
+- **Face** — one surface of a brush. Faces are where textures are applied.
+- **Entity** — a game or editor object, such as a light, door, weapon, or static.
+- **FGD** — the definitions that tell TrenchBroom which Morrowind entities exist.
+- **Compile** — turn the `.map` into NIFs, a plugin, and any generated textures.
+
+If you have never used TrenchBroom before, start with
+[DumptruckDS's TrenchBroom playlist](https://youtube.com/playlist?list=PLgDKRPte5Y0AZ_K_PZbWbgBAEt5xf74aE&si=0HrERzygljsiMz2h).
+It is a much better introduction to actually moving around the editor and
+building with brushes than this page needs to become.
+
+The full [TrenchBroom manual](https://trenchbroom.github.io/manual/latest/) is
+also excellent once you want to go deeper.
+
 ## Set up TrenchBroom
 
 Morrobroom ships with a TrenchBroom game configuration under `resources/`.
@@ -50,18 +75,51 @@ Copy those files into TrenchBroom's custom `Morrowind` game directory:
 - macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind`
 - Linux: `~/.TrenchBroom/games/Morrowind`
 
-Then open **Preferences → Games → Morrowind**.
+Start TrenchBroom. If **Morrowind** does not appear in the game list, stop here:
+the game configuration is not installed in the right place yet.
 
-Set the game directory to the folder that **contains** `Data Files/`, then set:
+Open **Preferences → Games → Morrowind**.
+
+Set the game directory to the folder that **contains** `Data Files/`, not
+`Data Files/` itself.
+
+For example:
+
+```text
+Morrowind/
+└── Data Files/
+```
+
+Then configure the compilation tools:
 
 - `Morrobroom` — the Morrobroom executable
 - `OpenMW` — the OpenMW executable
 - `OpenCS` — optional
 
 The supplied **Map-to-Engine** profile will compile the current map and launch
-it in OpenMW.
+it directly in OpenMW.
 
 **Save your map before compiling.** Morrobroom compiles the saved `.map` file.
+
+## Your first room
+
+The goal here is simple: make a room, put a light in it, and stand inside it in
+OpenMW.
+
+1. Create a new **Morrowind** map in TrenchBroom.
+2. Build a small enclosed room out of brushes.
+3. Apply any Morrowind texture to the visible faces.
+4. Place a `Light_Point1024` entity inside the room.
+5. Save the map.
+6. Open TrenchBroom's compile dialog and run **Map-to-Engine**.
+
+Morrobroom will create the compiled plugin, generated meshes, and lightmaps
+under the map's local `build/` directory, then launch OpenMW.
+
+If OpenMW launches into your room, you are done. Build something less boring.
+
+If it launches but you see an old version of the map, save the `.map` and
+compile again.
 
 ## Generate object definitions
 
@@ -77,7 +135,13 @@ morrobroom FGD \
 This is what lets TrenchBroom know about the objects available in your actual
 OpenMW setup.
 
+If you add or remove content from your OpenMW configuration later, regenerate
+the FGD to keep TrenchBroom in sync.
+
 ## Compile from the command line
+
+You do not need the command line for the normal TrenchBroom workflow, but the
+same compiler can be used directly.
 
 Lightmapping is enabled by default:
 
@@ -112,6 +176,9 @@ existing texture pipeline.
 
 Static architecture uses the bake. Actors and other dynamic objects can still
 use normal OpenMW lights.
+
+For most maps, just place lights in TrenchBroom and compile. You do not need to
+manually create UVs or lightmap textures.
 
 ## Status
 
