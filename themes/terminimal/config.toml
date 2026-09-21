@@ -1,0 +1,103 @@
+# Be sure to change these!
+base_url = "https://pawroman.github.io/zola-theme-terminimal"
+title = "Zola Terminimal theme"
+
+# Sass compilation is required
+compile_sass = true
+
+# The theme supports feeds (RSS and ATOM)
+generate_feeds = true
+
+# Use `rss.xml` for RSS feeds and `atom.xml` for ATOM.
+feed_filenames = ["rss.xml", "atom.xml"]
+
+# Optional: enable tags
+taxonomies = [
+    {name = "tags"}
+]
+
+# Code highlighting
+[markdown]
+highlight_code = true
+highlight_theme = "boron"
+
+[extra]
+
+# One of: blue, green, orange, pink, red.
+# Defaults to blue.
+# Append -light for light themes, e.g. blue-light
+# Or append -auto, e.g. blue-auto
+accent_color = "blue"
+
+# One of: blue, dark, green, orange, pink, red, light, auto
+# Enabling dark background will also modify primary font color to be darker.
+# Defaults to accent color (or, if not accent color specified, to blue).
+background_color = "blue"
+
+# The logo text - defaults to "Terminimal theme"
+logo_text = "Terminimal theme"
+
+# The logo link - defaults to base_url.
+#logo_home_link = "/take/me/away!"
+
+# Author name: when specified, modifies the default
+# copyright text. Apart from author, it will
+# contain current year and a link to the theme.
+#author = "My Name"
+
+# Copyright text in HTML format. If specified,
+# entirely replaces default copyright and author.
+#copyright_html = "My custom&nbsp;<b>copyright</b>"
+
+# menu is enabled by adding menu_items (optional)
+menu_items = [
+    # each of these is optional, name and url are required
+    # $BASE_URL is going to be substituted by base_url from configuration
+    {name = "blog", url = "$BASE_URL"},
+
+    # tags should only be enabled if you have "tags" taxonomy
+    # see documentation below for more details
+    {name = "tags", url = "$BASE_URL/tags"},
+    {name = "archive", url = "$BASE_URL/archive"},
+    {name = "about me", url = "$BASE_URL/about"},
+
+    # set newtab to true to make the link open in new tab
+    {name = "github", url = "https://github.com/pawroman/zola-theme-terminimal", newtab = true},
+]
+
+# Whether to show links to earlier and later (aka. higher/lower) posts
+# on each post page (defaults to true).
+enable_post_view_navigation = false
+
+# The text shown at the bottom of a post,
+# before earlier/later post links.
+# Defaults to "Thanks for reading! Read other posts?"
+post_view_navigation_prompt = "Try another mod?"
+
+# Use full Hack character set, not just a subset.
+# Switch this to true if you need full unicode support.
+# Defaults to false.
+use_full_hack_font = false
+
+# Optional: Global favicon URL and mimetype.
+#           Mimetype defaults to "image/x-icon".
+#           The URL should point at a file located
+#           in your site's "static" directory.
+# favicon = "/favicon.png"
+# favicon_mimetype = "image/png"
+
+# Optional: Set how <title> elements are rendered.
+# Values:
+# - "main_only" -- only the main title (`config.title`) is rendered.
+# - "page_only" -- only the page title (if defined) is rendered,
+#                  falling back to `config.title` if not defined or empty.
+# - "combined" -- combine like so: "page_title | main_title",
+#                 or if page_title is not defined or empty, fall back to `main_title`
+#
+# Note that the main (index) page only has the main title.
+page_titles = "main_only"
+
+# Optional: default image to use for OpenGraph.
+#           If the page doesnt set og_image, use this one as fallback. Usefull
+#           for indexes and taxonomies' pages.
+#default_og_image = "static/ocean.jpg"

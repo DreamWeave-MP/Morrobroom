@@ -1,0 +1,121 @@
+{% macro download_button_bar() %}
+{%- set button_classes = button_macros::button_classes() -%}
+<div class="mod-download-info">
+    <h5>Version: {{ mod_macros::version() }}</h5>
+    <div class="custom-divider"></div>
+    {% if page.extra.is_binary %}
+    {{- button_macros::all_app_buttons() -}}
+    {% else %}
+    {{- button_macros::mod_download_buttons() -}}
+    {% endif %}
+    <div class="custom-divider"></div>
+    {{- button_macros::misc_buttons() -}}
+    <div class="custom-divider"></div>
+    {{- button_macros::git_buttons() -}}
+</div>
+{% endmacro download_button_bar %}
+
+
+{% macro button_classes() %}
+{%- set extra_button_style = config.extra.button_style | default(value="") -%}
+{{- "dw-download-button " ~ extra_button_style -}}
+{% endmacro button_classes %}
+
+
+{% macro git_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set repo_url = mod_macros::repo_url() -%}
+<div id="git-button-stack" class="button-stack">
+    <a class="{{ button_classes }}" href="{{ repo_url }}/commits/main" title="See activity and recent work on {{ page.title }} on GitHub.">Activity</a>
+    <a class="{{ button_classes }}" href="{{ repo_url }}/issues/new" title="Report an issue with {{ page.title }} on GitHub.">Report a Problem</a>
+</div>
+{% endmacro git_buttons %}
+
+
+{% macro misc_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set game_name = mod_macros::game_name() -%}
+<div id="misc-button-stack" class="button-stack">
+    {% if page.extra.nexus_id %}
+    <a class="{{ button_classes }}" href="https://nexusmods.com/{{ game_name }}/mods/{{ page.extra.nexus_id }}/description" title="Check out {{ page.title }} on NexusMods.">NexusMods</a>
+    {% endif %}
+    <a class="{{ button_classes }}" href="{{ page.permalink }}changelog" title="See the changelog for {{ page.title }}.">Changelog</a>
+</div>
+{% endmacro misc_buttons %}
+
+
+{% macro mod_download_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set dev_title = mod_macros::dev_title() -%}
+{%- set dev_url = mod_macros::dev_url() -%}
+{%- set stable_title = mod_macros::stable_title() -%}
+{%- set stable_url = mod_macros::stable_url() -%}
+{%- set game_name = mod_macros::game_name() -%}
+<div id="download-button-stack" class="button-stack">
+    <div style="display:flex;">
+        <a id="stable-download-button" class="{{ button_classes }}" href="{{ stable_url }}/{{ page.title | lower | replace(from=" ", to="_") }}.zip" title="{{ stable_title }}">Stable</a>
+        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ page.title | lower | replace(from=" ", to="_") }}.zip" title="{{ dev_title }}">Dev</a>
+    </div>
+    <!-- This could be spicy -->
+    <!-- we don't properly url-encode the download links here -->
+    <!-- but I'm not aware that github url-encodes release assets or how to check, so instead we shall YOLO it -->
+    <a class="{{ button_classes }}" href="modl://{{ game_name }}/?url={{ stable_url }}/{{ page.title }}.zip" title="Download with ModdingLinked MO2 or umo using modl://">umo/mo2
+    </a>
+</div>
+{% endmacro mod_download_buttons %}
+
+
+{# Platform-specific download buttons for applications are handled here #}
+
+{% macro all_app_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+<div id="download-button-stack" class="button-stack">
+{{- button_macros::windows_buttons(button_classes=button_classes) -}}
+{{- button_macros::macos_buttons(button_classes=button_classes) -}}
+{{- button_macros::linux_buttons(button_classes=button_classes) -}}
+</div>
+{% endmacro all_app_buttons %}
+
+
+{% macro linux_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set dev_title = mod_macros::dev_title() -%}
+{%- set dev_url = mod_macros::dev_url() -%}
+{%- set stable_title = mod_macros::stable_title() -%}
+{%- set stable_url = mod_macros::stable_url() -%}
+<div style="display:flex;">
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ page.title }}-Linux-X64.zip" title="{{ stable_title }}">Linux Stable</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ page.title }}-Linux-X64.zip" title="{{ dev_title }}">Linux Dev</a>
+</div>
+{% endmacro linux_buttons %}
+
+
+{% macro macos_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set dev_title = mod_macros::dev_title() -%}
+{%- set dev_url = mod_macros::dev_url() -%}
+{%- set stable_title = mod_macros::stable_title() -%}
+{%- set stable_url = mod_macros::stable_url() -%}
+<div style="display:flex;">
+    <div class="button-stack">
+        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ page.title }}-macOS-ARM64.zip" title="{{ stable_title }}">ARM Mac Stable</a>
+        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ page.title }}-macOS-ARM64.zip" title="{{ dev_title }}">ARM Mac Dev</a>
+    </div>
+    <div class="button-stack">
+        <a class="{{ button_classes }}" href="{{ stable_url }}/{{ page.title }}-macOS-X64.zip" title="{{ stable_title }}">Intel Mac Stable</a>
+        <a class="{{ button_classes }}" href="{{ dev_url }}/{{ page.title }}-macOS-X64.zip" title="{{ dev_title }}">Intel Mac Dev</a>
+    </div>
+</div>
+{% endmacro macos_buttons %}
+
+{% macro windows_buttons() %}
+{%- set button_classes = button_macros::button_classes() -%}
+{%- set dev_title = mod_macros::dev_title() -%}
+{%- set dev_url = mod_macros::dev_url() -%}
+{%- set stable_title = mod_macros::stable_title() -%}
+{%- set stable_url = mod_macros::stable_url() -%}
+<div style="display:flex;">
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ stable_url }}/{{ page.title }}-Windows-X64.zip" title="{{ stable_title }}">Win Stable</a>
+    <a class="{{ button_classes }}" style="flex:1;" href="{{ dev_url }}/{{ page.title }}-Windows-X64.zip" title="{{ dev_title }}">Win Dev</a>
+</div>
+{% endmacro windows_buttons %}

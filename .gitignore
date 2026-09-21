@@ -1,3 +1,6 @@
 /target
 *.fgd
 /nif2map-out
+public
+dist
+**/changelog.md

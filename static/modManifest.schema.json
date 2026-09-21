@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/modManifest.schema.json",
+  "title": "modManifest",
+  "description": "DreamWeave Mod Template release manifest. Describes all mods included in a given release for consumption by mod managers and CI tooling.",
+  "type": "object",
+  "required": ["schema_version", "project", "tag", "mods"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "description": "Schema version for forward-compatibility. Currently '1'.",
+      "type": "string",
+      "const": "1"
+    },
+    "project": {
+      "description": "The GitHub repository name of the site that generated this manifest.",
+      "type": "string"
+    },
+    "tag": {
+      "description": "The release tag this manifest was generated for. 'development' for dev builds, '{slug}-{version}' for stable tagged releases on multi-page sites, or '{version}' for single-page sites.",
+      "type": "string"
+    },
+    "mods": {
+      "description": "The mods included in this release.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/mod" }
+    }
+  },
+  "$defs": {
+    "mod": {
+      "type": "object",
+      "required": ["title", "slug", "version", "game", "source", "downloads", "install_info"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "description": "Display name of the mod.",
+          "type": "string"
+        },
+        "slug": {
+          "description": "URL and filename-safe identifier derived from the title. Matches the zip filename without extension.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version string as specified in page frontmatter.",
+          "type": "string"
+        },
+        "game": {
+          "description": "Target game identifier. Defaults to 'morrowind'.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Where this mod is hosted. Discriminated by 'provider'.",
+          "$ref": "#/$defs/source"
+        },
+        "downloads": {
+          "description": "Download links in preference order. Consumers should use the first type they support.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/download" },
+          "minItems": 1
+        },
+        "nexus_id": {
+          "description": "NexusMods mod page ID. Present only if the mod has a NexusMods page. Use for metadata lookups (images, description) — not for direct downloads.",
+          "type": "integer"
+        },
+        "nexus_group_id": {
+          "description": "NexusMods file group ID for uploading new versions via the v3 API. Present only if configured.",
+          "type": "string"
+        },
+        "install_info": {
+          "$ref": "#/$defs/install_info"
+        }
+      }
+    },
+    "source": {
+      "oneOf": [
+        { "$ref": "#/$defs/source_github" },
+        { "$ref": "#/$defs/source_gitlab" },
+        { "$ref": "#/$defs/source_momw" },
+        { "$ref": "#/$defs/source_url" }
+      ]
+    },
+    "source_github": {
+      "type": "object",
+      "required": ["provider", "owner", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "const": "github" },
+        "owner": { "description": "GitHub username or organization.", "type": "string" },
+        "repo": { "description": "GitHub repository name.", "type": "string" }
+      }
+    },
+    "source_gitlab": {
+      "type": "object",
+      "required": ["provider", "owner", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "const": "gitlab" },
+        "owner": { "description": "GitLab username, group, or namespace.", "type": "string" },
+        "repo": { "description": "GitLab project name.", "type": "string" },
+        "instance": {
+          "description": "GitLab instance base URL. Omit for gitlab.com.",
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "source_momw": {
+      "type": "object",
+      "required": ["provider", "slug"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "const": "momw" },
+        "slug": { "description": "Mod slug on modding-openmw.com.", "type": "string" }
+      }
+    },
+    "source_url": {
+      "type": "object",
+      "required": ["provider", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "const": "url" },
+        "url": { "description": "Homepage or download page URL.", "type": "string", "format": "uri" }
+      }
+    },
+    "download": {
+      "description": "A typed download link.",
+      "oneOf": [
+        { "$ref": "#/$defs/download_archive" },
+        { "$ref": "#/$defs/download_modl" },
+        { "$ref": "#/$defs/download_momw" }
+      ]
+    },
+    "download_archive": {
+      "type": "object",
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "archive" },
+        "url": { "description": "Direct URL to the zip archive.", "type": "string", "format": "uri" }
+      }
+    },
+    "download_modl": {
+      "type": "object",
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "modl" },
+        "url": {
+          "description": "modl:// protocol URL for ModdingLinked MO2 or umo.",
+          "type": "string",
+          "pattern": "^modl://"
+        }
+      }
+    },
+    "download_momw": {
+      "type": "object",
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "momw" },
+        "url": {
+          "description": "momw:// protocol URL for the MOMW mod manager.",
+          "type": "string",
+          "pattern": "^momw://"
+        }
+      }
+    },
+    "install_info": {
+      "description": "OpenMW installation configuration. All fields are always present; empty arrays/objects if not specified in frontmatter.",
+      "type": "object",
+      "required": ["data_directories", "content_files", "fallback_entries", "config"],
+      "additionalProperties": false,
+      "properties": {
+        "data_directories": {
+          "description": "Paths to add as 'data=' entries in openmw.cfg, relative to the mod's install location.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "content_files": {
+          "description": "Plugin filenames to add as 'content=' entries in openmw.cfg.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fallback_entries": {
+          "description": "Key-value pairs to add as 'fallback=' entries in openmw.cfg.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "config": {
+          "description": "Paths to add as 'config=' entries in openmw.cfg. The special value '.' refers to the mod's own install directory.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,171 @@
+{% extends "terminimal/templates/index.html" %}
+{% import "macros/helpers.html" as helpers %}
+{% import "macros/mod_macros.html" as mod_macros %}
+{% import "macros/button_macros.html" as button_macros %}
+{% import "macros/toc.html" as toc %}
+
+{% block extra_head %}
+    {# CSS Block #}
+    <link rel="stylesheet" href="{{ get_url(path='fonts.css') }}">
+    <link rel="stylesheet" href="{{ get_url(path='custom.css') }}">
+    <link rel="stylesheet" href="{{ get_url(path='mods.css') }}">
+    {% if config.build_search_index %}<link rel="stylesheet" href="{{ get_url(path='search.css') }}">{% endif %}
+    {% if config.extra.font_override %}
+    <style>
+        {%- if config.extra.override_font_on_title_only -%}
+            {%- set element_name = "h1.post-title>a" -%}
+        {%- else -%}
+            {%- set element_name = "body" -%}
+        {%- endif -%}
+        @font-face{font-family:{{ config.extra.font_override }};src:url('{{ get_url(path="fonts/" ~ config.extra.font_override ~ ".woff2") }}')format('woff2');font-display:swap;}
+        {{- element_name | safe -}}{font-family:{{ config.extra.font_override }};}
+    </style>
+    {% endif %}
+{% endblock %}
+
+{% block extra_body %}
+{%- if config.build_search_index -%}
+  <meta name="search-index-data" url="{{ config.base_url }}" build_date="{{ now() }}">
+  {%- if config.search.index_format == "fuse_json" %}
+    <script type="text/javascript" src="{{ get_url(path="js/fuse.min.js") }}"></script>
+    <script type="text/javascript" src="{{ get_url(path="js/fuseSearch.js") }}"></script>
+  {%- elif config.search.index_format == "elasticlunr_json" %}
+    <script type="text/javascript" src="{{ get_url(path="elasticlunr.min.js") }}"></script>
+    <script type="text/javascript" src="{{ get_url(path="js/elasticSearch.js") }}"></script>
+  {%- endif -%}
+{%- endif -%}
+{% block page_feature_scripts %}
+{% if page and not section %}<script src="{{ get_url(path='js/installModule.js') }}" defer></script>{% endif %}
+{% if page and page.toc and page.extra.use_toc | default(value=true) %}<script src="{{ get_url(path='js/backToToc.js') }}" defer></script>{% endif %}
+{% endblock page_feature_scripts %}
+{% endblock %}
+
+{% block header %}
+<header class="header">
+    <div class="header__inner">
+        <div class="header__logo">
+            {%- if config.extra.logo_home_link %}
+                {% set logo_link = config.extra.logo_home_link %}
+            {% else %}
+                {% set logo_link = config.base_url %}
+            {% endif -%}
+            <a href="{{ logo_link | safe }}" style="text-decoration: none;">
+                <div class="logo">
+                    {% block logo_content %}
+                    {%- if config.extra.logo_text %}
+                        {{ config.extra.logo_text }}
+                    {% else %}
+                        Terminimal theme
+                    {% endif -%}
+                    {% endblock logo_content %}
+                </div>
+            </a>
+        </div>
+        {%- if config.build_search_index -%}
+        <div class="search-container">
+            <input type="text" id="search" placeholder="Search mod pages . . .">
+            <div class="search-results">
+                <div class="search-results__header"></div>
+                <div class="search-results__items"></div>
+            </div>
+        </div>
+        {%- endif -%}
+    </div>
+
+    {% block header_menu %}
+    {{ menu_macros::menu(config=config, current_path=current_path) }}
+    {% endblock header_menu %}
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="posts">
+    {%- if paginator %}
+        {%- set show_pages = paginator.pages -%}
+    {% else %}
+        {%- set show_pages = section.pages -%}
+    {% endif -%}
+
+    {%- for page in show_pages %}
+        <div class="post on-list">
+            {{ post_macros::header(page=page) }}
+
+            {{ post_macros::content(page=page, summary=true, show_only_description=page.extra.show_only_description | default(value=false)) }}
+        </div>
+    {% endfor -%}
+    <div class="pagination">
+        <div class="pagination__buttons">
+        {%- if paginator.previous %}
+            <span class="button previous">
+                <a href="{{ paginator.previous | safe }}">
+                    <span class="button__icon">←</span>&nbsp;
+                    <span class="button__text">Newer Mods</span>
+                </a>
+            </span>
+        {% endif -%}
+        {%- if paginator.next %}
+            <span class="button next">
+                <a href="{{ paginator.next | safe }}">
+                    <span class="button__text">Older Mods</span>&nbsp;
+                    <span class="button__icon">→</span>
+                </a>
+            </span>
+        {% endif -%}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<footer class="footer">
+    {%- if config.extra.giscus -%}
+        {%- set repo_id = config.extra.giscus.repo_id -%}
+        {%- set category_id = config.extra.giscus.category_id -%}
+        {%- set owner = config.extra.github_username -%}
+        {%- set repo = config.extra.github_project -%}
+
+        {%- if page.extra.offsite_host is defined and page.extra.offsite_host.giscus is defined -%}
+            {%- set repo_id = page.extra.offsite_host.giscus.repo_id -%}
+            {%- set category_id = page.extra.offsite_host.giscus.category_id -%}
+            {%- set owner = page.extra.offsite_host.owner -%}
+            {%- set repo = page.extra.offsite_host.repo -%}
+        {%- endif -%}
+    <script src="https://giscus.app/client.js"
+        data-repo="{{ owner }}/{{ repo }}"
+        data-repo-id="{{ repo_id }}"
+        data-category="General"
+        data-category-id="{{ category_id }}"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="0"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="{{ config.extra.giscus.theme }}"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+    </script>
+    {%- endif -%}
+    <div class="footer__inner">
+        {%- if config.extra.copyright_html %}
+            <div class="copyright copyright--user">{{ config.extra.copyright_html | safe }}</div>
+        {% else %}
+            <div class="copyright">
+                <div class="button-stack copyright-theme" style="align-items:center;">
+                    <span>© {{ date_macros::now_year() }}{% if config.extra.author %}{{ author_string }}{% else %} :: Brought to you by <a href="https://github.com/DreamWeave-MP">DreamWeave</a>{% endif %}</span>
+                    <a class="dw-download-button" style="opacity:1.0;" href="https://github.com/DreamWeave-MP/DreamWeave-Mod-Template/">
+                        <b>Use this Mod Template</b>
+                    </a>
+                    <a href="http://www.catb.org/hacker-emblem" title="Hacker Emblem" target="_blank">
+                        <img class="hacker-emblem" src="{{ get_url(path="img/glider.svg") }}" alt="Hacker Emblem">
+                    </a>
+                </div>
+            </div>
+        {% endif -%}
+    </div>
+    {%- if not section and config.extra.goatcounter_username -%}
+        <script data-goatcounter="https://{{- config.extra.goatcounter_username | lower -}}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+    {%- endif -%}
+</footer>
+{% endblock footer %}

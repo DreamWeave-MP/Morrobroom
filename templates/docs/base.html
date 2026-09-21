@@ -1,0 +1,139 @@
+{% extends "index.html" %}
+{% import "docs/breadcrumbs.html" as docs_breadcrumbs %}
+{% import "docs/sidebar.html" as docs_sidebar %}
+{% import "docs/toc.html" as docs_toc %}
+
+{% block title %}
+    {% if page %}
+        {% set_global docs_active_paths = page.ancestors %}
+        {% set_global docs_current_title = page.title %}
+        {% set_global docs_current_description = page.description %}
+        {% set_global docs_current_toc = page.toc %}
+    {% else %}
+        {% set_global docs_active_paths = section.ancestors %}
+        {% set_global docs_current_title = section.title %}
+        {% set_global docs_current_description = section.description %}
+        {% set_global docs_current_toc = section.toc %}
+{% endif %}
+    {% set_global docs_root_path = "" %}
+    {% for ancestor_path in docs_active_paths %}
+        {% set candidate = get_section(path=ancestor_path, metadata_only=true) %}
+        {% if candidate.extra.docs_root | default(value=false) %}
+            {% set_global docs_root_path = ancestor_path %}
+            {% break %}
+        {% endif %}
+    {% endfor %}
+    {% if not docs_root_path and not page and section.extra.docs_root | default(value=false) %}
+        {% set_global docs_root_path = section.relative_path %}
+    {% endif %}
+    {% if docs_root_path %}
+        {% set_global docs_root = get_section(path=docs_root_path) %}
+    {% else %}
+        {% set_global docs_root = false %}
+    {% endif %}
+
+    {% set_global docs_project_name = "Documentation" %}
+    {% set_global docs_short_title = docs_project_name %}
+    {% set_global docs_root_url = "/" %}
+    {% set_global docs_project_path = "@/_index.md" %}
+    {% set_global docs_repository_url = false %}
+    {% set_global docs_sidebar_label = "Documentation" %}
+    {% if docs_root %}
+        {% set_global docs_root_url = docs_root.permalink %}
+        {% set_global docs_project_name = docs_root.extra.docs_project_name | default(value=docs_root.title) %}
+        {% set_global docs_short_title = docs_root.extra.docs_short_title | default(value=docs_project_name) %}
+        {% set_global docs_project_path = docs_root.extra.docs_project_path | default(value="@/_index.md") %}
+        {% set_global docs_repository_url = docs_root.extra.docs_repository_url | default(value=false) %}
+        {% set_global docs_sidebar_label = docs_root.extra.docs_sidebar_label | default(value="Documentation") %}
+    {% endif %}
+    {% if docs_root and docs_root.extra.docs_project_path | default(value=false) %}
+        {% set_global docs_project_url = get_url(path=docs_project_path) %}
+    {% else %}
+        {% set_global docs_project_url = docs_root_url %}
+    {% endif %}
+    {% set_global docs_has_toc = docs_current_toc and docs_current_toc | length > 0 %}
+
+    {{ docs_current_title }} · {{ docs_short_title }}
+{% endblock title %}
+
+{% block extra_head %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ get_url(path='docs.css') }}">
+{% endblock extra_head %}
+
+{% block header %}
+<header class="docs-header">
+    <div class="docs-header__inner">
+        <a class="docs-brand" href="{{ docs_root_url | safe }}">
+            <strong>{{ docs_project_name }}</strong><span>Docs</span>
+        </a>
+        {% if config.build_search_index %}
+        <div class="search-container docs-search">
+            <label class="docs-search__label" for="search">Search documentation</label>
+            <input id="search" type="search" data-search-root="{{ docs_root_url | safe }}" data-search-root-local="{% if docs_root %}/{{ docs_root.relative_path | replace(from="_index.md", to="") | safe }}{% else %}/{% endif %}" placeholder="Search documentation…">
+            <div class="search-results">
+                <div class="search-results__header"></div>
+                <div class="search-results__items"></div>
+            </div>
+        </div>
+        {% endif %}
+        <nav class="docs-header__links" aria-label="Site links">
+            <a href="{{ docs_project_url | safe }}">{{ docs_project_name }}</a>
+            <a href="{{ get_url(path='@/_index.md') }}">{{ config.title }}</a>
+            {% if docs_repository_url %}<a href="{{ docs_repository_url | safe }}">Source</a>{% endif %}
+        </nav>
+    </div>
+</header>
+{% endblock header %}
+
+{% block content %}
+    {% if page %}
+        {% set active_paths = page.ancestors %}
+    {% else %}
+        {% set active_paths = section.ancestors %}
+    {% endif %}
+    <div class="docs-shell{% if not docs_has_toc %} docs-shell--no-toc{% endif %}">
+        <aside class="docs-sidebar">
+            {{ docs_sidebar::render(nav_section=docs_root, current_url=current_url, active_paths=active_paths, root=true, root_label=docs_sidebar_label) }}
+        </aside>
+
+        {% if docs_has_toc %}
+        <aside class="docs-toc">
+            <details class="docs-toc__panel" open>
+                <summary>On this page</summary>
+                {{ docs_toc::render(items=docs_current_toc) }}
+            </details>
+        </aside>
+        {% endif %}
+
+        <main class="docs-main">
+            {{ docs_breadcrumbs::render(root=docs_root, ancestors=active_paths, current_url=current_url, current_title=docs_current_title, project_name=docs_project_name, project_url=docs_project_url, sidebar_label=docs_sidebar_label) }}
+            <header class="docs-page-header">
+                {% if page and page.extra.kind | default(value=false) %}<span class="docs-kind">{{ page.extra.kind }}</span>{% endif %}
+                {% if not page and section.extra.kind | default(value=false) %}<span class="docs-kind">{{ section.extra.kind }}</span>{% endif %}
+                <h1>{{ docs_current_title }}</h1>
+                {% if docs_current_description %}<p>{{ docs_current_description }}</p>{% endif %}
+            </header>
+            <article class="docs-article">
+                {% block docs_content %}{% endblock docs_content %}
+            </article>
+        </main>
+
+    </div>
+{% endblock content %}
+
+{% block page_feature_scripts %}{% endblock page_feature_scripts %}
+
+{% block extra_body %}
+    {{ super() }}
+    <script src="{{ get_url(path='docs/docs.js') }}" defer></script>
+{% endblock extra_body %}
+
+{% block footer %}
+<footer class="docs-footer">
+    <a href="{{ docs_project_url | safe }}">{{ docs_project_name }}</a>
+    <span>·</span>
+    <a href="{{ get_url(path='@/_index.md') }}">{{ config.title }}</a>
+    {% if docs_repository_url %}<span>·</span><a href="{{ docs_repository_url | safe }}">Source</a>{% endif %}
+</footer>
+{% endblock footer %}

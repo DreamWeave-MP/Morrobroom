@@ -1,0 +1,439 @@
+#!/usr/bin/env python
+
+# Global packaging script for all mods reliant on the DW Mod Template
+# This optionally accepts a tag as argument which indicates a specific
+# Mod to package.
+# If no arguments are given, then, all mods are packaged as LZMA zip
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import tomllib
+import yaml
+import zipfile
+
+from multiprocessing import Process
+from pathlib import Path
+from typing import Optional
+
+CurrentDir, ParentDir = Path("."), Path("..")
+
+
+def slugify(text: str, preserve_underscores: Optional[bool]) -> str:
+    """
+    Homebrewed slugify to minimize dependencies.
+    The build script should work exclusively with the STL.
+    """
+    text = text.lower().strip()
+
+    if preserve_underscores:
+        # Replace spaces/hypens with underscores
+        text = re.sub(r"[\s\--]+", "_", text)
+    else:
+        # Replace spaces/underscores with hyphens
+        text = re.sub(r"[\s_-]+", "-", text)
+
+    return text
+
+
+def parse_front_matter(md_path: Path):
+    """
+    Parse front matter from markdown file.
+    Returns front_matter_dict or None on failure.
+    """
+    content = md_path.read_text()
+
+    if content.startswith("+++"):
+        parts = content.split("+++", 2)
+        if len(parts) == 3:
+            try:
+                front_matter = tomllib.loads(parts[1])
+                return front_matter
+            except tomllib.TOMLDecodeError:
+                pass
+
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) == 3:
+            try:
+                front_matter = yaml.safe_load(parts[1])
+                return front_matter
+            except yaml.YAMLError:
+                pass
+
+    return None
+
+
+def get_site_config() -> dict:
+    """
+    Load the site configuration and return excluded directories
+    """
+    return tomllib.loads(Path("config.toml").read_text())
+
+
+def ensure_dist_dir():
+    """
+    Make sure the dist/ folder exists to write into
+    """
+    outPath = Path(ParentDir / "dist")
+    if not outPath.exists():
+        outPath.mkdir()
+
+
+def package_mod(subDir: Path, targetTag: Optional[str]):
+    """
+    Given the mod subdirectory and the current git tag (maybe),
+    package a mod's contents in the appropriate subdirectory of dist/,
+    Where the appropriate subdirectory is a slugified version of the page title
+    """
+    # Set the subdir as the workdir so we don't include the subdir in output
+    os.chdir(subDir)
+
+    # Get the frontmatter so we can read the title
+    mod_frontmatter = parse_front_matter(CurrentDir / "index.md")
+    if mod_frontmatter is None:
+        print(
+            f"The mod {subDir} has no frontmatter, and cannot have a page generated!")
+        return
+    title = slugify(mod_frontmatter["title"], True)
+
+    # If we've been given a tag, then only build that one
+    # We slugify the targetTag also, as it will have underscores,
+    # and maybe need lowercased
+    if targetTag and title != targetTag.split("-")[0]:
+        return
+
+    # Store all output archives in the dist folder, where the zip name is the title of the mod
+    archivePath = f"../../dist/{title}.zip"
+
+    # Create the zipfile context with LZMA
+    # Insert every file into the archive
+    with zipfile.ZipFile(
+        archivePath,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+    ) as modArchive:
+        for dirpath, _, filenames in CurrentDir.walk():
+            for file in filenames:
+                modArchive.write(dirpath / file)
+
+
+def get_subdirectories() -> list[Path]:
+    """Returns subdirectories of the current working directory."""
+    return [subDir for subDir in CurrentDir.iterdir() if subDir.is_dir()]
+
+
+def _strip_comments(lst: list) -> list:
+    """Remove comment strings (those starting with '#') from install_info lists."""
+    return [x for x in (lst or []) if not str(x).startswith("#")]
+
+
+def _strip_comment_keys(d: dict) -> dict:
+    """Remove comment keys (those starting with '#') from install_info dicts."""
+    return {k: v for k, v in (d or {}).items() if not str(k).startswith("#")}
+
+
+def build_manifest_entry(
+    subDir: Path, frontmatter: dict, site_config: dict, release_tag: str
+) -> dict:
+    """Build a single mod entry for the modManifest from page frontmatter."""
+    extra = frontmatter.get("extra", {})
+    title = frontmatter["title"]
+    slug = slugify(title, True)
+    version = str(extra["version"])
+    game = extra.get("game", "morrowind")
+
+    # Determine source provider and construct typed download links.
+    # offsite_host.provider defaults to 'github' for backward compatibility
+    # with existing frontmatter that only specifies owner/repo.
+    offsite = extra.get("offsite_host")
+    provider = offsite.get("provider", "github") if offsite else "github"
+
+    if provider == "github":
+        owner = offsite["owner"] if offsite else site_config["extra"]["github_username"]
+        repo = offsite["repo"] if offsite else site_config["extra"]["github_project"]
+        source = {"provider": "github", "owner": owner, "repo": repo}
+        archive_url = f"https://github.com/{owner}/{repo}/releases/download/{release_tag}/{slug}.zip"
+        downloads = [
+            {"type": "modl", "url": f"modl://{game}/?url={archive_url}"},
+            {"type": "archive", "url": archive_url},
+        ]
+    elif provider == "gitlab":
+        owner = offsite["owner"]
+        repo = offsite["repo"]
+        instance = offsite.get("instance", "https://gitlab.com")
+        source = {"provider": "gitlab", "owner": owner, "repo": repo}
+        if instance != "https://gitlab.com":
+            source["instance"] = instance
+        archive_url = f"{instance}/{owner}/{repo}/-/releases/{version}/downloads/{slug}.zip"
+        downloads = [{"type": "archive", "url": archive_url}]
+    elif provider == "momw":
+        momw_slug = offsite["slug"]
+        source = {"provider": "momw", "slug": momw_slug}
+        downloads = [{"type": "momw", "url": f"momw://modding-openmw.com/mods/{momw_slug}/json"}]
+    elif provider == "url":
+        url = offsite["url"]
+        source = {"provider": "url", "url": url}
+        downloads = [{"type": "archive", "url": url}]
+    else:
+        raise RuntimeError(f"Unknown offsite_host provider: {provider}")
+
+    # All install_info fields are always present; empty if not set in frontmatter.
+    # Comment strings (starting with '#') are documentation for the site install
+    # widget and are stripped here.
+    raw = extra.get("install_info") or {}
+    install_info = {
+        "data_directories": _strip_comments(raw.get("data_directories", [])),
+        "content_files": _strip_comments(raw.get("content_files", [])),
+        "fallback_entries": _strip_comment_keys(raw.get("fallback_entries", {})),
+        "config": _strip_comments(raw.get("config", [])),
+    }
+
+    entry: dict = {
+        "title": title,
+        "slug": slug,
+        "version": version,
+        "game": game,
+        "source": source,
+        "downloads": downloads,
+        "install_info": install_info,
+    }
+
+    # Nexus fields are omitted entirely when absent rather than set to null.
+    if "nexus_id" in extra:
+        entry["nexus_id"] = extra["nexus_id"]
+    if "nexus_group_id" in extra:
+        entry["nexus_group_id"] = str(extra["nexus_group_id"])
+
+    return entry
+
+
+def get_latest_changelog(subDir: str, latest_tag: str, url: str) -> str:
+    """Return the formatted changelog for commits after the latest tag."""
+
+    latest_args = [
+        "git",
+        "log",
+        "--pretty=format:'%h %s'",
+        f"{latest_tag}..HEAD",
+        "--",
+        f"{subDir}/*",
+    ]
+    commitListProcess = subprocess.run(
+        latest_args, check=True, capture_output=True, text=True
+    )
+
+    if commitListProcess.returncode != 0:
+        raise RuntimeError(f"Listing commits failed: {
+                           commitListProcess.stderr}")
+
+    intermediate_commits = commitListProcess.stdout.splitlines()
+    if not intermediate_commits:
+        return ''
+
+    changelog_str = f'<details open><summary class="no-underline">Latest:</summary>'
+
+    for commit in intermediate_commits:
+        formatted = commit.split()
+        if len(formatted) < 2:
+            raise RuntimeError(f"Incorrect Commit format: {commit}")
+
+        commitHash, commitMessage = formatted[0].strip("'"), " ".join(
+            formatted[1:]
+        ).strip("'")
+        changelog_str += f'<a href="{url}/commit/{commitHash}">{
+            commitHash} - {commitMessage}</a><br><br>\n'
+
+    changelog_str += "</details>\n"
+
+    return changelog_str
+
+
+def get_intermediate_changelog(subDir: str, url: str, all_tags: list[str]) -> str:
+    """Return changelog sections for each tagged version and the initial release."""
+
+    latest_tag = all_tags[0]
+    changelog_str = ""
+
+    for tag in all_tags:
+        previous_tag = tag
+
+        if latest_tag == previous_tag:
+            continue
+
+        print(f"Generating changelog for commits between {
+              previous_tag} and {latest_tag}")
+
+        intermediate_args = [
+            "git",
+            "log",
+            "--pretty=format:'%h %s'",
+            f"{previous_tag}..{latest_tag}",
+            "--",
+            f"{subDir}/*",
+        ]
+
+        commit_list_process = subprocess.run(
+            intermediate_args, check=True, capture_output=True, text=True
+        )
+        if commit_list_process.returncode != 0:
+            raise RuntimeError(f"Listing commits failed: {commit_list_process.stderr}")
+
+        intermediate_commits = commit_list_process.stdout.splitlines()
+
+        if len(intermediate_commits) > 0:
+            changelog_str += f'<details><summary class="no-underline">Version {latest_tag.split("-")[1]}:</summary>'
+
+            for commit in intermediate_commits:
+                formatted = commit.split()
+                if len(formatted) < 2:
+                    raise RuntimeError(f"Incorrect Commit format: {commit}")
+
+                commitHash, commitMessage = formatted[0].strip("'"), " ".join(
+                    formatted[1:]
+                ).strip("'")
+                changelog_str += f'<a href="{url}/commit/{commitHash}">{
+                    commitHash} - {commitMessage}</a><br><br>\n'
+
+            changelog_str += "</details>\n"
+
+        latest_tag = previous_tag
+
+    # Include commits that predate the oldest tag as the initial release
+    oldest_tag = all_tags[-1]
+    initial_args = [ 'git', 'log', "--pretty=format:'%h %s'", oldest_tag, '--', f'{subDir}/*', ]
+    initial_process = subprocess.run(initial_args, check=True, capture_output=True, text=True)
+    if initial_process.returncode != 0:
+        raise RuntimeError(f'Listing commits failed: {initial_process.stderr}')
+
+    initial_commits = initial_process.stdout.splitlines()
+    if initial_commits:
+        changelog_str += f'<details><summary class="no-underline">Version {oldest_tag.split("-")[1]}:</summary>'
+
+        for commit in initial_commits:
+            formatted = commit.split()
+            if len(formatted) < 2:
+                raise RuntimeError(f'Incorrect Commit format: {commit}')
+
+            commitHash, commitMessage = formatted[0].strip("'"), ' '.join(formatted[1:]).strip("'")
+            changelog_str += f'<a href="{url}/commit/{commitHash}">{commitHash} - {commitMessage}</a><br><br>\n'
+
+        changelog_str += '</details>\n'
+
+    return changelog_str
+
+
+BuildArgParser = argparse.ArgumentParser(
+    prog="DreamWeave Mod Template Build Tool",
+    description="Generator script for changelogs and archives for sites based on the DreamWeave Mod Template",
+    epilog="Don't forget to bring a towel.",
+)
+
+BuildArgParser.add_argument("-b", "--build", action="store_true")
+BuildArgParser.add_argument("-c", "--changelog", action="store_true")
+BuildArgParser.add_argument("-t", "--tag")
+BuildArgParser.add_argument("-r", "--repository")
+BuildArgParser.add_argument(
+    "--release",
+    default="development",
+    help="Full release tag for manifest naming and download URL construction (e.g. 'development' or 'my_mod-1.0')",
+)
+
+if __name__ == "__main__":
+    inputArguments = BuildArgParser.parse_args()
+
+    siteConfig = get_site_config()
+    excludeDirs = siteConfig["extra"]["excluded_dirs"]
+
+    os.chdir(Path("content/"))
+
+    manifest_mods = []
+    processes = []
+
+    for subDir in get_subdirectories():
+        dirStr = str(subDir)
+
+        if dirStr in excludeDirs:
+            continue
+
+        if inputArguments.changelog:
+            if not inputArguments.repository:
+                raise RuntimeError(
+                    "No repository was provided, so I cannot make a changelog! It should be in the format: username/repo"
+                )
+            url = f"https://github.com/{inputArguments.repository}"
+
+            frontmatter = parse_front_matter(CurrentDir / subDir / "index.md")
+
+            changelog_str = f"""---
+title: {frontmatter['title']} Changelog
+slug: changelog
+version: {frontmatter['extra']['version']}
+---
+"""
+
+            if not shutil.which("git"):
+                raise RuntimeError(
+                    "Git is not installed, so I cannot make a changelog!"
+                )
+
+            # Tags are named after the slugified page title, not the directory name
+            title_slug = slugify(frontmatter["title"], True)
+            tagListProcess = subprocess.run(
+                ["git", "tag", "--list", f"{title_slug}-*", "--sort=-creatordate"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            if tagListProcess.returncode != 0:
+                raise RuntimeError(f"Listing tags failed: {tagListProcess.stderr}")
+
+            modReleases = tagListProcess.stdout.splitlines()
+
+            num_releases = len(modReleases)
+            if num_releases > 0:
+                changelog_str += get_latest_changelog(dirStr, modReleases[0], url)
+                changelog_str += get_intermediate_changelog(dirStr, url, modReleases)
+
+            changelogPath = subDir / "changelog.md"
+            changelogPath.write_text(changelog_str)
+            print(
+                f"Wrote changelog:\n{changelog_str}\nto: /content/{subDir}/changelog.md with tag prefix: {dirStr}"
+            )
+
+        if inputArguments.build:
+            ensure_dist_dir()
+
+            frontmatter = parse_front_matter(CurrentDir / subDir / "index.md")
+            if frontmatter is not None:
+                # Apply the same tag filter as package_mod so a single-mod
+                # tagged build only produces a single-mod manifest.
+                title_slug = slugify(frontmatter["title"], True)
+                if not inputArguments.tag or title_slug == inputArguments.tag.split("-")[0]:
+                    manifest_mods.append(
+                        build_manifest_entry(subDir, frontmatter, siteConfig, inputArguments.release)
+                    )
+
+            packageProcess = Process(
+                target=package_mod, args=(subDir, inputArguments.tag)
+            )
+            packageProcess.start()
+            processes.append(packageProcess)
+
+    for p in processes:
+        p.join()
+
+    if inputArguments.build and manifest_mods:
+        project = siteConfig["extra"]["github_project"]
+        manifest = {
+            "schema_version": "1",
+            "project": project,
+            "tag": inputArguments.release,
+            "mods": manifest_mods,
+        }
+        manifest_path = Path(ParentDir / "dist") / f"{project}-{inputArguments.release}.modManifest"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        print(f"Wrote manifest to {manifest_path}")

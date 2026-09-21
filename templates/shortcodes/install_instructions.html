@@ -1,0 +1,60 @@
+{%- import "macros/button_macros.html" as button_macros -%}
+{%- import "macros/mod_macros.html" as mod_macros -%}
+{%- set default_data_dir = "C:/Games/OpenMW-Mods" -%}
+{%- set data_directories = load_data(literal=mod_macros::data_directories(), format="json") -%}
+{%- set content_files = load_data(literal=mod_macros::content_files(), format="json") -%}
+{%- set fallback_entries = load_data(literal=mod_macros::fallback_entries(), format="json") -%}
+{%- set config = load_data(literal=mod_macros::config(), format='json') -%}
+{%- if describe %}
+<ul>
+  <li>Download the mod from <a href="{{ page.permalink }}#stable-download-button">Here</a></li>
+  <li>Extract the zip to a location of your choosing.</li>
+  <li>Paste the location you extracted it to into the form below, hit <code>Generate Config</code>, and paste the result into openmw.cfg.</li>
+</ul>
+{% endif -%}
+<div id="install-info-outer">
+  <p>Where would you like to install this mod?</p>
+  <div id="install-info-inner">
+    <input id="install-path-input" placeholder="{{ default_data_dir }}/{{ page.title }}" type="text">
+    <div id="install-path-buttons">
+      <button id="generate-config-button" style="{{ button_macros::button_classes() }}" onclick="generateConfig()">Generate Config</button>
+      <button id="copy-config-button" style="{{ button_macros::button_classes() }}" onclick="copyConfigToClipboard()">Copy Config to Clipboard</button>
+    </div>
+  </div>
+  <pre id="config-code-pre"><code id="config-code" data-lang="cfg" class="language-cfg">
+
+{%- if fallback_entries is object %}
+{% for setting, value in fallback_entries -%}
+{% if loop.first %}# {{ page.title }} Fallback Entries{% endif %}
+{{ setting -}}{% if not setting is starting_with('#') -%}={% else %}: {% endif %}{{ value -}}
+{% endfor %}
+{%- endif %}
+
+{% for directory in data_directories -%}
+{% if loop.first %}# {{ page.title }} Data Directories{% endif %}
+{% if not directory is starting_with('#') -%}data={{ default_data_dir }}/{{ page.title }}/{%- endif -%}
+
+{{- directory -}}
+{%- endfor %}
+
+{% for plugin in content_files -%}
+{% if loop.first %}# {{ page.title }} Content Files{% endif %}
+{% if not plugin is starting_with('#') -%} content= {%- endif -%}
+
+{{- plugin -}}
+{%- endfor %}
+
+{% for config in config -%}
+{% if loop.first %}# {{ page.title }} Nested OpenMW.cfgs{% endif %}
+{% if not config is starting_with('#') -%} config= {%- endif -%}
+
+{%- if config == '.' -%}
+  {{- default_data_dir }}/{{ page.title -}}/
+{%- else -%}
+  {{- config -}}
+{%- endif -%}
+
+{%- endfor %}
+
+  </code></pre>
+</div>

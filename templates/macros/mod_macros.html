@@ -1,0 +1,146 @@
+{# These macros are used to generate installation instructions #}
+{# and the modData tags to be used by browser plugins #}
+{% macro data_directories() %}
+{%- set default_dir_string = page.title | slugify -%}
+{%- set default_directory = [ default_dir_string ] | json_encode() -%}
+
+{%- if page.extra.install_info -%}
+    {%- set install_info = page.extra.install_info -%}
+
+    {%- if install_info.data_directories -%}
+        {%- set data_directories = install_info.data_directories | json_encode() -%}
+    {%- else -%}
+        {%- set data_directories = default_directory -%}
+    {%- endif -%}
+
+{%- else -%}
+    {%- set data_directories = default_directory -%}
+{%- endif -%}
+
+{{- data_directories -}}
+{% endmacro data_directories %}
+
+
+{% macro content_files() %}
+{%- if page.extra.install_info -%}
+    {%- set install_info = page.extra.install_info -%}
+
+    {%- if page.extra.install_info.content_files -%}
+        {%- set content_files = page.extra.install_info.content_files | json_encode() -%}
+    {%- endif -%}
+{%- endif -%}
+
+{%- if not content_files is defined -%}
+    {%- set content_files = '[]' -%}
+{%- endif -%}
+
+{{- content_files -}}
+{% endmacro content_files %}
+
+
+{% macro fallback_entries() %}
+{%- if page.extra.install_info and page.extra.install_info.fallback_entries -%}
+    {%- set fallback_entries = page.extra.install_info.fallback_entries | json_encode() -%}
+{%- else -%}
+    {%- set fallback_entries = '[]' -%}
+{%- endif -%}
+
+{{- fallback_entries -}}
+{% endmacro fallback_entries %}
+
+{% macro config() %}
+{%- set default_config = '[]' -%}
+
+{%- if page.extra.install_info and page.extra.install_info.config -%}
+    {%- set configs = page.extra.install_info.config | json_encode() -%}
+{%- else -%}
+    {%- set configs = default_config -%}
+{%- endif -%}
+{{- configs -}}    
+{% endmacro config %}
+
+{% macro game_name() %}
+{%- set game_name = page.extra.game | default(value="morrowind") -%}
+{{- game_name -}}
+{% endmacro game_name %}
+
+
+{# The ModData tag is expected to be used by browser extensions or JS to get useful information for handling a specific mod #}
+{# Mostly the install instructions widget #}
+{# For Applications, this tag is omitted altogether since it's openmw-specific data #}
+{% macro mod_data() %}
+{% if not page.extra.is_binary and not section %}
+<modData id="mod-data" name="{{ page.title }}" path="{{ page.path }}" project="{{ mod_macros::repo() }}"
+owner="{{ mod_macros::owner() }}" data_directories="{{ mod_macros::data_directories() }}"
+fallback_entries="{{ mod_macros::fallback_entries() }}"                                  
+content_files="{{ mod_macros::content_files() }}"
+config="{{- mod_macros::config() -}}"
+></modData>
+{% endif %}
+{% endmacro mod_data %}
+
+
+{# Some mods or applications may be hosted on repositories other than the one with the site #}
+{# The following macros simplify and shorten page bodies utilizing these values #}
+
+
+{% macro owner() %}
+{%- if page.extra.offsite_host -%}
+    {%- set owner = page.extra.offsite_host.owner -%}
+{%- else -%}
+    {%- set owner = config.extra.github_username -%}
+{%- endif -%}
+{{- owner -}}
+{% endmacro owner %}
+
+
+{% macro repo() %}
+{%- if page.extra.offsite_host -%}
+    {%- set repo = page.extra.offsite_host.repo -%}
+{%- else -%}
+    {%- set repo = config.extra.github_project -%}
+{%- endif -%}
+{{- repo -}}
+{% endmacro repo %}
+
+
+{% macro repo_url() %}
+{% set owner = mod_macros::owner() %}
+{% set repo = mod_macros::repo() %}
+{{- 'https://github.com/' ~ owner ~ '/' ~ repo -}}
+{% endmacro repo_url %}
+
+
+{% macro dev_url() %}
+{% set repo_url = mod_macros::repo_url() %}
+{% set version = mod_macros::version() %}
+{{- repo_url ~ "/releases/download/development" -}}
+{% endmacro dev_url %}
+
+
+{% macro dev_title() %}
+{{- page.extra.dev_title | default(value="Development builds might be more featureful, but could be untested.") -}}
+{% endmacro dev_title %}
+
+
+{% macro stable_url() %}
+{% set repo_url = mod_macros::repo_url() %}
+{% set version = mod_macros::version() %}
+{% set mod_name = page.title | lower | replace(from=" ", to="_") %}
+{{- repo_url ~ "/releases/download/" ~ mod_name ~ "-" ~ version -}}
+{% endmacro stable_url %}
+
+
+{% macro stable_title() %}
+{{- page.extra.stable_title | default(value="Get the latest stable release of " ~ page.title) -}}
+{% endmacro stable_title %}
+
+
+{% macro version() %}
+{%- if config.extra.segment_versions | default(value=false) -%}
+    {%- set version = page.title ~ "-" ~ page.extra.version -%}
+{%- else -%}
+    {%- set version = page.extra.version -%}
+{%- endif -%}
+{{- version -}}
+{% endmacro version %}

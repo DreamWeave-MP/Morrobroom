@@ -1,0 +1,14 @@
+{% set lines = body | default(value="") | trim | split(pat='\n') -%}
+<br><div id="credits-container"><h2 id="credits">Credits</h2>
+  {%- if default and config.extra.default_credits -%}
+    {%- set default_credit_lines = config.extra.default_credits | trim | split(pat='\n') -%}
+
+    {%- for line in default_credit_lines -%}
+      <p>{{ line }}</p>
+    {%- endfor -%}
+  {%- endif -%}
+
+  {%- for line in lines -%}
+    <p>{{- line -}}</p>
+  {%- endfor -%}
+</div>

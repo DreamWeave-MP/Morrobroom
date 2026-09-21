@@ -1,0 +1,21 @@
+{% macro render(root, ancestors, current_url, current_title, project_name, project_url, sidebar_label) %}
+<nav class="docs-breadcrumbs" aria-label="Breadcrumb">
+    <a href="{{ project_url | safe }}">{{ project_name }}</a>
+    {% if current_url == root.permalink %}
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{{ sidebar_label }}</span>
+    {% else %}
+        <span aria-hidden="true">/</span>
+        <a href="{{ root.permalink | safe }}">{{ sidebar_label }}</a>
+    {% for ancestor_path in ancestors %}
+        {% set ancestor = get_section(path=ancestor_path) %}
+        {% if ancestor.relative_path != root.relative_path and root.relative_path in ancestor.ancestors and ancestor.title %}
+            <span aria-hidden="true">/</span>
+            <a href="{{ ancestor.permalink | safe }}">{{ ancestor.title }}</a>
+        {% endif %}
+    {% endfor %}
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{{ current_title }}</span>
+    {% endif %}
+</nav>
+{% endmacro render %}

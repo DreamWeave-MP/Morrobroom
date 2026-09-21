@@ -1,0 +1,191 @@
+@media (max-width: 768px)
+  .custom-divider
+    display: none
+
+html
+  scrollbar-color: var(--accent) var(--background)
+  scrollbar-width: thin
+
+html::-webkit-scrollbar
+  width: 10px
+
+html::-webkit-scrollbar-track
+  background: var(--background)
+
+html::-webkit-scrollbar-thumb
+  background: var(--accent)
+  border: 2px solid var(--background)
+  border-radius: 999px
+
+html::-webkit-scrollbar-thumb:hover
+  background: var(--accent-alpha-70)
+
+html::-webkit-scrollbar-thumb:active
+  background: var(--accent)
+
+html::-webkit-scrollbar-button
+  display: none
+
+html::-webkit-scrollbar-corner
+  background: transparent
+
+// ul.toc
+//   list-style-image: url("../img/s3-list-item.png")
+
+button,
+a.dw-download-button
+  background: var(--accent)
+  color: var(--background)
+  margin: 0 0 .25em 0
+  padding: 8px .75em
+  text-align: center
+  white-space: nowrap
+
+// Fade buttons into the opposite color on hover
+button,
+a.dw-download-button,
+div.header__logo > a > div.logo
+  text-decoration: none
+  transition: all .5s ease-in-out
+
+  &:hover
+    &:not(.outline)
+      background: var(--background)
+      color: var(--accent)
+    &:is(.outline)
+      background: var(--accent)
+      color: var(--background)
+  &:active
+    &:not(.outline)
+      background: var(--accent)
+      color: var(--background)
+    &:is(.outline)
+      background: var(--background)
+      color: var(--accent)
+
+// Outline button style
+button.outline,
+a.dw-download-button.outline
+  background: transparent
+  color: var(--accent)
+  border: 2px solid var(--accent)
+
+button.rounded,
+a.dw-download-button.rounded
+  border-radius: 1.25em
+
+// Displays the fancy outline underneath hovered links
+a.underlined_link
+  transition: all 0.5s ease-in-out
+  position: relative
+  &:not(.outline)
+    &::after
+      background-color: var(--accent)
+  &:is(.outline)
+    &::after
+      background-color: var(--background)
+
+  &::after
+    content: ''
+    display: block
+    height: 1px
+    left: 50%
+    position: absolute
+    transform: translateX(-50%)
+    transition: all 0.5s ease-in-out
+    width: 0%
+  &:hover
+    background-color: var(--accent)
+    text-decoration: none
+    transition: all 0.5s ease-in-out
+    &::after
+      width: 40%
+
+.button-stack
+  display: flex
+  flex-direction: column
+
+.custom-divider
+  text-align: center
+
+  &::before
+    content: "|"
+    font-size: 3em
+    color: var(--accent)
+    opacity: 0.5  
+
+  @for $i from 1 through 10
+    &:nth-child(#{$i})::before
+      font-size: #{4em - ($i * 0.3em)}
+
+.footer
+  opacity: 1.0
+
+.footer__inner
+  margin-top: 2em
+  justify-content: center
+
+img.hacker-emblem
+  height: 24px 
+  margin: 8px 0 0 0
+
+.mod-download-info
+  align-items: center
+  display: flex
+  justify-content: space-between
+  margin-top: .25em
+
+#config-code-pre
+  display: block
+  overflow-x: hidden
+
+#credits-container
+    align-items: center
+    background-color: var(--background)
+    border: 1px solid var(--accent)
+    display: flex
+    flex-direction: column
+    justify-content: center
+    margin: 0 auto
+    max-width: 80%
+    padding: 1em
+
+    & > p
+      text-align: center
+
+    & > p:not(:last-child)::after
+      content: ''
+      display: block
+      position: relative
+      margin: 0 auto 0
+      width: 40%
+      height: 1px
+      background-color: var(--accent-alpha-70)
+
+#install-info-inner
+  align-items: center
+  display: flex
+  gap: .5em
+  justify-content: center
+
+#install-info-outer
+  border: 1px solid var(--accent)
+  margin: 1em 0
+  padding: 1em
+  text-align: center
+
+#install-path-buttons
+  display: grid
+  grid-template-rows: 1fr 1fr
+  gap: .5em
+
+#install-path-input
+  background: var(--background)
+  border: 1px solid var(--accent-alpha-70)
+  color: var(--color)
+  height: fit-content
+  padding: .5em
+  width: 50%
+  &:focus-visible
+    outline: var(--accent-alpha-70)
+    outline-offset: 5px

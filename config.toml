@@ -1,0 +1,177 @@
+# The URL the site will be built for
+base_url = "https://DreamWeave-MP.github.io/DreamWeave-Mod-Template"
+
+
+# Do you want your site to break horribly?
+# If so, set this to false.
+compile_sass = true
+
+
+# Title used by your web browser for the whole tab.
+# It *must* match the name of your repository.
+title = "My Mod Repository Name"
+
+
+# If enabled, automatically 
+build_search_index = true
+
+
+theme = "terminimal"
+
+
+# Add or remove taxonomy types here, or just get rid of taxonomies/categories entirely!
+# "taxonomies" is a fancy name for groupings of pages.
+# Such as categories of mods, mods that came from competition, by author,
+# by engine, by engine version, etc.
+taxonomies = [
+    {name = "tags"}
+]
+
+
+generate_feeds = true
+feed_filenames = ["rss.xml", "atom.xml"]
+
+[search]
+index_format = "fuse_json"
+
+
+[markdown]
+highlighting = { theme = "dracula-soft" }
+
+[slugify]
+paths = "safe"
+
+[extra]
+# Put all your custom variables here
+
+
+# One of: blue, green, orange, pink, purple, red, teal, gold.
+# Defaults to blue.
+# Append -light for light themes, e.g. blue-light
+# Or append -auto, e.g. blue-auto
+accent_color = "green"
+
+
+# One of: blue, dark, green, orange, pink, purple, red, sepia, light, auto
+# Enabling dark background will also modify primary font color to be darker.
+# Defaults to accent color (or, if not accent color specified, to blue).
+background_color = "dark"
+
+
+# Logo text displayed in the top banner onscreen.
+logo_text = "My Mod Name"
+
+
+# Disable menu_items to hide the top nav bar
+# To use it, fill the values in yourself!
+# Name is the displayed text, whereas url is the actual path
+# relative to your site url.
+# menu_items = [
+#     {name = "blog", url = "$BASE_URL"},
+#     {name = "tags", url = "$BASE_URL/tags"},
+#     {name = "archive", url = "$BASE_URL/archive"},
+#     {name = "about me", url = "$BASE_URL/about"},
+# ]
+
+
+# The logo link - defaults to base_url.
+# logo_home_link = "/take/me/away!"
+
+
+# Author name: when specified, modifies the default
+# copyright text. Apart from author, it will
+# contain current year and a link to the theme.
+# author = " :: DreamWeave Contributors"
+
+
+# Copyright text in HTML format. If specified,
+# entirely replaces default copyright and author.
+# copyright_html = ""
+
+
+# These values are extremely useful, however, the default
+# Configuration is optimized for single-page sites, so some settings are disabled OOB
+# Whether to show links to earlier and later (aka. higher/lower) posts
+# on each post page (defaults to false).
+enable_post_view_navigation = false
+
+
+# The text shown at the bottom of a post,
+# before earlier/later post links.
+# Defaults to "Try another mod?"
+#post_view_navigation_prompt = "Try another mod?"
+
+
+# Optional: Global favicon URL and mimetype.
+#           Mimetype defaults to "image/x-icon".
+#           The URL should point at a file located
+#           in your site's "static" directory.
+# favicon = "/favicon.png"
+# favicon_mimetype = "image/png"
+
+
+# From this point on, all config values are provided by the DreamWeave
+# Mod template and are not inherited from terminimal
+
+
+# Various aspects of link generation require your github username and project name.
+# Because the job relies heavily on DreamWeave GitHub Actions, it is not possible
+# To reuse this template on other Git forges.
+github_username = "DreamWeave-MP"
+github_project = "DreamWeave-Mod-Template"
+
+
+# Use this field to exclude specific subdirectories
+# Such as your blog, etc.
+excluded_dirs = [
+    'blog',
+]
+
+
+# Whether or not to use rounded buttons
+# Additional style classes to apply to buttons.
+# Possible values are: `rounded`, `outline`, or `underlined_link`. Can be combined.
+button_style = 'rounded outline underlined_link'
+
+
+# If an extra font is specified here then it will be used
+# To override all fonts in text elements
+# Valid values are avqest, gal-basic, mystic-cards, deja-vu-sans-mono, demonic-letters, and oxanium
+#font_override = 'demonic-letters'
+
+
+# Optionally, only override mod titles instead with custom fonts
+override_font_on_title_only = false
+
+
+# Get all the above values by checking: https://giscus.app
+# Follow the instructions and copy the below values out of the suggested script tag for your project.
+# Alternatively, just comment this out to disable comments entirely.
+# ***PLEASE*** either change these values or remove the `giscus` key from your own config
+# entirely. Don't reuse our comments section. :)
+giscus = { repo_id = "R_kgDOQtd5bg", category = "General", category_id = "DIC_kwDOQtd5bs4C0JZa", theme = "dark_dimmed" }
+
+
+# This is the default credit string displayed on every page which uses the `credits` shortcode. 
+# It's displayed alongside whatever the shortcode's body is, so this is a generic banner to reuse everywhere.
+default_credits = """
+This repository brought to you by DreamWeave contributors.
+Try it out for youself below!
+Or leave us a comment to let us know what you think. :)
+"""
+
+
+# If enabled, applies styling to mod titles based on id, similar to
+# The original build of S3ctor's S3cret St4sh
+use_custom_titles = false
+
+
+# Download links to this page will use segmented versions by default, to accomodate multi-project repositories
+# This setting is explicitly *dis*abled here under the assumption most users will host single-page projects.
+# For multi-project repositories, this must be enabled. 
+segment_versions = false
+
+# Want to get stats for page views?
+# Sign up for goatcounter here: https://www.goatcounter.com
+# Then slap your goatcounter username here.
+goatcounter_username = 'dreamweave-mp'

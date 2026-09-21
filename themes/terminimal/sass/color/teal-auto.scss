@@ -1,0 +1,28 @@
+:root {
+  @media (prefers-color-scheme: dark) {
+    --accent: rgb(45, 200, 190);
+    --accent-alpha-70: rgba(45, 200, 190, .7);
+    --accent-alpha-20: rgba(45, 200, 190, .2);
+
+    --background: #101010;
+    --color: #f0f0f0;
+    --border-color: rgba(255,240,224,.125);
+
+    div.logo {
+      color: black;
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    --accent: rgb(0, 128, 128);
+    --accent-alpha-70: rgba(0, 128, 128, .7);
+    --accent-alpha-20: rgba(0, 128, 128, .2);
+
+    --background: white;
+    --color: #201030;
+    --border-color: rgba(0,0,16,.125);
+
+    div.logo {
+      color: white;
+    }
+  }
+}

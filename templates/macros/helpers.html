@@ -1,0 +1,3 @@
+{% macro urlencode(str) %}
+  {{ str | replace(from=" ", to="%20") | replace(from="&", to="%26") }}
+{% endmacro %}

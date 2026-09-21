@@ -1,0 +1,16 @@
+{% macro entries(items) %}
+    <ul>
+    {% for item in items %}
+        <li>
+            <a href="{{ item.permalink | safe }}">{{ item.title }}</a>
+            {% if item.children %}{{ docs_toc::entries(items=item.children) }}{% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+{% endmacro entries %}
+
+{% macro render(items) %}
+    <nav aria-label="On this page">
+        {{ docs_toc::entries(items=items) }}
+    </nav>
+{% endmacro render %}
