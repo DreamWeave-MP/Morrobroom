@@ -121,6 +121,10 @@ test_map!(
     "../../../tests/fixtures/maps/morrobroom_wish_it_had_never_been_written.map"
 );
 test_map!(
+    test_morrobroom_csg_apocalypse,
+    "../../../tests/fixtures/maps/morrobroom_csg_apocalypse.map"
+);
+test_map!(
     test_uv_test,
     "../../../tests/fixtures/maps/parser/uv-test.map"
 );
