@@ -408,6 +408,12 @@ version: {frontmatter['extra']['version']}
             ensure_dist_dir()
 
             frontmatter = parse_front_matter(CurrentDir / subDir / "index.md")
+            if frontmatter is not None and frontmatter.get("extra", {}).get("is_binary", False):
+                print(
+                    f"Skipping mod packaging for binary distribution: /content/{subDir}"
+                )
+                continue
+
             if frontmatter is not None:
                 # Apply the same tag filter as package_mod so a single-mod
                 # tagged build only produces a single-mod manifest.

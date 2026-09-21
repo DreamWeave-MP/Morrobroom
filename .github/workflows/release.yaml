@@ -19,5 +19,6 @@ jobs:
       # Required: JSON array of binary names to build. Add more for monorepos.
       binary_names: '["morrobroom"]'
       cargo_publish: false
+      publish_docs: false
       enable_portmaster: true
       enable_android: true

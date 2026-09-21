@@ -1,5 +1,5 @@
 # The URL the site will be built for
-base_url = "https://DreamWeave-MP.github.io/DreamWeave-Mod-Template"
+base_url = "https://DreamWeave-MP.github.io/Morrobroom"
 
 
 # Do you want your site to break horribly?
@@ -9,7 +9,7 @@ compile_sass = true
 
 # Title used by your web browser for the whole tab.
 # It *must* match the name of your repository.
-title = "My Mod Repository Name"
+title = "Morrobroom"
 
 
 # If enabled, automatically 
@@ -49,7 +49,7 @@ paths = "safe"
 # Defaults to blue.
 # Append -light for light themes, e.g. blue-light
 # Or append -auto, e.g. blue-auto
-accent_color = "green"
+accent_color = "purple"
 
 
 # One of: blue, dark, green, orange, pink, purple, red, sepia, light, auto
@@ -59,7 +59,7 @@ background_color = "dark"
 
 
 # Logo text displayed in the top banner onscreen.
-logo_text = "My Mod Name"
+logo_text = "Morrobroom"
 
 
 # Disable menu_items to hide the top nav bar
@@ -118,7 +118,7 @@ enable_post_view_navigation = false
 # Because the job relies heavily on DreamWeave GitHub Actions, it is not possible
 # To reuse this template on other Git forges.
 github_username = "DreamWeave-MP"
-github_project = "DreamWeave-Mod-Template"
+github_project = "Morrobroom"
 
 
 # Use this field to exclude specific subdirectories
@@ -149,7 +149,7 @@ override_font_on_title_only = false
 # Alternatively, just comment this out to disable comments entirely.
 # ***PLEASE*** either change these values or remove the `giscus` key from your own config
 # entirely. Don't reuse our comments section. :)
-giscus = { repo_id = "R_kgDOQtd5bg", category = "General", category_id = "DIC_kwDOQtd5bs4C0JZa", theme = "dark_dimmed" }
+giscus = { repo_id = "R_kgDOLKeKKQ", category = "General", category_id = "DIC_kwDOLKeKKc4DGHcN", theme = "dark_dimmed" }
 
 
 # This is the default credit string displayed on every page which uses the `credits` shortcode. 
