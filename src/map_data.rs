@@ -1,4 +1,5 @@
 use imagesize::blob_size;
+use lightmap::{LightMap, light::LightDefinition};
 use morrobroom::lightmap_bake::BakedRenderMesh;
 use morrobroom::render_mesh::RenderMesh;
 use morrobroom::slipgate::csg::GeometryTolerance;
@@ -39,6 +40,8 @@ pub struct MapData {
     pub render_mesh: RenderMesh,
     /// UV-prepared geometry for the optional lightmap pipeline.
     pub lightmap_geometry: Option<BakedRenderMesh>,
+    lightmap: Option<LightMap>,
+    lightmap_texture_name: Option<String>,
     vfs: VFS,
 }
 
@@ -86,10 +89,27 @@ impl MapData {
         let render_mesh =
             RenderMesh::from_geometry(&geometry, &texture_sizes, GeometryTolerance::default())
                 .expect("map faces should compile into render geometry");
+        let lights = collect_point_lights(&geometry.geomap);
         let lightmap_geometry = lightmaps_enabled.then(|| {
             BakedRenderMesh::from_render_mesh(&render_mesh, 0.005)
                 .expect("render mesh should support lightmap UV generation")
         });
+        let (lightmap, lightmap_texture_name) = lightmap_geometry
+            .as_ref()
+            .and_then(BakedRenderMesh::input_mesh)
+            .map_or((None, None), |mesh| {
+                let other_meshes = vec![mesh];
+                let mut baked = LightMap::new(&other_meshes[0], &other_meshes, &lights, 1);
+                // A map without authored point lights should retain its textured
+                // appearance rather than becoming black when lightmapping is enabled.
+                if lights.is_empty() {
+                    baked.pixels.fill(u8::MAX);
+                }
+                (
+                    Some(baked),
+                    Some(format!("{}/lightmap.tga", map_stem(map_name))),
+                )
+            });
 
         let face_grid: HashMap<[i32; 3], Vec<morrobroom::slipgate::face::FaceId>> = geometry
             .geomap
@@ -124,6 +144,8 @@ impl MapData {
             inverted_face_tri_indices: geometry.inverted_face_tri_indices,
             render_mesh,
             lightmap_geometry,
+            lightmap,
+            lightmap_texture_name,
             vfs,
         }
     }
@@ -168,6 +190,16 @@ impl MapData {
         self.lightmap_geometry.as_ref()
     }
 
+    #[must_use]
+    pub const fn lightmap(&self) -> Option<&LightMap> {
+        self.lightmap.as_ref()
+    }
+
+    #[must_use]
+    pub fn lightmap_texture_name(&self) -> Option<&str> {
+        self.lightmap_texture_name.as_deref()
+    }
+
     pub fn get_entity_properties(&self, entity_id: EntityId) -> HashMap<&String, &String> {
         let entity_properties = self.geomap.entity_properties.get(entity_id);
 
@@ -185,6 +217,80 @@ impl MapData {
                 acc
             })
     }
+}
+
+fn map_stem(map_name: &str) -> &str {
+    std::path::Path::new(map_name)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("lightmap")
+}
+
+fn collect_point_lights(geomap: &GeoMap) -> Vec<LightDefinition> {
+    geomap
+        .point_entities
+        .iter()
+        .filter_map(|entity_id| {
+            let properties = geomap.entity_properties.get(*entity_id)?;
+            let classname = property(properties, "classname")?;
+            if !classname.contains("Light_Point") {
+                return None;
+            }
+            let radius = classname
+                .chars()
+                .skip_while(|character| !character.is_ascii_digit())
+                .take_while(char::is_ascii_digit)
+                .collect::<String>()
+                .parse::<f32>()
+                .ok()?;
+            let position = parse_vector3(property(properties, "origin")?)?;
+            let color = parse_color(property(properties, "light_color").unwrap_or("255 255 255"));
+            Some(LightDefinition::Point(
+                lightmap::light::PointLightDefinition {
+                    intensity: 1.0,
+                    color,
+                    radius,
+                    position,
+                    sqr_radius: radius * radius,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn property<'a>(
+    properties: &'a morrobroom::slipgate::repr::Properties,
+    name: &str,
+) -> Option<&'a str> {
+    properties
+        .iter()
+        .find(|property| property.key == name)
+        .map(|property| property.value.as_str())
+}
+
+fn parse_vector3(value: &str) -> Option<nalgebra::Vector3<f32>> {
+    let values = value
+        .split_whitespace()
+        .map(str::parse::<f32>)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    Some(nalgebra::Vector3::new(
+        *values.first()?,
+        *values.get(1)?,
+        *values.get(2)?,
+    ))
+}
+
+fn parse_color(value: &str) -> nalgebra::Vector3<f32> {
+    let values = value
+        .split_whitespace()
+        .map(|component| component.parse::<f32>().unwrap_or(255.0) / 255.0)
+        .collect::<Vec<_>>();
+    nalgebra::Vector3::new(
+        values.first().copied().unwrap_or(1.0),
+        values.get(1).copied().unwrap_or(1.0),
+        values.get(2).copied().unwrap_or(1.0),
+    )
 }
 
 // pub use crate::map_data::MapData;

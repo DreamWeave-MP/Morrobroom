@@ -7,7 +7,7 @@ use morrobroom::slipgate::{
 };
 use tes3::nif::{NiTriShape, NiTriShapeData};
 
-use crate::{Mesh, map_data::MapData, surfaces};
+use crate::{Mesh, lightmap_bake::BakedPart, map_data::MapData, surfaces};
 
 macro_rules! define_enum_with_fromstr {
     (
@@ -180,6 +180,7 @@ pub struct BrushNiNode {
     // Textures and triangles are only used internally
     normals: Vec<SV3>,
     uv_sets: Vec<SV2>,
+    lightmap_uv_sets: Vec<SV2>,
     vis_tris: Vec<Vec<usize>>,
     col_tris: Vec<Vec<usize>>,
 }
@@ -308,14 +309,14 @@ impl BrushNiNode {
         map_data: &MapData,
         brush_id: BrushId,
     ) {
-        let parts = map_data
-            .render_mesh
-            .parts
-            .iter()
-            .filter(|part| part.source_brush == brush_id && faces.contains(&part.source_face))
-            .collect::<Vec<_>>();
-        for part in parts {
-            Self::append_render_part(node, part);
+        for (part_index, part) in map_data.render_mesh.parts.iter().enumerate() {
+            if part.source_brush != brush_id || !faces.contains(&part.source_face) {
+                continue;
+            }
+            let lightmap_part = map_data
+                .lightmap_geometry()
+                .and_then(|geometry| geometry.part(part_index));
+            Self::append_render_part(node, part, lightmap_part);
         }
 
         for face_id in faces {
@@ -378,9 +379,43 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {fac
         }
     }
 
-    fn append_render_part(node: &mut BrushNiNode, part: &RenderPart) {
+    fn append_render_part(
+        node: &mut BrushNiNode,
+        part: &RenderPart,
+        lightmap_part: Option<&BakedPart>,
+    ) {
         node.use_emissive |= part.material.emissive;
         node.texture.clone_from(&part.material.texture);
+        if let Some(lightmap_part) = lightmap_part {
+            node.normals.extend(
+                lightmap_part
+                    .vertices
+                    .iter()
+                    .map(|vertex| vertex.render.normal),
+            );
+            node.uv_sets
+                .extend(lightmap_part.vertices.iter().map(|vertex| vertex.render.uv));
+            node.lightmap_uv_sets.extend(
+                lightmap_part
+                    .vertices
+                    .iter()
+                    .map(|vertex| vertex.lightmap_uv),
+            );
+            node.vis_verts.extend(
+                lightmap_part
+                    .vertices
+                    .iter()
+                    .map(|vertex| vertex.render.position),
+            );
+            node.vis_tris.push(
+                lightmap_part
+                    .indices
+                    .iter()
+                    .map(|index| *index as usize)
+                    .collect(),
+            );
+            return;
+        }
         node.normals
             .extend(part.vertices.iter().map(|vertex| vertex.normal));
         node.uv_sets
@@ -466,6 +501,9 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {fac
         for uv in &self.uv_sets {
             self.vis_data.uv_sets.push((uv[0], uv[1]).into());
         }
+        for uv in &self.lightmap_uv_sets {
+            self.vis_data.uv_sets.push((uv[0], uv[1]).into());
+        }
     }
 }
 
@@ -480,6 +518,7 @@ impl Default for BrushNiNode {
             normals: Vec::new(),
             texture: String::new(),
             uv_sets: Vec::new(),
+            lightmap_uv_sets: Vec::new(),
             col_shape: NiTriShape::default(),
             col_data: NiTriShapeData::default(),
             col_verts: Vec::new(),

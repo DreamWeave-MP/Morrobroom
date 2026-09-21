@@ -9,7 +9,7 @@ use clap::Parser;
 use morrobroom::slipgate::Vector3 as SV3;
 use tes3::esp::{self, Cell, EditorId, Header, Plugin, Static, TES3Object};
 
-use morrobroom::{FindLowest, create_workdir, get_prop};
+use morrobroom::{FindLowest, create_workdir, get_prop, lightmap_bake};
 
 mod broom_args;
 use broom_args::{BroomCommand, MorrobroomArgs, default_object_types};
@@ -83,6 +83,13 @@ fn compile_map(
         !map_data.geomap.entity_brushes.is_empty(),
         "No brushes found in map! You probably used an apostrophe in worldspawn properties."
     );
+    if let Some(lightmap) = map_data.lightmap() {
+        let path = work_dir
+            .join("Textures")
+            .join(&map_dir)
+            .join("lightmap.tga");
+        lightmap_bake::write_tga(&path, lightmap)?;
+    }
 
     let plugin_path = output_path.map_or_else(
         || {
@@ -232,7 +239,7 @@ fn attach_group_nodes(mesh: &mut Mesh, prop_map: &HashMap<&String, &String>, map
             println!("Adding {ref_id} to unique group set.");
         }
         for node in BrushNiNode::from_brushes(brushes, map_data, *entity_id) {
-            mesh.attach_node(node, map_data.vfs());
+            mesh.attach_node(node, map_data.vfs(), map_data.lightmap_texture_name());
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::{fs::File, io, io::Write, path::Path};
+
 use lightmap::input::WorldVertex;
 
 use crate::{
@@ -22,6 +24,49 @@ pub struct BakedRenderMesh {
     pub vertices: Vec<BakedVertex>,
     pub triangles: Vec<[u32; 3]>,
     pub triangle_parts: Vec<usize>,
+    pub parts: Vec<BakedPart>,
+}
+
+/// One source-material partition after lightmap UV generation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BakedPart {
+    pub vertices: Vec<BakedVertex>,
+    pub indices: Vec<u32>,
+}
+
+/// Write a baked RGB lightmap as an uncompressed TGA accepted by `OpenMW`.
+///
+/// # Errors
+///
+/// Returns an error if the lightmap dimensions exceed the TGA limits, the
+/// pixel buffer is malformed, or the destination cannot be written.
+pub fn write_tga(path: &Path, lightmap: &lightmap::LightMap) -> io::Result<()> {
+    let width = u16::try_from(lightmap.width)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is wider than TGA"))?;
+    let height = u16::try_from(lightmap.height)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "lightmap is taller than TGA"))?;
+    let expected_len = lightmap.width * lightmap.height * 3;
+    if lightmap.pixels.len() != expected_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "lightmap RGB data has the wrong size",
+        ));
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut file = File::create(path)?;
+    let mut header = [0_u8; 18];
+    header[2] = 2;
+    header[12..14].copy_from_slice(&width.to_le_bytes());
+    header[14..16].copy_from_slice(&height.to_le_bytes());
+    header[16] = 24;
+    file.write_all(&header)?;
+    for pixel in lightmap.pixels.chunks_exact(3) {
+        file.write_all(&[pixel[2], pixel[1], pixel[0]])?;
+    }
+    Ok(())
 }
 
 impl BakedRenderMesh {
@@ -84,10 +129,37 @@ impl BakedRenderMesh {
             return None;
         }
 
+        let mut parts = (0..render_mesh.parts.len())
+            .map(|_| BakedPart {
+                vertices: Vec::new(),
+                indices: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let mut local_indices =
+            vec![std::collections::HashMap::<u32, u32>::new(); render_mesh.parts.len()];
+        for (triangle_index, triangle) in patch.triangles.iter().enumerate() {
+            let part_index = *triangle_parts.get(triangle_index)?;
+            let part = parts.get_mut(part_index)?;
+            let local_map = local_indices.get_mut(part_index)?;
+            for &global_index in triangle {
+                let local_index = if let Some(&local_index) = local_map.get(&global_index) {
+                    local_index
+                } else {
+                    let local_index = u32::try_from(part.vertices.len()).ok()?;
+                    part.vertices
+                        .push(vertices.get(global_index as usize)?.clone());
+                    local_map.insert(global_index, local_index);
+                    local_index
+                };
+                part.indices.push(local_index);
+            }
+        }
+
         Some(Self {
             vertices,
             triangles: patch.triangles,
             triangle_parts,
+            parts,
         })
     }
 
@@ -104,6 +176,11 @@ impl BakedRenderMesh {
             })
             .collect();
         lightmap::input::Mesh::new(vertices, self.triangles.clone())
+    }
+
+    #[must_use]
+    pub fn part(&self, index: usize) -> Option<&BakedPart> {
+        self.parts.get(index)
     }
 
     /// Bake one lightmap for this render mesh against the supplied scene.

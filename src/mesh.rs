@@ -3,8 +3,8 @@ use nalgebra::{Rotation3, Vector3};
 use tes3::{
     esp,
     nif::{
-        self, NiAlphaProperty, NiLink, NiMaterialProperty, NiNode, NiStream, NiTriShape,
-        NiTriShapeData, RootCollisionNode,
+        self, LightingMode, NiAlphaProperty, NiLink, NiMaterialProperty, NiNode, NiStream,
+        NiTriShape, NiTriShapeData, NiVertexColorProperty, RootCollisionNode, SourceVertexMode,
     },
 };
 use vfstool_lib::VFS;
@@ -81,7 +81,7 @@ impl Mesh {
             let brush_nodes = BrushNiNode::from_brush(*brush_id, entity_id, map_data);
 
             for node in brush_nodes {
-                mesh.attach_node(node, map_data.vfs());
+                mesh.attach_node(node, map_data.vfs(), map_data.lightmap_texture_name());
             }
         }
         mesh
@@ -131,7 +131,12 @@ impl Mesh {
             .scale(1.0 / vertex_count_as_f32(vertices.len()))
     }
 
-    pub fn attach_node(&mut self, node: BrushNiNode, vfs: &VFS) {
+    pub fn attach_node(
+        &mut self,
+        node: BrushNiNode,
+        vfs: &VFS,
+        lightmap_texture_name: Option<&str>,
+    ) {
         // HACK: This only gets used if the vis data and collision data are equal, so is always initialized when used
         let mut vis_data_index = NiLink::default();
 
@@ -140,9 +145,12 @@ impl Mesh {
 
             let vis_index = self.stream.insert(node.vis_shape);
 
-            self.assign_base_texture(vis_index, &node.texture, vfs);
+            self.assign_base_texture(vis_index, &node.texture, vfs, lightmap_texture_name);
 
             self.assign_material(&node.mat_props, vis_index);
+            if lightmap_texture_name.is_some() {
+                self.assign_lightmap_material(vis_index);
+            }
 
             vis_data_index = self.stream.insert(node.vis_data);
 
@@ -175,10 +183,18 @@ impl Mesh {
         }
     }
 
-    fn assign_base_texture(&mut self, object: NiLink<NiTriShape>, file_path: &str, vfs: &VFS) {
+    fn assign_base_texture(
+        &mut self,
+        object: NiLink<NiTriShape>,
+        file_path: &str,
+        vfs: &VFS,
+        lightmap_texture_name: Option<&str>,
+    ) {
         // Create and insert a NiTexturingProperty and NiSourceTexture.
         let tex_prop_link = self.stream.insert(nif::NiTexturingProperty::default());
         let texture_link = self.stream.insert(nif::NiSourceTexture::default());
+        let lightmap_texture_link =
+            lightmap_texture_name.map(|_| self.stream.insert(nif::NiSourceTexture::default()));
 
         let mut extension = String::default();
 
@@ -198,14 +214,50 @@ impl Mesh {
             ..Default::default()
         };
         tex_prop.texture_maps[0] = Some(nif::TextureMap::Map(base_map));
+        if let Some(lightmap_texture_link) = lightmap_texture_link {
+            tex_prop.texture_maps[1] = Some(nif::TextureMap::Map(nif::Map {
+                texture: lightmap_texture_link.cast(),
+                texture_index: 1,
+                ..Default::default()
+            }));
+        }
 
         // Update the texture source path.
         let texture = self.stream.get_mut(texture_link).unwrap();
         texture.source = nif::TextureSource::External(format!("{file_path}.{extension}"));
+        if let (Some(lightmap_texture_link), Some(lightmap_texture_name)) =
+            (lightmap_texture_link, lightmap_texture_name)
+        {
+            self.stream
+                .get_mut(lightmap_texture_link)
+                .expect("lightmap texture link should remain valid")
+                .source = nif::TextureSource::External(lightmap_texture_name.to_owned());
+        }
 
         // Assign the tex prop to the target object
         let object = self.stream.get_mut(object).unwrap();
         object.properties.push(tex_prop_link.cast());
+    }
+
+    fn assign_lightmap_material(&mut self, object: NiLink<NiTriShape>) {
+        let material = NiMaterialProperty {
+            diffuse_color: nif::glam::Vec3::ONE,
+            emissive_color: nif::glam::Vec3::ONE,
+            alpha: 1.0,
+            ..Default::default()
+        };
+        let material_link = self.stream.insert(material);
+        let vertex_colors = self.stream.insert(NiVertexColorProperty {
+            source_vertex_mode: SourceVertexMode::AmbientDiffuse,
+            lighting_mode: LightingMode::Emissive,
+            ..Default::default()
+        });
+        let object = self
+            .stream
+            .get_mut(object)
+            .expect("lightmapped object should remain valid");
+        object.properties.push(material_link.cast());
+        object.properties.push(vertex_colors.cast());
     }
 
     #[allow(
