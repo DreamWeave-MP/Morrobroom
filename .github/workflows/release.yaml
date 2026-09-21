@@ -1,30 +1,23 @@
-name: Corprus Crucible Manufacturing
+name: Morrobroom Manufacturing
 
 on:
   workflow_dispatch:
   pull_request:
   push:
     branches: main
-    tags: ['*']
+    tags: ["*"]
 
 jobs:
-  release:
-    strategy:
-      matrix:
-        os: [macos-latest, macos-15-intel, ubuntu-latest, windows-latest]
-    
-    runs-on: ${{ matrix.os }}
-    
+  build:
     permissions:
       contents: write
+      pages: write
       id-token: write
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run Corprus Crucible
-        uses: DreamWeave-MP/StroggForge/.github/actions/corprus-crucible@v1
-        with:
-          binary_name: 'morrobroom'
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+    uses: DreamWeave-MP/StroggForge/.github/workflows/rustGlobalBuild.yml@v41
+    secrets: inherit
+    with:
+      # Required: JSON array of binary names to build. Add more for monorepos.
+      binary_names: '["morrobroom"]'
+      cargo_publish: false
+      enable_portmaster: true
+      enable_android: true
