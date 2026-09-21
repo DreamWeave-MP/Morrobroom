@@ -189,9 +189,9 @@ pub fn subtract_convex_hull(
 /// Applying each subtraction to every surviving fragment is deliberately
 /// straightforward. This is the reference operation that later broad-phase
 /// or spatial-index implementations must match.
-pub fn subtract_convex_hulls(
+pub fn subtract_convex_hulls<'a>(
     fragment: SurfaceFragment,
-    hulls: &[ConvexHull],
+    hulls: impl IntoIterator<Item = &'a ConvexHull>,
     tolerance: GeometryTolerance,
 ) -> Vec<SurfaceFragment> {
     let mut visible = vec![fragment];

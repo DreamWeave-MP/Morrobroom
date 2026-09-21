@@ -4,9 +4,13 @@ use std::path::Path;
 use crate::slipgate::repr::Map;
 
 use crate::slipgate::{
-    GeoMap, brush, face,
+    GeoMap, brush,
+    brush::{BrushHulls, BrushId},
+    csg::{CsgPolygon, GeometryTolerance, SurfaceFragment, subtract_convex_hulls},
+    face,
     face::{
-        FaceCenters, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices, OccludedFaces,
+        FaceCenters, FaceId, FaceNormals, FacePlanes, FaceTriangleIndices, FaceVertices,
+        OccludedFaces,
     },
     line,
     texture::TextureSizes,
@@ -22,6 +26,25 @@ pub enum MapGeometryError {
     /// where in the input the parser failed.
     Parse(String),
 }
+
+/// A reconstructed face did not form a valid polygon for reference CSG.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidFacePolygon {
+    pub brush_id: BrushId,
+    pub face_id: FaceId,
+}
+
+impl std::fmt::Display for InvalidFacePolygon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "face {} of brush {} did not form a valid polygon",
+            self.face_id, self.brush_id
+        )
+    }
+}
+
+impl std::error::Error for InvalidFacePolygon {}
 
 impl std::fmt::Display for MapGeometryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -79,6 +102,7 @@ pub struct MapGeometry {
     /// [`MapGeometry::from_map_without_occlusion`]. An empty set therefore
     /// means that occlusion was computed and no faces were hidden.
     pub occluded_faces: Option<OccludedFaces>,
+    brush_hulls: BrushHulls,
 }
 
 impl MapGeometry {
@@ -169,6 +193,7 @@ impl MapGeometry {
 
         MapGeometry {
             geomap,
+            brush_hulls,
             face_planes,
             face_vertices,
             face_centers,
@@ -196,6 +221,57 @@ impl MapGeometry {
             &self.geomap.face_scales,
             &texture_sizes,
         )
+    }
+
+    /// Subtract every other convex brush from every reconstructed source face.
+    ///
+    /// This is intentionally the simple reference implementation: it performs
+    /// no broad-phase culling and preserves source face/brush identity on every
+    /// surviving fragment. The result is not yet a final render mesh.
+    pub fn visible_face_fragments(
+        &self,
+        tolerance: GeometryTolerance,
+    ) -> Result<Vec<SurfaceFragment>, InvalidFacePolygon> {
+        let mut visible = Vec::new();
+
+        for (brush_index, face_ids) in self.geomap.brush_faces.iter().enumerate() {
+            let source_brush = BrushId(brush_index);
+            for face_id in face_ids {
+                let face_vertices = &self.face_vertices[*face_id];
+                let mut polygon_vertices = Vec::with_capacity(face_vertices.len());
+                for vertex_index in &self.face_tri_indices[*face_id] {
+                    if !polygon_vertices.contains(&face_vertices[*vertex_index]) {
+                        polygon_vertices.push(face_vertices[*vertex_index]);
+                    }
+                }
+                let polygon = CsgPolygon::new(
+                    polygon_vertices
+                        .iter()
+                        .map(|vertex| vertex.map(f64::from))
+                        .collect(),
+                )
+                .ok_or(InvalidFacePolygon {
+                    brush_id: source_brush,
+                    face_id: *face_id,
+                })?;
+
+                visible.extend(subtract_convex_hulls(
+                    SurfaceFragment {
+                        source_face: *face_id,
+                        source_brush,
+                        polygon,
+                    },
+                    self.brush_hulls
+                        .iter()
+                        .enumerate()
+                        .filter(|(occluder_index, _)| *occluder_index != brush_index)
+                        .map(|(_, hull)| hull),
+                    tolerance,
+                ));
+            }
+        }
+
+        Ok(visible)
     }
 }
 
@@ -233,6 +309,12 @@ mod tests {
                 .expect("full construction computes occlusion")
                 .is_empty()
         );
+
+        let visible = geometry
+            .visible_face_fragments(GeometryTolerance::default())
+            .expect("the cube faces should form valid CSG polygons");
+        assert_eq!(visible.len(), 6);
+        assert!(visible.iter().all(|fragment| fragment.source_brush.0 == 0));
 
         for face_id in geometry.geomap.faces.iter() {
             let vertices = &geometry.face_vertices[*face_id];
