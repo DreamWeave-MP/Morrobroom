@@ -153,6 +153,18 @@ pub fn subtract_convex_brush(
     planes: &[CsgPlane],
     tolerance: GeometryTolerance,
 ) -> Vec<SurfaceFragment> {
+    // A convex polygon can cross every individual plane of a disjoint brush
+    // without entering the brush as a whole. Prove intersection first; this
+    // keeps a disjoint brush a true no-op instead of needlessly partitioning
+    // the source polygon along the brush's planes.
+    let mut intersection = fragment.polygon.clone();
+    for plane in planes {
+        let Some(clipped) = clip_polygon(&intersection, plane, tolerance, true) else {
+            return vec![fragment];
+        };
+        intersection = clipped;
+    }
+
     let mut inside_candidate = fragment;
     let mut visible = Vec::new();
 

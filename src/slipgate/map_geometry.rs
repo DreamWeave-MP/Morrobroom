@@ -13,6 +13,7 @@ use crate::slipgate::{
         FaceVertices, OccludedFaces,
     },
     line,
+    spatial_grid::{Aabb3, BrushAabbGrid},
     texture::TextureSizes,
 };
 
@@ -106,6 +107,7 @@ pub struct MapGeometry {
     /// means that occlusion was computed and no faces were hidden.
     pub occluded_faces: Option<OccludedFaces>,
     brush_hulls: BrushHulls,
+    brush_aabb_grid: BrushAabbGrid,
 }
 
 impl MapGeometry {
@@ -165,6 +167,19 @@ impl MapGeometry {
         );
 
         let face_polygons = face::face_polygons(&face_indices_cw, &face_vertices);
+        let brush_aabbs = geomap
+            .brush_faces
+            .iter()
+            .map(|face_ids| {
+                Aabb3::from_points(face_ids.iter().flat_map(|face_id| {
+                    face_polygons[*face_id]
+                        .iter()
+                        .map(|vertex| vertex.map(f64::from))
+                }))
+                .expect("brushes must have at least one face")
+            })
+            .collect::<Vec<_>>();
+        let brush_aabb_grid = BrushAabbGrid::new(&brush_aabbs);
         let face_tri_indices = face::face_triangle_indices(&face_indices_cw);
         let inverted_face_tri_indices = face::face_triangle_indices(&inverted_face_indices);
         let flat_normals = face::normals_flat(&face_vertices, &face_planes);
@@ -213,6 +228,7 @@ impl MapGeometry {
             smooth_normals,
             occluded_faces,
             brush_hulls,
+            brush_aabb_grid,
         }
     }
 
@@ -237,9 +253,9 @@ impl MapGeometry {
 
     /// Subtract every other convex brush from every reconstructed source face.
     ///
-    /// This is intentionally the simple reference implementation: it performs
-    /// no broad-phase culling and preserves source face/brush identity on every
-    /// surviving fragment. The result is not yet a final render mesh.
+    /// A uniform-grid broad phase selects possible occluders; exact convex CSG
+    /// remains the authority after that selection. The result is not yet a
+    /// final render mesh.
     ///
     /// # Errors
     ///
@@ -247,6 +263,27 @@ impl MapGeometry {
     pub fn visible_face_fragments(
         &self,
         tolerance: GeometryTolerance,
+    ) -> Result<Vec<SurfaceFragment>, InvalidFacePolygon> {
+        self.visible_face_fragments_with_candidates(tolerance, true)
+    }
+
+    /// Run the unindexed reference operation. This is intentionally retained
+    /// as an oracle for broad-phase parity tests and future diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a reconstructed source face is invalid.
+    pub fn visible_face_fragments_bruteforce(
+        &self,
+        tolerance: GeometryTolerance,
+    ) -> Result<Vec<SurfaceFragment>, InvalidFacePolygon> {
+        self.visible_face_fragments_with_candidates(tolerance, false)
+    }
+
+    fn visible_face_fragments_with_candidates(
+        &self,
+        tolerance: GeometryTolerance,
+        use_broad_phase: bool,
     ) -> Result<Vec<SurfaceFragment>, InvalidFacePolygon> {
         let mut visible = Vec::new();
 
@@ -264,17 +301,28 @@ impl MapGeometry {
                     face_id: *face_id,
                 })?;
 
+                let candidates = if use_broad_phase {
+                    let aabb = Aabb3::from_points(polygon.vertices.iter().copied())
+                        .expect("a valid polygon has vertices");
+                    self.brush_aabb_grid.query(aabb, tolerance.plane)
+                } else {
+                    self.brush_hulls
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| BrushId(index))
+                        .collect()
+                };
+
                 visible.extend(subtract_convex_hulls(
                     SurfaceFragment {
                         source_face: *face_id,
                         source_brush,
                         polygon,
                     },
-                    self.brush_hulls
-                        .iter()
-                        .enumerate()
-                        .filter(|(occluder_index, _)| *occluder_index != brush_index)
-                        .map(|(_, hull)| hull),
+                    candidates
+                        .into_iter()
+                        .filter(|occluder| *occluder != source_brush)
+                        .map(|occluder| &self.brush_hulls[occluder]),
                     tolerance,
                 ));
             }
@@ -393,7 +441,7 @@ mod tests {
 
         assert_eq!(geometry.geomap.brushes.len(), 31);
         assert_eq!(geometry.geomap.faces.len(), 182);
-        assert_eq!(visible.len(), 2001);
+        assert_eq!(visible.len(), 327);
         assert!(
             (visible
                 .iter()
@@ -516,6 +564,61 @@ mod tests {
                 geometry.face_vertices[*face_id].len()
             );
         }
+    }
+
+    #[test]
+    fn broad_phase_contains_every_brush_whose_bounds_touch_a_source_face() {
+        let map =
+            include_str!("../../tests/fixtures/maps/morrobroom_wish_it_had_never_been_written.map")
+                .parse::<Map>()
+                .expect("torture fixture should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(map);
+        for (source_brush, faces) in geometry.geomap.brush_faces.iter().enumerate() {
+            for face_id in faces {
+                let face_aabb = Aabb3::from_points(
+                    geometry.face_polygons[*face_id]
+                        .iter()
+                        .map(|vertex| vertex.map(f64::from)),
+                )
+                .unwrap();
+                let candidates = geometry.brush_aabb_grid.query(face_aabb, 0.0);
+                for (brush_index, brush_faces) in geometry.geomap.brush_faces.iter().enumerate() {
+                    if brush_index == source_brush {
+                        continue;
+                    }
+                    let brush_aabb =
+                        Aabb3::from_points(brush_faces.iter().flat_map(|brush_face| {
+                            geometry.face_polygons[*brush_face]
+                                .iter()
+                                .map(|vertex| vertex.map(f64::from))
+                        }))
+                        .unwrap();
+                    if brush_aabb.intersects(face_aabb) {
+                        assert!(
+                            candidates.contains(&BrushId(brush_index)),
+                            "missing brush {brush_index} for source face {face_id}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn broad_phase_matches_bruteforce_reference() {
+        let map =
+            include_str!("../../tests/fixtures/maps/morrobroom_wish_it_had_never_been_written.map")
+                .parse::<Map>()
+                .expect("torture fixture should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(map);
+        let tolerance = GeometryTolerance::default();
+        let broad = geometry
+            .visible_face_fragments(tolerance)
+            .expect("broad phase should preserve valid faces");
+        let brute = geometry
+            .visible_face_fragments_bruteforce(tolerance)
+            .expect("brute force should preserve valid faces");
+        assert_eq!(broad, brute);
     }
 
     fn assert_visible_fragment_invariants(geometry: &MapGeometry, fragments: &[SurfaceFragment]) {

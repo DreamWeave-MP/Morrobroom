@@ -16,6 +16,7 @@ mod convex_hull;
 mod dense_storage;
 mod geo_map;
 mod plane_3d;
+mod spatial_grid;
 #[cfg(test)]
 mod unit_test_data;
 
