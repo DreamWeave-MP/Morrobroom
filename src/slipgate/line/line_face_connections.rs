@@ -66,5 +66,11 @@ pub fn line_face_connections(
         }
     }
 
-    DenseStorage::from_vec(line_face_connections).into()
+    DenseStorage::from_pairs(
+        line_face_connections
+            .into_iter()
+            .enumerate()
+            .map(|(line_index, faces)| (LineId(line_index), faces)),
+    )
+    .into()
 }

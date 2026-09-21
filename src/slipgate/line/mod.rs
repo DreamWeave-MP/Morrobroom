@@ -110,4 +110,21 @@ mod tests {
         let contained = point_in_line(&point, &v0, &v1);
         assert!(!contained);
     }
+
+    #[test]
+    fn line_topology_preserves_face_ownership() {
+        let indices: FaceIndices =
+            DenseStorage::from_vec(vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7]]).into();
+
+        let (lines, face_lines) = lines(&indices);
+        assert_eq!(lines.len(), 8);
+        assert_eq!(face_lines[FaceId(0)].len(), 4);
+        assert_eq!(face_lines[FaceId(1)].len(), 4);
+
+        let line_faces = line_faces(&face_lines);
+        assert_eq!(line_faces[LineId(0)], FaceId(0));
+        assert_eq!(line_faces[LineId(3)], FaceId(0));
+        assert_eq!(line_faces[LineId(4)], FaceId(1));
+        assert_eq!(line_faces[LineId(7)], FaceId(1));
+    }
 }

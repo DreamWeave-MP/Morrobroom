@@ -78,12 +78,14 @@ pub fn face_vertices(
     values.sort_unstable_by_key(|((face_id, _), _)| face_id.0);
     let (vertices, vertex_planes): (Vec<_>, Vec<_>) = values
         .into_iter()
-        .map(|((_, vertices), (_, vertex_planes))| (vertices, vertex_planes))
+        .map(|((face_id, vertices), (_, vertex_planes))| {
+            ((face_id, vertices), (face_id, vertex_planes))
+        })
         .unzip();
 
     (
-        DenseStorage::from_vec(vertices).into(),
-        DenseStorage::from_vec(vertex_planes).into(),
+        DenseStorage::from_pairs(vertices).into(),
+        DenseStorage::from_pairs(vertex_planes).into(),
     )
 }
 

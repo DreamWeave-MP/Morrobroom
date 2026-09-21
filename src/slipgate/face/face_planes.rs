@@ -18,5 +18,5 @@ pub fn face_planes(face_triangle_planes: &BTreeMap<FaceId, TrianglePlane>) -> Fa
         .map(|(face_id, face_plane)| (*face_id, Plane3d::from(face_plane)))
         .collect();
     planes.sort_unstable_by_key(|(face_id, _)| face_id.0);
-    DenseStorage::from_vec(planes.into_iter().map(|(_, plane)| plane).collect()).into()
+    DenseStorage::from_pairs(planes).into()
 }

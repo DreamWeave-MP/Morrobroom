@@ -10,6 +10,18 @@ pub trait DenseId: Copy {
     fn index(self) -> usize;
 }
 
+/// Assert that an ID sequence is exactly `0..len`.
+pub fn assert_contiguous_ids<K: DenseId>(ids: impl IntoIterator<Item = K>) {
+    for (expected, id) in ids.into_iter().enumerate() {
+        assert_eq!(
+            id.index(),
+            expected,
+            "dense ID invariant violated: expected index {expected}, got {}",
+            id.index()
+        );
+    }
+}
+
 /// Contiguous storage indexed by a typed dense ID.
 ///
 /// The type parameter prevents accidentally indexing one arena with another
@@ -26,6 +38,27 @@ impl<K, V> DenseStorage<K, V> {
             values,
             marker: PhantomData,
         }
+    }
+
+    /// Build storage from explicitly keyed values, rejecting holes or
+    /// out-of-order IDs instead of silently assigning the wrong value.
+    pub fn from_pairs<I>(pairs: I) -> Self
+    where
+        K: DenseId,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let mut values = Vec::new();
+        for (id, value) in pairs {
+            assert_eq!(
+                id.index(),
+                values.len(),
+                "dense ID invariant violated: expected index {}, got {}",
+                values.len(),
+                id.index()
+            );
+            values.push(value);
+        }
+        Self::from_vec(values)
     }
 
     pub fn as_slice(&self) -> &[V] {
@@ -98,5 +131,39 @@ impl<K: DenseId, V> Index<K> for DenseStorage<K, V> {
 impl<K: DenseId, V> IndexMut<K> for DenseStorage<K, V> {
     fn index_mut(&mut self, id: K) -> &mut Self::Output {
         &mut self.values[id.index()]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Copy, Clone)]
+    struct TestId(usize);
+
+    impl DenseId for TestId {
+        fn index(self) -> usize {
+            self.0
+        }
+    }
+
+    #[test]
+    fn from_pairs_preserves_typed_indices() {
+        let storage =
+            DenseStorage::<TestId, _>::from_pairs([(TestId(0), "zero"), (TestId(1), "one")]);
+
+        assert_eq!(storage[TestId(1)], "one");
+    }
+
+    #[test]
+    #[should_panic(expected = "dense ID invariant violated")]
+    fn from_pairs_rejects_sparse_ids() {
+        let _ = DenseStorage::<TestId, _>::from_pairs([(TestId(0), "zero"), (TestId(2), "two")]);
+    }
+
+    #[test]
+    #[should_panic(expected = "dense ID invariant violated")]
+    fn contiguous_id_assertion_rejects_sparse_ids() {
+        assert_contiguous_ids([TestId(0), TestId(2)]);
     }
 }

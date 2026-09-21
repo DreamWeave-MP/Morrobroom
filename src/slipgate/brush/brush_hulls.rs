@@ -25,5 +25,5 @@ pub fn brush_hulls(
         })
         .collect();
     hulls.sort_unstable_by_key(|(brush_id, _)| brush_id.0);
-    DenseStorage::from_vec(hulls.into_iter().map(|(_, hull)| hull).collect()).into()
+    DenseStorage::from_pairs(hulls).into()
 }

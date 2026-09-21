@@ -26,5 +26,11 @@ pub fn line_faces(face_lines: &FaceLines) -> LineFaces {
     for (line_index, face) in mappings {
         line_faces[line_index] = face;
     }
-    DenseStorage::from_vec(line_faces).into()
+    DenseStorage::from_pairs(
+        line_faces
+            .into_iter()
+            .enumerate()
+            .map(|(line_index, face)| (LineId(line_index), face)),
+    )
+    .into()
 }
