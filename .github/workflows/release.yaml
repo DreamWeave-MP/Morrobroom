@@ -18,8 +18,8 @@ jobs:
     with:
       # Required: JSON array of binary names to build. Add more for monorepos.
       binary_names: '["morrobroom"]'
-      include_files: 'README.md,LICENSE,THIRD_PARTY.md,resources,content'
+      include_files: "README.md,LICENSE,THIRD_PARTY.md,resources,content"
       cargo_publish: false
       publish_docs: false
-      enable_portmaster: true
-      enable_android: true
+      enable_portmaster: false
+      enable_android: false
