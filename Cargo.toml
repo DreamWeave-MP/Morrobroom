@@ -15,7 +15,7 @@ imagesize = "0.15.0"
 mimalloc = "0.1.52"
 nalgebra = "0.35.0"
 nom = "8.0.0"
-vfstool_lib = { version = "0.9.0", features = ["zip"] }
+vfstool_lib = { version = "0.9.0", features = ["beth-archives", "zip"] }
 rayon = "1.12.0"
 glam = "0.33.5"
 lightmap = "0.7.0"
