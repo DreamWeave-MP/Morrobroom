@@ -360,9 +360,19 @@ impl ConfigurationManager {
 
 #[cfg(test)]
 mod cfgmgr_test {
-    use std::{fs::File, io::BufWriter, path::PathBuf};
+    use std::{
+        fs::{self, File},
+        io::BufWriter,
+        path::PathBuf,
+    };
 
     use crate::fgd::{ConfigurationManager, generate_fgd, serialize};
+
+    fn test_output_path(file_name: &str) -> PathBuf {
+        let output_dir = PathBuf::from("fgd_out");
+        fs::create_dir_all(&output_dir).expect("create FGD test output directory");
+        output_dir.join(file_name)
+    }
 
     #[test]
     fn test_default_path() {
@@ -373,7 +383,7 @@ mod cfgmgr_test {
 
     #[test]
     fn test_serialize_all() {
-        let output_path = PathBuf::from("./FGDOut_ALL.fgd");
+        let output_path = test_output_path("FGDOut_ALL.fgd");
         assert!(generate_fgd(None, &serialize::SERIALIZABLE_TYPES, 1.0, &output_path,).is_ok());
     }
 
@@ -384,8 +394,8 @@ mod cfgmgr_test {
 
         let config = ConfigurationManager::try_from((path.to_str().unwrap(), types_slice)).unwrap();
 
-        let path_string = format!("./FGDOut_{object_type}.fgd");
-        let mut file = File::create(path_string).unwrap();
+        let path = test_output_path(&format!("FGDOut_{object_type}.fgd"));
+        let mut file = File::create(path).unwrap();
         let mut writer = BufWriter::new(&mut file);
 
         assert!(
