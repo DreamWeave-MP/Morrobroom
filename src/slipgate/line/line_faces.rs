@@ -1,7 +1,7 @@
 //! Lookup table from LineId to its parent FaceId
 use std::collections::BTreeMap;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use usage::Usage;
 
 use crate::slipgate::face::{FaceId, FaceLines};
@@ -14,6 +14,10 @@ pub type LineFaces = Usage<LineFacesTag, BTreeMap<LineId, FaceId>>;
 pub fn line_faces(face_lines: &FaceLines) -> LineFaces {
     face_lines
         .par_iter()
-        .flat_map_iter(|(face, lines)| lines.iter().map(move |line| (*line, *face)))
+        .enumerate()
+        .flat_map_iter(|(face_index, lines)| {
+            let face = FaceId(face_index);
+            lines.iter().map(move |line| (*line, face))
+        })
         .collect()
 }

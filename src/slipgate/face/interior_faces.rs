@@ -28,7 +28,7 @@ pub fn interior_faces(
     let starting_faces = faces
         .par_iter()
         .flat_map(|face| {
-            let lines = face_lines.get(face).unwrap();
+            let lines = face_lines.get(*face).unwrap();
 
             let non_manifold: usize = lines
                 .iter()
@@ -56,7 +56,7 @@ pub fn interior_faces(
 
         let face_normal = face_normals[face][0];
 
-        for line_id in &face_lines[&face] {
+        for line_id in &face_lines[face] {
             let mut connected_faces = line_face_connections[line_id]
                 .iter()
                 .filter(|candidate| **candidate != face);

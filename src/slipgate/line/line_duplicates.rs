@@ -39,7 +39,7 @@ pub fn line_duplicates(
                 .flat_map(move |face_a| {
                     // Fetch LHS vertex and line data
                     let verts_a = &face_vertices[*face_a];
-                    let lines_a = &face_lines[face_a];
+                    let lines_a = &face_lines[*face_a];
                     let dfi_line = Arc::clone(&dfi_face);
 
                     // Iterate over LHS face lines
@@ -73,7 +73,7 @@ pub fn line_duplicates(
                                         .flat_map(|face_b| {
                                             // Fetch RHS vertex and line data
                                             let verts_b = &face_vertices[*face_b];
-                                            let lines_b = &face_lines[face_b];
+                                            let lines_b = &face_lines[*face_b];
 
                                             // Iterate over RHS face lines
                                             lines_b

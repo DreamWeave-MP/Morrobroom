@@ -36,7 +36,7 @@ pub fn face_face_containment(
                 return None;
             }
 
-            let contained = face_lines[lhs_id].iter().all(|line_id| {
+            let contained = face_lines[*lhs_id].iter().all(|line_id| {
                 let line = lines[line_id];
 
                 let v0 = lhs_verts[line.i0];

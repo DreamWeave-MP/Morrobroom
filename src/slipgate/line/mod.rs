@@ -14,7 +14,7 @@ use usage::Usage;
 use std::collections::BTreeMap;
 
 use crate::slipgate::{
-    EPSILON, Vector3,
+    DenseStorage, EPSILON, Vector3,
     face::{FaceId, FaceIndices, FaceLines},
 };
 
@@ -30,7 +30,7 @@ pub type Lines = Usage<LinesTag, BTreeMap<LineId, Line>>;
 pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
     let mut line_head = 0;
 
-    let mut face_lines = FaceLines::default();
+    let mut face_lines = vec![Vec::new(); face_indices.len()];
     let mut lines = Lines::default();
 
     for (face_index, indices) in face_indices.iter().enumerate() {
@@ -50,7 +50,7 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
                     i1: indices[i + 1],
                 },
             );
-            face_lines.entry(face_id).or_default().push(line_id);
+            face_lines[face_id.0].push(line_id);
         }
 
         let line_id = LineId(line_head);
@@ -63,10 +63,10 @@ pub fn lines(face_indices: &FaceIndices) -> (Lines, FaceLines) {
                 i1: indices[0],
             },
         );
-        face_lines.entry(face_id).or_default().push(line_id);
+        face_lines[face_id.0].push(line_id);
     }
 
-    (lines, face_lines)
+    (lines, DenseStorage::from_vec(face_lines).into())
 }
 
 fn line_eq(a0: &Vector3, a1: &Vector3, b0: &Vector3, b1: &Vector3) -> bool {
