@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use crate::slipgate::repr::TextureOffset;
+use crate::slipgate::{face::TextureProjection, repr::TextureOffset};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use usage::Usage;
 
-use crate::slipgate::{FacePlanes, Plane3d, Vector3, face::FaceId, vector3_from_texture_plane};
+use crate::slipgate::{FacePlanes, Plane3d, Vector3, face::FaceId};
 
 // TODO: Replace GeoPlane usage with custom tangent type
 //       (Would storing a basis be viable? No need to conform to godot standards)
@@ -84,11 +84,10 @@ fn standard_basis(plane: &Plane3d) -> Basis {
 
 fn valve_basis(plane: &Plane3d, texture_offset: &TextureOffset) -> Basis {
     if let TextureOffset::Valve { u, v } = &texture_offset {
-        let u = vector3_from_texture_plane(u);
-        let v = vector3_from_texture_plane(v);
+        let projection = TextureProjection::from_valve_axes(*u, *v);
         Basis {
-            x: u,
-            y: v,
+            x: *projection.u_axis(),
+            y: *projection.v_axis(),
             z: *plane.normal(),
         }
     } else {
