@@ -153,6 +153,73 @@ pub enum BroomCommand {
         #[arg(long = "no-lightmaps")]
         no_lightmaps: bool,
     },
+    /// Reverse-compile Morrowind `NetImmerse` visual geometry into Valve 220 maps.
+    #[command(name = "nif2map")]
+    Nif2Map {
+        /// NIF files or directories to convert.
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+
+        /// Recurse into input directories.
+        #[arg(long, short = 'r')]
+        recursive: bool,
+
+        /// Output directory for .map and .nif2map.json files.
+        #[arg(long = "output-dir", short = 'o', default_value = "nif2map-out")]
+        output_dir: PathBuf,
+
+        /// Backing thickness for open swept architectural shells.
+        #[arg(long, default_value_t = 16.0)]
+        shell_thickness: f64,
+
+        /// Backing thickness for planar-region fallback.
+        #[arg(long, default_value_t = 2.0)]
+        fallback_thickness: f64,
+
+        /// Unsupported-shape behavior: planar-prisms or skip.
+        #[arg(long, default_value = "planar-prisms")]
+        fallback: String,
+
+        /// Material for artificial closure and partition faces.
+        #[arg(long, default_value = "skip")]
+        skip_material: String,
+
+        /// Texture roots used to resolve source image dimensions. Repeatable.
+        #[arg(long = "texture-root")]
+        texture_roots: Vec<PathBuf>,
+
+        /// Fallback square texture dimension.
+        #[arg(long, default_value_t = 256)]
+        texture_size: u32,
+
+        /// Do not invert NIF V coordinates for Valve 220 mappings.
+        #[arg(long)]
+        no_flip_v: bool,
+
+        /// Include `RootCollisionNode` descendants as visual input.
+        #[arg(long)]
+        include_collision: bool,
+
+        /// Do not reject already existing outputs.
+        #[arg(long)]
+        overwrite: bool,
+
+        /// Analyze and report without writing map files.
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Print recognizer details and warnings.
+        #[arg(long, short = 'v')]
+        verbose: bool,
+
+        /// Do not validate generated brushes.
+        #[arg(long)]
+        no_validate: bool,
+
+        /// Permit at most this many generated brushes per input.
+        #[arg(long, default_value_t = 20_000)]
+        max_brushes: usize,
+    },
     FGD {
         /// Scale to use when generating object bounding boxes.
         /// Useful if authoring at a different scale, for one or another reason.
@@ -405,7 +472,9 @@ mod tests {
                 assert_eq!(output_path, Some(tmp_out.canonicalize().unwrap()));
                 assert!(!no_lightmaps);
             }
-            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
+            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+                panic!("expected compile subcommand")
+            }
         }
     }
 
@@ -422,7 +491,9 @@ mod tests {
 
         match args.command {
             BroomCommand::Compile { no_lightmaps, .. } => assert!(no_lightmaps),
-            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
+            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+                panic!("expected compile subcommand")
+            }
         }
     }
 
@@ -445,7 +516,9 @@ mod tests {
             BroomCommand::Compile { map_path, .. } => {
                 assert_eq!(map_path, expected_map_path);
             }
-            BroomCommand::FGD { .. } => panic!("expected compile subcommand"),
+            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+                panic!("expected compile subcommand")
+            }
         }
     }
 
