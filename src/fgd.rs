@@ -513,3 +513,26 @@ mod cfgmgr_test {
         serialize_by_type(tes3::esp::Door::TAG_STR, None);
     }
 }
+
+#[cfg(test)]
+mod bundled_fgd_test {
+    #[test]
+    fn bundled_fgd_uses_valid_integer_properties() {
+        let fgd = include_str!("../resources/Morrowind.fgd");
+        let mut active_lines = fgd
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"));
+
+        assert!(active_lines.all(|line| !line.contains("(int)")));
+        assert_eq!(
+            fgd.matches("Effect_7_Duration(integer)").count(),
+            1,
+            "Effect_7_Duration must be defined once"
+        );
+        assert_eq!(
+            fgd.matches("Effect_8_Duration(integer)").count(),
+            1,
+            "Effect_8_Duration must be defined once"
+        );
+    }
+}
