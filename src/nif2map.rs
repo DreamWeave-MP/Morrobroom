@@ -32,6 +32,7 @@ use geo::{
     },
     centroid::Centroid,
 };
+use imagesize::blob_size;
 use nalgebra::Matrix3;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -91,8 +92,6 @@ pub struct Options {
     pub fallback: String,
     pub skip_material: String,
     pub texture_roots: Vec<PathBuf>,
-    pub texture_size: u32,
-    pub flip_v: bool,
     pub include_collision: bool,
     pub overwrite: bool,
     pub dry_run: bool,
@@ -305,7 +304,6 @@ struct TextureBinding {
 #[serde(rename_all = "snake_case")]
 enum TextureSizeSource {
     Resolved,
-    Fallback,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -350,7 +348,7 @@ struct VisualMesh {
     triangles: Vec<[usize; 3]>,
     material: String,
     texture: Option<TextureBinding>,
-    texture_size: TextureDimensions,
+    texture_size: Option<TextureDimensions>,
     scope: ScopeId,
     nif_state: NifState,
     provenance: NifProvenance,
@@ -421,8 +419,8 @@ struct ShapeReport {
     triangles: usize,
     material: String,
     texture: Option<TextureBinding>,
-    texture_size: [u32; 2],
-    texture_size_source: TextureSizeSource,
+    texture_size: Option<[u32; 2]>,
+    texture_size_source: Option<TextureSizeSource>,
     scope: ScopeId,
     scope_kind: ImportScope,
     nif_state: NifState,
@@ -808,7 +806,6 @@ fn fit_projection(
     points: [P3; 3],
     texcoords: [[f64; 2]; 3],
     texture_size: (u32, u32),
-    flip_v: bool,
 ) -> Option<Projection> {
     let origin = points[0];
     let normal = unit((points[1] - origin).cross(points[2] - origin)).ok()?;
@@ -839,21 +836,9 @@ fn fit_projection(
         );
     let tfit = inverse
         * nalgebra::Vector3::new(
-            (if flip_v {
-                1.0 - texcoords[0][1]
-            } else {
-                texcoords[0][1]
-            }) * height,
-            (if flip_v {
-                1.0 - texcoords[1][1]
-            } else {
-                texcoords[1][1]
-            }) * height,
-            (if flip_v {
-                1.0 - texcoords[2][1]
-            } else {
-                texcoords[2][1]
-            }) * height,
+            texcoords[0][1] * height,
+            texcoords[1][1] * height,
+            texcoords[2][1] * height,
         );
     let lift = |fit: nalgebra::Vector3<f64>| {
         let gradient = tangent_u * fit[0] + tangent_v * fit[1];
@@ -875,7 +860,7 @@ fn fit_projection(
         let actual_s = u.dot(point) / u_scale + u_shift;
         let actual_t = v.dot(point) / v_scale + v_shift;
         let expected_s = uv[0] * width;
-        let expected_t = (if flip_v { 1.0 - uv[1] } else { uv[1] }) * height;
+        let expected_t = uv[1] * height;
         max_error = max_error
             .max((actual_s - expected_s).abs())
             .max((actual_t - expected_t).abs());
@@ -892,8 +877,9 @@ fn fit_projection(
     projection_is_valid(&projection).then_some(projection)
 }
 
-fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<Projection> {
+fn triangle_projection(mesh: &VisualMesh, index: usize) -> Option<Projection> {
     let uvs = mesh.uvs.as_ref()?;
+    let texture_size = mesh.texture_size?.size;
     let triangle = mesh.triangles[index];
     fit_projection(
         [
@@ -902,34 +888,31 @@ fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<
             mesh.vertices[triangle[2]],
         ],
         [uvs[triangle[0]], uvs[triangle[1]], uvs[triangle[2]]],
-        mesh.texture_size.size,
-        flip_v,
+        texture_size,
     )
 }
 
-fn usable_triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<Projection> {
-    triangle_projection(mesh, index, flip_v).filter(projection_is_usable)
+fn usable_triangle_projection(mesh: &VisualMesh, index: usize) -> Option<Projection> {
+    triangle_projection(mesh, index).filter(projection_is_usable)
 }
 
-fn projection_error(
-    mesh: &VisualMesh,
-    triangle_index: usize,
-    projection: &Projection,
-    flip_v: bool,
-) -> f64 {
+fn projection_error(mesh: &VisualMesh, triangle_index: usize, projection: &Projection) -> f64 {
     let Some(uvs) = mesh.uvs.as_ref() else {
         return f64::INFINITY;
     };
+    let Some(texture_size) = mesh.texture_size else {
+        return f64::INFINITY;
+    };
     let triangle = mesh.triangles[triangle_index];
-    let width = f64::from(mesh.texture_size.size.0);
-    let height = f64::from(mesh.texture_size.size.1);
+    let width = f64::from(texture_size.size.0);
+    let height = f64::from(texture_size.size.1);
     triangle
         .into_iter()
         .map(|vertex_index| {
             let point = mesh.vertices[vertex_index];
             let uv = uvs[vertex_index];
             let expected_s = uv[0] * width;
-            let expected_t = (if flip_v { 1.0 - uv[1] } else { uv[1] }) * height;
+            let expected_t = uv[1] * height;
             let actual_s = projection.u.dot(point) / projection.u_scale + projection.u_shift;
             let actual_t = projection.v.dot(point) / projection.v_scale + projection.v_shift;
             if !actual_s.is_finite()
@@ -956,7 +939,6 @@ fn can_merge_uv_triangle(
     triangle_index: usize,
     candidate_projection: Option<&Projection>,
     group_projection: Option<&Projection>,
-    flip_v: bool,
 ) -> bool {
     if mesh.uvs.is_none() {
         return true;
@@ -969,8 +951,7 @@ fn can_merge_uv_triangle(
     };
     projection_is_usable(group_projection)
         && projection_is_usable(candidate_projection)
-        && projection_error(mesh, triangle_index, group_projection, flip_v)
-            <= UV_MERGE_TOLERANCE_TEXELS
+        && projection_error(mesh, triangle_index, group_projection) <= UV_MERGE_TOLERANCE_TEXELS
 }
 
 fn project(point: P3, sweep: &Sweep) -> Coord<f64> {
@@ -983,7 +964,7 @@ fn unproject(point: Coord<f64>, t: f64, sweep: &Sweep) -> P3 {
     sweep.u * point.x + sweep.v * point.y + sweep.direction * t
 }
 
-fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep, flip_v: bool) -> (Vec<Cap>, Vec<Cap>) {
+fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep) -> (Vec<Cap>, Vec<Cap>) {
     let extent = (sweep.t_max - sweep.t_min).abs().max(1.0);
     let tolerance = LAYER_EPSILON.max(extent * 1e-6) * 4.0;
     let mut low = Vec::new();
@@ -1024,7 +1005,7 @@ fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep, flip_v: bool) -> (Vec<Cap>
             destination.push(Cap {
                 polygon,
                 material: mesh.material.clone(),
-                projection: usable_triangle_projection(mesh, triangle_index, flip_v),
+                projection: usable_triangle_projection(mesh, triangle_index),
             });
         }
     }
@@ -1034,7 +1015,6 @@ fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep, flip_v: bool) -> (Vec<Cap>
 fn collect_segments(
     meshes: &[VisualMesh],
     sweep: &Sweep,
-    flip_v: bool,
     layer_index: Option<usize>,
 ) -> Vec<Segment> {
     let extent = (sweep.t_max - sweep.t_min).abs().max(1.0);
@@ -1048,7 +1028,7 @@ fn collect_segments(
                 mesh.vertices[triangle[2]],
             ];
             let values = points.map(|point| point.dot(sweep.direction));
-            let projection = usable_triangle_projection(mesh, triangle_index, flip_v);
+            let projection = usable_triangle_projection(mesh, triangle_index);
             for (a_index, b_index) in [(0, 1), (1, 2), (2, 0)] {
                 let layer_a = nearest_layer(values[a_index], &sweep.layers);
                 let layer_b = nearest_layer(values[b_index], &sweep.layers);
@@ -1165,14 +1145,10 @@ fn profile_area_signature(cycles: &[Polygon<f64>]) -> Vec<f64> {
 
 type ProfileValidation = (Vec<Segment>, Vec<Polygon<f64>>, f64, f64, f64);
 
-fn validate_profile(
-    meshes: &[VisualMesh],
-    sweep: &Sweep,
-    flip_v: bool,
-) -> Option<ProfileValidation> {
+fn validate_profile(meshes: &[VisualMesh], sweep: &Sweep) -> Option<ProfileValidation> {
     let mut profiles = Vec::new();
     for layer in 0..sweep.layers.len() {
-        let segments = collect_segments(meshes, sweep, flip_v, Some(layer));
+        let segments = collect_segments(meshes, sweep, Some(layer));
         let cycles = profile_cycles(&segments)?;
         profiles.push((segments, cycles));
     }
@@ -1744,13 +1720,12 @@ fn union_polygons(polygons: &[Polygon<f64>]) -> MultiPolygon<f64> {
 fn exact_extrusion(
     meshes: &[VisualMesh],
     sweep: &Sweep,
-    flip_v: bool,
     skip: &str,
 ) -> Option<(Vec<Brush>, RecognizerReport)> {
     if !exact_layer_invariance(meshes, sweep) {
         return None;
     }
-    let (low_caps, high_caps) = collect_caps(meshes, sweep, flip_v);
+    let (low_caps, high_caps) = collect_caps(meshes, sweep);
     if low_caps.is_empty() || high_caps.is_empty() {
         return None;
     }
@@ -1790,7 +1765,7 @@ fn exact_extrusion(
         pieces.extend(decompose(polygon).ok()?);
     }
     let shapes: Vec<_> = meshes.iter().map(|mesh| mesh.block).collect();
-    let side_sources = collect_segments(meshes, sweep, flip_v, None);
+    let side_sources = collect_segments(meshes, sweep, None);
     let brushes = extrude_pieces(
         &pieces,
         sweep,
@@ -1827,10 +1802,9 @@ fn swept_shell(
     meshes: &[VisualMesh],
     sweep: &Sweep,
     thickness: f64,
-    flip_v: bool,
     skip: &str,
 ) -> Option<(Vec<Brush>, RecognizerReport)> {
-    let (low_caps, high_caps) = collect_caps(meshes, sweep, flip_v);
+    let (low_caps, high_caps) = collect_caps(meshes, sweep);
     let cap_area: f64 = low_caps
         .iter()
         .chain(&high_caps)
@@ -1839,8 +1813,7 @@ fn swept_shell(
     if cap_area > 1e-5 {
         return None;
     }
-    let (segments, cycles, max_hausdorff, max_length, max_area) =
-        validate_profile(meshes, sweep, flip_v)?;
+    let (segments, cycles, max_hausdorff, max_length, max_area) = validate_profile(meshes, sweep)?;
     let style = BufferStyle::new(thickness).line_join(LineJoin::Miter(10.0));
     let mut shell_polygons = Vec::new();
     for cavity in &cycles {
@@ -1913,7 +1886,7 @@ fn group_open_shell_shapes(
         }
     }
     let closed_score = |group: &[VisualMesh]| -> (f64, usize) {
-        let segments = collect_segments(group, seed_sweep, true, Some(0));
+        let segments = collect_segments(group, seed_sweep, Some(0));
         let Some(cycles) = profile_cycles(&segments) else {
             return (0.0, 0);
         };
@@ -1965,7 +1938,6 @@ fn canonical_plane(normal: P3, distance: f64) -> (P3, f64) {
 fn planar_fallback(
     mesh: &VisualMesh,
     thickness: f64,
-    flip_v: bool,
     skip: &str,
 ) -> Result<(Vec<Brush>, RecognizerReport), Error> {
     // Coplanar triangles may belong to different UV charts. Merge only when
@@ -1981,7 +1953,7 @@ fn planar_fallback(
             continue;
         };
         let (normal, distance) = canonical_plane(normal, distance);
-        let projection = usable_triangle_projection(mesh, triangle_index, flip_v);
+        let projection = usable_triangle_projection(mesh, triangle_index);
         if let Some((_, _, indices, _)) = groups.iter_mut().find(
             |(candidate, candidate_distance, _indices, group_projection)| {
                 candidate.dot(normal).abs() >= 0.99999
@@ -1992,7 +1964,6 @@ fn planar_fallback(
                             triangle_index,
                             projection.as_ref(),
                             group_projection.as_ref(),
-                            flip_v,
                         ))
             },
         ) {
@@ -2445,7 +2416,7 @@ fn reconstruct_partition(
     if options.validate {
         validate_reconstruction(&mut result)?;
     }
-    result.uv_max_error = max_uv_error(meshes, options.flip_v);
+    result.uv_max_error = max_uv_error(meshes);
     Ok(result)
 }
 
@@ -2463,12 +2434,9 @@ fn process_seed(
     let Some(sweep) = sweeps.get(&seed.block).and_then(|sweep| sweep.as_ref()) else {
         return;
     };
-    if let Some((brushes, report)) = exact_extrusion(
-        std::slice::from_ref(seed),
-        sweep,
-        options.flip_v,
-        &options.skip_material,
-    ) {
+    if let Some((brushes, report)) =
+        exact_extrusion(std::slice::from_ref(seed), sweep, &options.skip_material)
+    {
         result.brushes.extend(brushes);
         result.recognizers.push(report);
         result.used_shapes.insert(seed.block);
@@ -2485,7 +2453,6 @@ fn process_seed(
         &group,
         sweep,
         options.shell_thickness,
-        options.flip_v,
         &options.skip_material,
     ) {
         result.brushes.extend(brushes);
@@ -2496,12 +2463,9 @@ fn process_seed(
         }
         return;
     }
-    if let Some((brushes, report)) = exact_extrusion(
-        std::slice::from_ref(seed),
-        sweep,
-        options.flip_v,
-        &options.skip_material,
-    ) {
+    if let Some((brushes, report)) =
+        exact_extrusion(std::slice::from_ref(seed), sweep, &options.skip_material)
+    {
         result.brushes.extend(brushes);
         result.recognizers.push(report);
         result.used_shapes.insert(seed.block);
@@ -2526,12 +2490,7 @@ fn apply_fallback(
     let mut fallback_meshes: Vec<_> = remaining.values().cloned().collect();
     fallback_meshes.sort_by_key(|mesh| mesh.block);
     for mesh in fallback_meshes {
-        match planar_fallback(
-            &mesh,
-            options.fallback_thickness,
-            options.flip_v,
-            &options.skip_material,
-        ) {
+        match planar_fallback(&mesh, options.fallback_thickness, &options.skip_material) {
             Ok((brushes, report)) if !brushes.is_empty() => {
                 result.brushes.extend(brushes);
                 result.recognizers.push(report);
@@ -2580,12 +2539,12 @@ fn validate_reconstruction(result: &mut Reconstruction) -> Result<(), Error> {
     Ok(())
 }
 
-fn max_uv_error(meshes: &[VisualMesh], flip_v: bool) -> f64 {
+fn max_uv_error(meshes: &[VisualMesh]) -> f64 {
     meshes
         .iter()
         .filter(|mesh| mesh.uvs.is_some())
         .flat_map(|mesh| (0..mesh.triangles.len()).map(move |index| (mesh, index)))
-        .filter_map(|(mesh, index)| triangle_projection(mesh, index, flip_v))
+        .filter_map(|(mesh, index)| triangle_projection(mesh, index))
         .map(|projection| projection.max_error)
         .fold(0.0, f64::max)
 }
@@ -2593,15 +2552,13 @@ fn max_uv_error(meshes: &[VisualMesh], flip_v: bool) -> f64 {
 #[derive(Debug)]
 struct TextureResolver {
     roots: Vec<PathBuf>,
-    fallback: (u32, u32),
     index: OnceLock<HashMap<String, PathBuf>>,
 }
 
 impl TextureResolver {
-    fn new(roots: &[PathBuf], fallback: u32) -> Self {
+    fn new(roots: &[PathBuf]) -> Self {
         Self {
             roots: roots.to_vec(),
-            fallback: (fallback, fallback),
             index: OnceLock::new(),
         }
     }
@@ -2623,7 +2580,10 @@ impl TextureResolver {
                 else {
                     continue;
                 };
-                if !matches!(extension.to_ascii_lowercase().as_str(), "tga" | "dds") {
+                if !matches!(
+                    extension.to_ascii_lowercase().as_str(),
+                    "bmp" | "dds" | "jpeg" | "jpg" | "png" | "tga" | "webp"
+                ) {
                     continue;
                 }
                 if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
@@ -2653,18 +2613,9 @@ impl TextureResolver {
         index
     }
 
-    fn resolve(&self, source_texture: Option<&str>) -> TextureDimensions {
-        let Some(source_texture) = source_texture else {
-            return TextureDimensions {
-                size: self.fallback,
-                source: TextureSizeSource::Fallback,
-            };
-        };
+    fn resolve(&self, source_texture: &str) -> Result<TextureDimensions, String> {
         if self.roots.is_empty() {
-            return TextureDimensions {
-                size: self.fallback,
-                source: TextureSizeSource::Fallback,
-            };
+            return Err("no --texture-root was provided".into());
         }
         let index = self.index.get_or_init(|| self.build_index());
         let key = source_texture.replace('\\', "/").to_ascii_lowercase();
@@ -2674,47 +2625,38 @@ impl TextureResolver {
                 .and_then(|name| name.to_str())
                 .and_then(|name| index.get(name))
         }) else {
-            return TextureDimensions {
-                size: self.fallback,
-                source: TextureSizeSource::Fallback,
-            };
+            return Err(format!(
+                "texture {source_texture:?} was not found under any --texture-root"
+            ));
         };
-        let Ok(bytes) = fs::read(path) else {
-            return TextureDimensions {
-                size: self.fallback,
-                source: TextureSizeSource::Fallback,
-            };
-        };
-        let size = match path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref()
-        {
-            Some("dds") if bytes.len() >= 20 && &bytes[..4] == b"DDS " => (
-                u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
-                u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        let bytes = fs::read(path).map_err(|error| {
+            format!(
+                "texture {source_texture:?} could not be read at {}: {error}",
+                path.display()
+            )
+        })?;
+        let dimensions = blob_size(&bytes).map_err(|error| {
+            format!(
+                "texture {source_texture:?} at {} has unreadable dimensions: {error}",
+                path.display()
+            )
+        })?;
+        Ok(TextureDimensions {
+            size: (
+                u32::try_from(dimensions.width)
+                    .map_err(|_| format!("texture {source_texture:?} is too wide"))?,
+                u32::try_from(dimensions.height)
+                    .map_err(|_| format!("texture {source_texture:?} is too tall"))?,
             ),
-            Some("tga") if bytes.len() >= 18 => (
-                u32::from(u16::from_le_bytes(bytes[12..14].try_into().unwrap())),
-                u32::from(u16::from_le_bytes(bytes[14..16].try_into().unwrap())),
-            ),
-            _ => {
-                return TextureDimensions {
-                    size: self.fallback,
-                    source: TextureSizeSource::Fallback,
-                };
-            }
-        };
-        TextureDimensions {
-            size,
             source: TextureSizeSource::Resolved,
-        }
+        })
     }
 
     #[cfg(test)]
-    fn dimensions(&self, source_texture: Option<&str>) -> (u32, u32) {
-        self.resolve(source_texture).size
+    fn dimensions(&self, source_texture: &str) -> (u32, u32) {
+        self.resolve(source_texture)
+            .expect("texture should resolve")
+            .size
     }
 }
 
@@ -2764,7 +2706,10 @@ fn reject_legacy_bounds(stream: &NiStream, path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-fn texture_binding(stream: &NiStream, properties: &[NiKey]) -> Option<TextureBinding> {
+fn texture_binding(
+    stream: &NiStream,
+    properties: &[NiKey],
+) -> Result<Option<TextureBinding>, String> {
     for property in properties {
         let Some(texturing) = stream.get_as::<_, NiTexturingProperty>(NiLink::<()>::new(*property))
         else {
@@ -2773,17 +2718,49 @@ fn texture_binding(stream: &NiStream, properties: &[NiKey]) -> Option<TextureBin
         let Some(Some(TextureMap::Map(map))) = texturing.texture_maps.first() else {
             continue;
         };
-        let Some(source) = stream.get(map.texture) else {
-            continue;
-        };
-        if let TextureSource::External(source) = &source.source {
-            return Some(TextureBinding {
+        let source = stream
+            .get(map.texture)
+            .ok_or_else(|| "base texture link is missing from the NIF".to_owned())?;
+        return match &source.source {
+            TextureSource::External(source) => Ok(Some(TextureBinding {
                 source: source.clone(),
                 uv_set: map.texture_index,
-            });
+            })),
+            TextureSource::Internal(_) => Err(
+                "base texture is embedded in the NIF; provide a materialized texture root".into(),
+            ),
+        };
+    }
+    Ok(None)
+}
+
+fn texture_sources(stream: &NiStream, properties: &[NiKey]) -> Result<Vec<String>, String> {
+    let mut sources = Vec::new();
+    for property in properties {
+        let Some(texturing) = stream.get_as::<_, NiTexturingProperty>(NiLink::<()>::new(*property))
+        else {
+            continue;
+        };
+        for map in texturing.texture_maps.iter().flatten() {
+            let texture = match map {
+                TextureMap::Map(map) => map.texture,
+                TextureMap::BumpMap(map) => map.texture,
+            };
+            let source = stream
+                .get(texture)
+                .ok_or_else(|| "texture link is missing from the NIF".to_owned())?;
+            match &source.source {
+                TextureSource::External(source) => sources.push(source.clone()),
+                TextureSource::Internal(_) => {
+                    return Err(
+                        "a texture is embedded in the NIF; provide a materialized texture root"
+                            .into(),
+                    );
+                }
+            }
         }
     }
-    None
+    Ok(sources)
 }
 
 fn push_nif_property(state: &mut NifState, key: &str, value: impl Into<String>) {
@@ -3342,7 +3319,16 @@ where
             }
         })
         .collect();
-    let texture = texture_binding(context.stream, context.properties);
+    let texture = texture_binding(context.stream, context.properties)
+        .map_err(|error| format!("shape {link:?}: {error}"))?;
+    for source in texture_sources(context.stream, context.properties)
+        .map_err(|error| format!("shape {link:?}: {error}"))?
+    {
+        context
+            .resolver
+            .resolve(&source)
+            .map_err(|error| format!("shape {link:?}: {error}"))?;
+    }
     let uvs = texture
         .as_ref()
         .and_then(|texture| data.uv_set(texture.uv_set))
@@ -3375,9 +3361,11 @@ where
         &mut diagnostics,
     );
     nif_state.properties.sort();
-    let texture_size = context
-        .resolver
-        .resolve(texture.as_ref().map(|texture| texture.source.as_str()));
+    let texture_size = texture
+        .as_ref()
+        .map(|texture| context.resolver.resolve(&texture.source))
+        .transpose()
+        .map_err(|error| format!("shape {link:?}: {error}"))?;
     Ok(VisualMesh {
         block,
         name,
@@ -3451,6 +3439,9 @@ fn import_scene(path: &Path, resolver: &TextureResolver) -> Result<ImportedAsset
         };
         match import_shape(&import_context, link.key, shape) {
             Ok(mesh) => asset.meshes.push(mesh),
+            Err(diagnostic) if diagnostic.contains("texture") => {
+                return Err(Error::Nif(format!("{}: {diagnostic}", path.display())));
+            }
             Err(diagnostic) => asset.diagnostics.push(diagnostic),
         }
     }
@@ -3699,8 +3690,10 @@ fn report(
                 triangles: mesh.triangles.len(),
                 material: mesh.material.clone(),
                 texture: mesh.texture.clone(),
-                texture_size: [mesh.texture_size.size.0, mesh.texture_size.size.1],
-                texture_size_source: mesh.texture_size.source,
+                texture_size: mesh
+                    .texture_size
+                    .map(|texture_size| [texture_size.size.0, texture_size.size.1]),
+                texture_size_source: mesh.texture_size.map(|texture_size| texture_size.source),
                 scope: mesh.scope,
                 scope_kind: scope_kind(&imported.scopes, mesh.scope),
                 nif_state: mesh.nif_state.clone(),
@@ -3797,10 +3790,7 @@ pub fn run(options: &Options) -> io::Result<()> {
         ));
     }
     fs::create_dir_all(&options.output_dir)?;
-    let resolver = Arc::new(TextureResolver::new(
-        &options.texture_roots,
-        options.texture_size,
-    ));
+    let resolver = Arc::new(TextureResolver::new(&options.texture_roots));
     let jobs = build_jobs(options, inputs);
     let input_count = jobs.len();
     let results = process_jobs(options, &resolver, &jobs);
@@ -3820,10 +3810,10 @@ fn validate_options(options: &Options) -> io::Result<()> {
             "--fallback-thickness must be > 0",
         ));
     }
-    if options.texture_size == 0 {
+    if options.texture_roots.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "--texture-size must be > 0",
+            "at least one --texture-root is required",
         ));
     }
     if options.fallback != "planar-prisms" && options.fallback != "skip" {
@@ -3974,11 +3964,14 @@ mod tests {
             uvs: None,
             triangles,
             material: "fixture/mat".into(),
-            texture: None,
-            texture_size: TextureDimensions {
+            texture: Some(TextureBinding {
+                source: "fixture.tga".into(),
+                uv_set: 0,
+            }),
+            texture_size: Some(TextureDimensions {
                 size: (256, 256),
-                source: TextureSizeSource::Fallback,
-            },
+                source: TextureSizeSource::Resolved,
+            }),
             scope: 0,
             nif_state: NifState::default(),
             provenance: NifProvenance {
@@ -4058,8 +4051,6 @@ mod tests {
             fallback: fallback.into(),
             skip_material: "skip".into(),
             texture_roots: Vec::new(),
-            texture_size: 256,
-            flip_v: true,
             include_collision: false,
             overwrite: false,
             dry_run: false,
@@ -4092,11 +4083,41 @@ mod tests {
             vec![[0.25, 0.75], [0.25, 0.75], [0.25, 0.75]],
             vec![[0, 1, 2]],
         );
-        let projection = triangle_projection(&mesh, 0, true).expect("constant UVs should fit");
+        let projection = triangle_projection(&mesh, 0).expect("constant UVs should fit");
 
         assert_eq!(projection.u, P3::Z);
         assert_eq!(projection.v, P3::Z);
-        assert!(projection_error(&mesh, 0, &projection, true) <= UV_MERGE_TOLERANCE_TEXELS);
+        assert!(projection_error(&mesh, 0, &projection) <= UV_MERGE_TOLERANCE_TEXELS);
+    }
+
+    #[test]
+    fn projection_preserves_the_nif_v_coordinate() {
+        let mesh = mesh_with_uvs(
+            vec![
+                P3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 4.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 0.0,
+                    y: 3.0,
+                    z: 0.0,
+                },
+            ],
+            vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            vec![[0, 1, 2]],
+        );
+        let projection = triangle_projection(&mesh, 0).expect("UVs should fit");
+        let t = |point: P3| projection.v.dot(point) / projection.v_scale + projection.v_shift;
+
+        assert!(t(mesh.vertices[0]).abs() <= 1e-6);
+        assert!((t(mesh.vertices[2]) - 256.0).abs() <= 1e-6);
     }
 
     #[test]
@@ -4259,8 +4280,7 @@ mod tests {
         let projection = emitted_projection(&result.brushes[0].faces[0]);
         for triangle_index in 0..mesh.triangles.len() {
             assert!(
-                projection_error(&mesh, triangle_index, &projection, true)
-                    <= UV_MERGE_TOLERANCE_TEXELS
+                projection_error(&mesh, triangle_index, &projection) <= UV_MERGE_TOLERANCE_TEXELS
             );
         }
     }
@@ -4403,8 +4423,8 @@ mod tests {
         );
         let projection = generic_projection(P3::Z);
 
-        assert!(projection_error(&mesh, 0, &projection, true).is_infinite());
-        assert!(triangle_projection(&mesh, 0, true).is_none());
+        assert!(projection_error(&mesh, 0, &projection).is_infinite());
+        assert!(triangle_projection(&mesh, 0).is_none());
 
         let result = reconstruct(std::slice::from_ref(&mesh), &options("planar-prisms"))
             .expect("malformed UVs should use a finite fallback projection");
@@ -4459,7 +4479,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::write(&path, bytes).unwrap();
-        let resolver = TextureResolver::new(&[], 256);
+        let resolver = TextureResolver::new(&[]);
         let meshes = nif_meshes(&path, &resolver, false).expect("fixture NIF should parse");
         fs::remove_file(path).unwrap();
         assert_eq!(meshes.len(), 1);
@@ -4588,8 +4608,8 @@ mod tests {
         header[12..16].copy_from_slice(&32u32.to_le_bytes());
         header[16..20].copy_from_slice(&64u32.to_le_bytes());
         fs::write(&path, header).unwrap();
-        let resolver = TextureResolver::new(std::slice::from_ref(&root), 256);
-        assert_eq!(resolver.dimensions(Some("Textures/fixture.dds")), (64, 32));
+        let resolver = TextureResolver::new(std::slice::from_ref(&root));
+        assert_eq!(resolver.dimensions("Textures/fixture.dds"), (64, 32));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -4609,7 +4629,9 @@ mod tests {
             ..Default::default()
         });
 
-        let binding = texture_binding(&stream, &[property_link.key]).expect("base map binding");
+        let binding = texture_binding(&stream, &[property_link.key])
+            .expect("base map binding should be valid")
+            .expect("base map binding");
         assert_eq!(binding.source, "Textures/base.tga");
         assert_eq!(binding.uv_set, 1);
     }

@@ -203,16 +203,8 @@ pub enum BroomCommand {
         skip_material: String,
 
         /// Texture roots used to resolve source image dimensions. Repeatable.
-        #[arg(long = "texture-root")]
+        #[arg(long = "texture-root", required = true)]
         texture_roots: Vec<PathBuf>,
-
-        /// Fallback square texture dimension.
-        #[arg(long, default_value_t = 256)]
-        texture_size: u32,
-
-        /// Do not invert NIF V coordinates for Valve 220 mappings.
-        #[arg(long)]
-        no_flip_v: bool,
 
         /// Import `RootCollisionNode` descendants into a separate Collision authoring group.
         #[arg(long)]

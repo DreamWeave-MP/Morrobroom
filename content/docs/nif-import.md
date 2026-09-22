@@ -28,6 +28,12 @@ For each input, `nif2map` writes:
 The result is editable geometry, not a promise that the original NIF's scene
 behavior or object semantics will survive the trip.
 
+NIF UV coordinates are preserved as authored. `nif2map` does not invert V for
+Valve 220 output; image-orientation normalization belongs to the texture loader.
+When exact texel dimensions matter, point `--texture-root` at the same visible
+asset directory that TrenchBroom uses. Missing textures are reported and use the
+import fails rather than guessing a dimension.
+
 ## Structural and surface reconstruction
 
 `nif2map` first tries to recognize **structural** shapes: geometry that can be
@@ -53,6 +59,7 @@ before opening the result in TrenchBroom.
 ```bash
 morrobroom nif2map meshes/ \
   --recursive \
+  --texture-root "/path/to/Morrowind/Data Files" \
   --output-dir nif2map-out
 ```
 
@@ -67,7 +74,7 @@ an existing asset, or produce a blockout for further brush authoring.
 | --- | --- |
 | `--recursive` | Scan input directories recursively. |
 | `--output-dir PATH` | Write `.map` and `.nif2map.json` files there. |
-| `--texture-root PATH` | Add a texture root for source dimensions; repeatable. |
+| `--texture-root PATH` | **Required.** Add a TrenchBroom-visible texture root for source dimensions; repeatable. |
 | `--fallback MODE` | Choose `planar-prisms` surface reconstruction or `skip` for structural-only output. |
 | `--max-brushes N` | Stop if one input would generate more than `N` brushes. |
 | `--shell-thickness N` | Backing thickness for open swept architectural shells. |

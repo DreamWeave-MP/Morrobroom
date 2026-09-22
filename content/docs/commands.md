@@ -60,6 +60,7 @@ options. The short command is:
 ```bash
 morrobroom nif2map meshes/ \
   --recursive \
+  --texture-root "/path/to/Morrowind/Data Files" \
   --output-dir nif2map-out
 ```
 
