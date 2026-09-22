@@ -1,5 +1,5 @@
 use super::geometry::{generic_projection, projection_error, triangle_projection, validate_brush};
-use super::semantic::{nif_meshes, texture_binding};
+use super::semantic::{material_name, nif_meshes, texture_binding};
 use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tes3::nif::{NiNode, NiStream};
@@ -102,6 +102,107 @@ fn options(fallback: &str) -> Options {
         validate: true,
         max_brushes: 20_000,
     }
+}
+
+#[test]
+fn empty_material_uses_trenchbroom_empty_texture() {
+    assert_eq!(material_name(None), "__TB_empty");
+}
+
+#[test]
+fn map_faces_quote_material_names_with_spaces() {
+    let face = super::geometry::emit_face(
+        &[
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+        ],
+        P3::Z,
+        "TX_B_Nigh Elf_M_H05",
+        None,
+    )
+    .expect("valid face should serialize");
+    assert!(face.contains("\"TX_B_Nigh Elf_M_H05\" ["));
+    let parsed = face
+        .parse::<crate::slipgate::repr::BrushPlane>()
+        .expect("quoted material should remain parseable");
+    assert_eq!(parsed.texture, "TX_B_Nigh Elf_M_H05");
+}
+
+#[test]
+fn recursive_jobs_preserve_source_subdirectories() {
+    let root = std::env::temp_dir().join(format!(
+        "morrobroom-nif2map-jobs-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(root.join("a")).unwrap();
+    fs::create_dir_all(root.join("b")).unwrap();
+    fs::write(root.join("a/first.nif"), []).unwrap();
+    fs::write(root.join("b/second.nif"), []).unwrap();
+
+    let mut options = options("skip");
+    options.inputs = vec![root.clone()];
+    options.recursive = true;
+    options.output_dir = root.join("out");
+    let jobs = build_jobs(&options, gather_inputs(&options.inputs, true));
+    let mut outputs: Vec<_> = jobs
+        .iter()
+        .map(|(_, output, _)| output.strip_prefix(&options.output_dir).unwrap().to_owned())
+        .collect();
+    outputs.sort();
+
+    assert_eq!(
+        outputs,
+        vec![PathBuf::from("a/first.map"), PathBuf::from("b/second.map")]
+    );
+    assert_eq!(
+        jobs[0].2.strip_prefix(&options.output_dir).unwrap(),
+        Path::new("a/first.nif2map.json")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn recursive_jobs_canonicalize_relative_sources() {
+    let root = PathBuf::from(format!(
+        "morrobroom-nif2map-relative-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(root.join("a")).unwrap();
+    fs::write(root.join("a/foo.nif"), []).unwrap();
+
+    let mut options = options("skip");
+    options.inputs = vec![root.clone()];
+    options.recursive = true;
+    options.output_dir = root.join("out");
+    let source = root.join("a/foo.nif");
+    let jobs = build_jobs(&options, vec![source]);
+
+    assert_eq!(
+        jobs[0].1.strip_prefix(&options.output_dir).unwrap(),
+        Path::new("a/foo.map")
+    );
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -565,6 +666,43 @@ fn map_header_matches_prototype_contract() {
     assert!(text.contains("\"classname\" \"func_group\""));
     assert!(text.contains("\"_tb_type\" \"_tb_group\""));
     assert!(!text.contains("// brush_"));
+}
+
+#[test]
+fn visual_scope_names_are_plain_editor_groups() {
+    let result = Reconstruction {
+        brushes: vec![Brush {
+            faces: vec!["face".into()],
+            kind: "test".into(),
+            shapes: vec![1],
+            scope: 1,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let text = map_text(
+        Path::new("fixture.nif"),
+        &result,
+        &[
+            SemanticScope {
+                id: 0,
+                parent: None,
+                name: "Asset".into(),
+                kind: ImportScope::Visual,
+                node_kind: "asset".into(),
+            },
+            SemanticScope {
+                id: 1,
+                parent: Some(0),
+                name: "head".into(),
+                kind: ImportScope::Visual,
+                node_kind: "NiNode".into(),
+            },
+        ],
+        false,
+    );
+    assert!(text.contains("\"_tb_name\" \"head\""));
+    assert!(!text.contains("\"_tb_name\" \"Visual: head\""));
 }
 
 #[test]

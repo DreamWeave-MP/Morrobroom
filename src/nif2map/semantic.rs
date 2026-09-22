@@ -7,7 +7,7 @@ use super::*;
 
 pub(super) fn material_name(source_texture: Option<&str>) -> String {
     let Some(texture) = source_texture else {
-        return "nif2map/missing".into();
+        return "__TB_empty".into();
     };
     let mut material = texture.replace('\\', "/");
     if let Some(dot) = material.rfind('.') {
@@ -17,7 +17,7 @@ pub(super) fn material_name(source_texture: Option<&str>) -> String {
         material.drain(..9);
     }
     if material.is_empty() {
-        "nif2map/missing".into()
+        "__TB_empty".into()
     } else {
         material
     }
@@ -300,6 +300,10 @@ pub(super) fn add_scope(
     id
 }
 
+fn node_is_named(name: &str) -> bool {
+    !name.trim().is_empty()
+}
+
 pub(super) fn marker_origin<F>(
     transform_for: &F,
     key: NiKey,
@@ -335,6 +339,10 @@ impl<F> SemanticWalker<'_, F>
 where
     F: Fn(NiKey, tes3::nif::glam::Affine3A) -> tes3::nif::glam::Affine3A,
 {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "This walker is the single traversal boundary where NIF node kinds, inherited state, and editor scopes meet."
+    )]
     fn visit(&mut self, key: NiKey, parent_scope: ScopeId, inherited_properties: &[NiKey]) {
         if !self.active.insert(key) {
             return;
@@ -423,6 +431,19 @@ where
         } else if let Some(node) = self.stream.get_as::<_, NiNode>(NiLink::<()>::new(key)) {
             properties.extend(node.properties.iter().map(|link| link.key));
             children.extend(node.children.iter().map(|link| link.key));
+            if node_is_named(&node.name) {
+                scope = add_scope(
+                    &mut self.context.scopes,
+                    parent_scope,
+                    &node.name,
+                    if inherited_kind == ImportScope::Collision {
+                        ImportScope::Collision
+                    } else {
+                        ImportScope::Visual
+                    },
+                    "NiNode",
+                );
+            }
         } else if let Some(shape) = self.stream.get_as::<_, NiTriShape>(NiLink::<()>::new(key)) {
             properties.extend(shape.properties.iter().map(|link| link.key));
             self.context.shape_scopes.insert(key, scope);
@@ -828,4 +849,79 @@ pub(super) fn nif_meshes(
         .into_iter()
         .filter(|mesh| include_collision || scope_kind(&scopes, mesh.scope) == ImportScope::Visual)
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::semantic_context;
+    use tes3::nif::{NiAVObject, NiNode, NiObjectNET, NiStream, NiTriShape};
+
+    fn node(name: &str) -> NiNode {
+        NiNode {
+            base: NiAVObject {
+                base: NiObjectNET {
+                    name: name.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn named_and_unnamed_nodes_follow_the_source_hierarchy() {
+        let mut stream = NiStream::default();
+        let mut body = node("body");
+        let mut head = node("head");
+        let head_shape = stream.insert(NiTriShape::default());
+        head.children.push(head_shape.cast());
+        let head_key = stream.insert(head);
+
+        let shoulder_key = stream.insert(node("lshoulder"));
+        let mut unnamed = node("");
+        let unnamed_shape = stream.insert(NiTriShape::default());
+        unnamed.children.push(unnamed_shape.cast());
+        let unnamed_key = stream.insert(unnamed);
+        let synthetic_key = stream.insert(node("__NDL_MultiMtl_Node"));
+        let emitter_key = stream.insert(node("SuperSpray01 Emitter"));
+
+        body.children.extend([
+            head_key.cast(),
+            shoulder_key.cast(),
+            unnamed_key.cast(),
+            synthetic_key.cast(),
+            emitter_key.cast(),
+        ]);
+        let body_key = stream.insert(body);
+        stream.roots.push(body_key.cast());
+
+        let context = semantic_context(&stream, &|_, transform| transform);
+        let scope_named = |name: &str| {
+            context
+                .scopes
+                .iter()
+                .find(|scope| scope.name == name)
+                .unwrap_or_else(|| panic!("expected scope for {name}"))
+        };
+        let body_scope = scope_named("body");
+        let head_scope = scope_named("head");
+        let shoulder_scope = scope_named("lshoulder");
+        let synthetic_scope = scope_named("__NDL_MultiMtl_Node");
+        let emitter_scope = scope_named("SuperSpray01 Emitter");
+
+        assert_eq!(body_scope.parent, Some(0));
+        assert_eq!(head_scope.parent, Some(body_scope.id));
+        assert_eq!(shoulder_scope.parent, Some(body_scope.id));
+        assert_eq!(synthetic_scope.parent, Some(body_scope.id));
+        assert_eq!(emitter_scope.parent, Some(body_scope.id));
+        assert_eq!(
+            context.shape_scopes.get(&head_shape.key),
+            Some(&head_scope.id)
+        );
+        assert_eq!(
+            context.shape_scopes.get(&unnamed_shape.key),
+            Some(&body_scope.id)
+        );
+    }
 }

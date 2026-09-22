@@ -74,6 +74,10 @@ morrobroom nif2map meshes/ \
   --output-dir nif2map-out
 ```
 
+With `--recursive`, each output keeps the input's path relative to the scanned
+directory. For example, `Meshes/a/foo.nif` becomes
+`nif2map-out/a/foo.map` and `nif2map-out/a/foo.nif2map.json`.
+
 Then open the generated `.map` in TrenchBroom, inspect the geometry, and save a
 copy before making edits. `nif2map` is a reverse-compilation workflow in its
 own right; you can use it to recover visual geometry for a new level, inspect
@@ -83,7 +87,7 @@ an existing asset, or produce a blockout for further brush authoring.
 
 | Option | Purpose |
 | --- | --- |
-| `--recursive` | Scan input directories recursively. |
+| `--recursive` | Scan input directories recursively and preserve their relative subdirectories in the output. |
 | `--output-dir PATH` | Write `.map` and `.nif2map.json` files there. |
 | `--texture-root PATH` | **Required.** Add an ordered data directory or `.bsa`, `.ba2`, or `.zip` archive to the OpenMW-style texture VFS; repeatable. |
 | `--fallback MODE` | Choose `planar-prisms` surface reconstruction or `skip` for structural-only output. |

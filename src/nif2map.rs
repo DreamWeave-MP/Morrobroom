@@ -626,19 +626,11 @@ fn map_text(
         } else {
             scope.name.as_str()
         };
-        emit_tb_group(
-            &mut lines,
-            &format!(
-                "{}: {}",
-                match scope.kind {
-                    ImportScope::Visual => "Visual",
-                    ImportScope::Collision => "Collision",
-                },
-                scope_name
-            ),
-            group_id,
-            Some(parent),
-        );
+        let group_name = match scope.kind {
+            ImportScope::Visual => scope_name.to_owned(),
+            ImportScope::Collision => format!("Collision: {scope_name}"),
+        };
+        emit_tb_group(&mut lines, &group_name, group_id, Some(parent));
         scope_group_ids.insert(scope.id, group_id);
     }
     for (scope, state, brushes) in groups {
@@ -751,6 +743,9 @@ fn process_one(
         &imported,
     );
     if !options.dry_run {
+        if let Some(parent) = output.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(
             output,
             map_text(source, &result, &imported.scopes, options.include_collision),
@@ -838,41 +833,59 @@ fn validate_options(options: &Options) -> io::Result<()> {
     Ok(())
 }
 
+fn source_relative_path(options: &Options, source: &Path) -> PathBuf {
+    let source = source
+        .canonicalize()
+        .unwrap_or_else(|_| source.to_path_buf());
+    if options.recursive {
+        let mut roots: Vec<_> = options
+            .inputs
+            .iter()
+            .filter_map(|input| input.canonicalize().ok())
+            .filter(|input| input.is_dir())
+            .filter_map(|input| {
+                source
+                    .strip_prefix(&input)
+                    .ok()
+                    .map(|relative| (input, relative.to_owned()))
+            })
+            .collect();
+        roots.sort_by_key(|(root, _)| root.components().count());
+        if let Some((_, relative)) = roots.pop() {
+            return relative;
+        }
+    }
+    source
+        .file_name()
+        .map_or_else(|| PathBuf::from("nif.map"), PathBuf::from)
+}
+
 fn build_jobs(options: &Options, inputs: Vec<PathBuf>) -> Vec<(PathBuf, PathBuf, PathBuf)> {
-    let mut stem_counts = HashMap::<String, usize>::new();
+    let mut output_counts = HashMap::<String, usize>::new();
     for input in &inputs {
-        *stem_counts
-            .entry(
-                input
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .unwrap_or_default()
-                    .to_ascii_lowercase(),
-            )
+        let relative = source_relative_path(options, input).with_extension("map");
+        *output_counts
+            .entry(relative.to_string_lossy().to_ascii_lowercase())
             .or_default() += 1;
     }
     inputs
         .into_iter()
         .map(|source| {
-            let stem = source
-                .file_stem()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or("nif")
-                .to_string();
-            let output_stem = if stem_counts
-                .get(&stem.to_ascii_lowercase())
+            let mut relative = source_relative_path(options, &source).with_extension("map");
+            if output_counts
+                .get(&relative.to_string_lossy().to_ascii_lowercase())
                 .copied()
                 .unwrap_or(0)
                 > 1
             {
-                format!("{stem}__{}", sha1_suffix(&source))
-            } else {
-                stem
-            };
-            let output = options.output_dir.join(format!("{output_stem}.map"));
-            let report = options
-                .output_dir
-                .join(format!("{output_stem}.nif2map.json"));
+                let stem = relative
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or("nif");
+                relative.set_file_name(format!("{stem}__{}.map", sha1_suffix(&source)));
+            }
+            let output = options.output_dir.join(relative);
+            let report = output.with_extension("nif2map.json");
             (source, output, report)
         })
         .collect()

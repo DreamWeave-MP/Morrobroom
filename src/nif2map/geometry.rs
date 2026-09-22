@@ -1151,6 +1151,7 @@ pub(super) fn emit_face(
     let mapping = projection
         .cloned()
         .unwrap_or_else(|| generic_projection(normal));
+    let material = serialize_material_name(material);
     Ok(format!(
         "( {} ) ( {} ) ( {} ) {} [ {} {} {} {} ] [ {} {} {} {} ] 0 {} {}",
         fmt_point(a),
@@ -1168,6 +1169,26 @@ pub(super) fn emit_face(
         fmt(mapping.u_scale),
         fmt(mapping.v_scale)
     ))
+}
+
+fn serialize_material_name(material: &str) -> String {
+    let should_quote = material.is_empty()
+        || material
+            .chars()
+            .any(|character| matches!(character, '"' | '\\' | ' ' | '\t'));
+    if !should_quote {
+        return material.to_owned();
+    }
+    let mut escaped = String::with_capacity(material.len() + 2);
+    escaped.push('"');
+    for character in material.chars() {
+        if matches!(character, '"' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped.push('"');
+    escaped
 }
 
 pub(super) fn source_for_edge(
