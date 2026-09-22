@@ -1,5 +1,5 @@
-// Game: Morrobroom
-// Format: Quake2 (Valve 220)
+// Game: Morrowind
+// Format: Quake2 (Valve)
 // Dense CSG + UV + lightmap stress map built from vanilla Morrowind Dwemer textures.
 // 20x20 maze, central machine hall, low walls, lintels, thresholds, pillars, and plinths.
 {
