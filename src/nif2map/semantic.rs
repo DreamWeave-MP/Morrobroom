@@ -743,7 +743,7 @@ where
         .map(|texture| context.resolver.resolve(&texture.source))
         .transpose()
         .map_err(|error| format!("shape {link:?}: {error}"))?;
-    Ok(VisualMesh {
+    let mesh = VisualMesh {
         block,
         name,
         vertices,
@@ -756,13 +756,15 @@ where
         nif_state,
         provenance,
         diagnostics,
-    })
+    };
+    Ok(mesh)
 }
 
 pub(super) fn import_scene(
     path: &Path,
     resolver: &TextureResolver,
 ) -> Result<ImportedAsset, Error> {
+    let parse_started = Instant::now();
     let stream = NiStream::from_path(path)
         .map_err(|error| Error::Nif(format!("{}: {error}", path.display())))?;
     reject_legacy_bounds(&stream, path)?;
@@ -791,10 +793,16 @@ pub(super) fn import_scene(
         markers,
         diagnostics,
     } = semantic;
+    let parse_semantic = parse_started.elapsed();
+    let texture_started = Instant::now();
     let mut asset = ImportedAsset {
         scopes,
         markers,
         diagnostics,
+        timings: StageTimings {
+            parse_semantic,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let (nodes, node_diagnostics) = import_nodes(&stream);
@@ -833,6 +841,7 @@ pub(super) fn import_scene(
             .then(lhs.classname.cmp(&rhs.classname))
             .then(lhs.name.cmp(&rhs.name))
     });
+    asset.timings.texture_resolution = texture_started.elapsed();
     Ok(asset)
 }
 

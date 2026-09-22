@@ -1,4 +1,7 @@
-use super::geometry::{generic_projection, projection_error, triangle_projection, validate_brush};
+use super::geometry::{
+    generic_projection, indexed_boundary_polygons, polygon_area, projection_error,
+    triangle_projection, validate_brush,
+};
 use super::semantic::{material_name, nif_meshes, texture_binding};
 use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -368,6 +371,75 @@ fn planar_fallback_emits_a_convex_prism() {
     assert_eq!(result.brushes.len(), 1);
     assert_eq!(result.recognizers[0].kind, "planar-prism-fallback");
     assert_eq!(validate_brush(&result.brushes[0]).unwrap(), 6);
+}
+
+#[test]
+fn indexed_boundary_extraction_preserves_a_hole() {
+    let mesh = mesh(
+        vec![
+            P3 {
+                x: -2.0,
+                y: -2.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 2.0,
+                y: -2.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 2.0,
+                y: 2.0,
+                z: 0.0,
+            },
+            P3 {
+                x: -2.0,
+                y: 2.0,
+                z: 0.0,
+            },
+            P3 {
+                x: -1.0,
+                y: -1.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 1.0,
+                y: -1.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            P3 {
+                x: -1.0,
+                y: 1.0,
+                z: 0.0,
+            },
+        ],
+        vec![
+            [0, 1, 5],
+            [0, 5, 4],
+            [1, 2, 6],
+            [1, 6, 5],
+            [2, 3, 7],
+            [2, 7, 6],
+            [3, 0, 4],
+            [3, 4, 7],
+        ],
+    );
+    let polygon = indexed_boundary_polygons(
+        &mesh,
+        &(0..8).collect::<Vec<_>>(),
+        P3::default(),
+        P3::X,
+        P3::Y,
+    )
+    .expect("manifold indexed ring should use the fast path");
+    assert_eq!(polygon.len(), 1);
+    assert_eq!(polygon[0].interiors().len(), 1);
+    assert!((polygon_area(&polygon[0]) - 12.0).abs() <= 1e-9);
 }
 
 #[test]

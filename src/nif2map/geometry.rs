@@ -177,28 +177,39 @@ pub(super) fn cluster_values(mut values: Vec<f64>, epsilon: f64) -> Vec<f64> {
     let Some(first) = values.first().copied() else {
         return Vec::new();
     };
-    let mut clusters = vec![vec![first]];
+    let mut clusters = Vec::new();
+    let mut sum = first;
+    let mut count = 1_usize;
     for value in values.into_iter().skip(1) {
-        let current = clusters.last().unwrap();
-        let center = current.iter().sum::<f64>() / current.len() as f64;
+        let center = sum / count as f64;
         if (value - center).abs() <= epsilon {
-            clusters.last_mut().unwrap().push(value);
+            sum += value;
+            count += 1;
         } else {
-            clusters.push(vec![value]);
+            clusters.push(sum / count as f64);
+            sum = value;
+            count = 1;
         }
     }
+    clusters.push(sum / count as f64);
     clusters
-        .into_iter()
-        .map(|cluster| cluster.iter().sum::<f64>() / cluster.len() as f64)
-        .collect()
 }
 
 pub(super) fn nearest_layer(value: f64, layers: &[f64]) -> usize {
-    layers
-        .iter()
-        .enumerate()
-        .min_by(|a, b| (value - *a.1).abs().total_cmp(&(value - *b.1).abs()))
-        .map_or(0, |(index, _)| index)
+    let insertion = layers.partition_point(|layer| *layer < value);
+    match insertion {
+        0 => 0,
+        index if index == layers.len() => layers.len() - 1,
+        index => {
+            let lower_distance = value - layers[index - 1];
+            let upper_distance = layers[index] - value;
+            if lower_distance <= upper_distance {
+                index - 1
+            } else {
+                index
+            }
+        }
+    }
 }
 
 pub(super) fn unique_edges(mesh: &VisualMesh) -> Vec<(usize, usize)> {
@@ -217,7 +228,7 @@ pub(super) fn unique_edges(mesh: &VisualMesh) -> Vec<(usize, usize)> {
     result
 }
 
-pub(super) fn candidate_directions(mesh: &VisualMesh) -> Vec<P3> {
+pub(super) fn candidate_directions(mesh: &VisualMesh, edges: &[(usize, usize)]) -> Vec<P3> {
     let mut buckets: Vec<(P3, usize)> = Vec::new();
     let mut add = |direction: P3, weight: usize| {
         if direction.norm() <= WELD_EPSILON {
@@ -235,7 +246,7 @@ pub(super) fn candidate_directions(mesh: &VisualMesh) -> Vec<P3> {
             buckets.push((candidate, weight));
         }
     };
-    for (a, b) in unique_edges(mesh) {
+    for &(a, b) in edges {
         add(mesh.vertices[b] - mesh.vertices[a], 1);
     }
     for triangle in &mesh.triangles {
@@ -264,7 +275,11 @@ pub(super) fn candidate_directions(mesh: &VisualMesh) -> Vec<P3> {
     selected
 }
 
-pub(super) fn analyze_sweep(mesh: &VisualMesh, direction: P3) -> Option<Sweep> {
+pub(super) fn analyze_sweep(
+    mesh: &VisualMesh,
+    edges: &[(usize, usize)],
+    direction: P3,
+) -> Option<Sweep> {
     let direction = canonical_direction(direction).ok()?;
     let (u, v) = stable_basis(direction).ok()?;
     let t_values: Vec<f64> = mesh
@@ -308,7 +323,7 @@ pub(super) fn analyze_sweep(mesh: &VisualMesh, direction: P3) -> Option<Sweep> {
         return None;
     }
     let mut parallel_edges = 0;
-    for (a, b) in unique_edges(mesh) {
+    for &(a, b) in edges {
         let delta = mesh.vertices[b] - mesh.vertices[a];
         if delta.norm() > WELD_EPSILON
             && delta.unit().ok()?.dot(direction).abs() >= DIRECTION_DOT_EPSILON
@@ -336,9 +351,10 @@ pub(super) fn analyze_sweep(mesh: &VisualMesh, direction: P3) -> Option<Sweep> {
 }
 
 pub(super) fn detect_sweep(mesh: &VisualMesh) -> Option<Sweep> {
-    candidate_directions(mesh)
+    let edges = unique_edges(mesh);
+    candidate_directions(mesh, &edges)
         .into_iter()
-        .filter_map(|direction| analyze_sweep(mesh, direction))
+        .filter_map(|direction| analyze_sweep(mesh, &edges, direction))
         .max_by(|a, b| a.score.total_cmp(&b.score))
 }
 
@@ -525,12 +541,13 @@ pub(super) fn unproject(point: Coord<f64>, t: f64, sweep: &Sweep) -> P3 {
     sweep.u * point.x + sweep.v * point.y + sweep.direction * t
 }
 
-pub(super) fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep) -> (Vec<Cap>, Vec<Cap>) {
+pub(super) fn collect_caps(meshes: &[&VisualMesh], sweep: &Sweep) -> (Vec<Cap>, Vec<Cap>) {
     let extent = (sweep.t_max - sweep.t_min).abs().max(1.0);
     let tolerance = LAYER_EPSILON.max(extent * 1e-6) * 4.0;
     let mut low = Vec::new();
     let mut high = Vec::new();
     for mesh in meshes {
+        let mesh = *mesh;
         for triangle_index in 0..mesh.triangles.len() {
             let triangle = mesh.triangles[triangle_index];
             let points = [
@@ -574,7 +591,7 @@ pub(super) fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep) -> (Vec<Cap>, V
 }
 
 pub(super) fn collect_segments(
-    meshes: &[VisualMesh],
+    meshes: &[&VisualMesh],
     sweep: &Sweep,
     layer_index: Option<usize>,
 ) -> Vec<Segment> {
@@ -582,6 +599,7 @@ pub(super) fn collect_segments(
     let tolerance = LAYER_EPSILON.max(extent * 1e-6) * 4.0;
     let mut collected: HashMap<(Q, Q), Segment> = HashMap::new();
     for mesh in meshes {
+        let mesh = *mesh;
         for (triangle_index, triangle) in mesh.triangles.iter().enumerate() {
             let points = [
                 mesh.vertices[triangle[0]],
@@ -628,11 +646,12 @@ pub(super) fn collect_segments(
     result
 }
 
-pub(super) fn profile_cycles(segments: &[Segment]) -> Option<Vec<Polygon<f64>>> {
+pub(super) fn profile_cycles<S: Borrow<Segment>>(segments: &[S]) -> Option<Vec<Polygon<f64>>> {
     let mut adjacency: HashMap<Q, HashSet<Q>> = HashMap::new();
     let mut points: HashMap<Q, Coord<f64>> = HashMap::new();
     let mut edges = HashSet::new();
     for segment in segments {
+        let segment = segment.borrow();
         let a = qkey(segment.a);
         let b = qkey(segment.b);
         if a == b {
@@ -706,7 +725,7 @@ pub(super) fn profile_area_signature(cycles: &[Polygon<f64>]) -> Vec<f64> {
 
 type ProfileValidation = (Vec<Segment>, Vec<Polygon<f64>>, f64, f64, f64);
 
-pub(super) fn validate_profile(meshes: &[VisualMesh], sweep: &Sweep) -> Option<ProfileValidation> {
+pub(super) fn validate_profile(meshes: &[&VisualMesh], sweep: &Sweep) -> Option<ProfileValidation> {
     let mut profiles = Vec::new();
     for layer in 0..sweep.layers.len() {
         let segments = collect_segments(meshes, sweep, Some(layer));
@@ -791,11 +810,12 @@ pub(super) fn validate_profile(meshes: &[VisualMesh], sweep: &Sweep) -> Option<P
     ))
 }
 
-pub(super) fn projected_layer_sets(meshes: &[VisualMesh], sweep: &Sweep) -> Vec<HashSet<Q>> {
+pub(super) fn projected_layer_sets(meshes: &[&VisualMesh], sweep: &Sweep) -> Vec<HashSet<Q>> {
     let extent = (sweep.t_max - sweep.t_min).abs().max(1.0);
     let tolerance = LAYER_EPSILON.max(extent * 1e-6) * 4.0;
     let mut result = vec![HashSet::new(); sweep.layers.len()];
     for mesh in meshes {
+        let mesh = *mesh;
         for vertex in &mesh.vertices {
             let layer = nearest_layer(vertex.dot(sweep.direction), &sweep.layers);
             if (vertex.dot(sweep.direction) - sweep.layers[layer]).abs() <= tolerance {
@@ -806,7 +826,7 @@ pub(super) fn projected_layer_sets(meshes: &[VisualMesh], sweep: &Sweep) -> Vec<
     result
 }
 
-pub(super) fn exact_layer_invariance(meshes: &[VisualMesh], sweep: &Sweep) -> bool {
+pub(super) fn exact_layer_invariance(meshes: &[&VisualMesh], sweep: &Sweep) -> bool {
     let layers = projected_layer_sets(meshes, sweep);
     let Some(canonical) = layers.first() else {
         return false;
@@ -964,71 +984,486 @@ pub(super) fn slice_decomposition(target: &Polygon<f64>, axis: usize) -> Vec<Pol
     greedy_convex_merge(pieces)
 }
 
-pub(super) fn greedy_convex_merge(polygons: Vec<Polygon<f64>>) -> Vec<Polygon<f64>> {
-    let mut pieces = polygons;
+fn ring_vertices(polygon: &Polygon<f64>) -> Vec<Coord<f64>> {
+    let mut vertices = polygon.exterior().0.clone();
+    if vertices.first() == vertices.last() {
+        vertices.pop();
+    }
+    vertices.push(vertices[0]);
+    vertices
+}
+
+fn directed_ring_edge(vertices: &[Coord<f64>], from: Q, to: Q) -> Option<usize> {
+    (0..vertices.len().saturating_sub(1))
+        .find(|&index| qkey(vertices[index]) == from && qkey(vertices[index + 1]) == to)
+}
+
+fn path_without_edge(vertices: &[Coord<f64>], edge: usize) -> Vec<Coord<f64>> {
+    let count = vertices.len() - 1;
+    let mut path = Vec::with_capacity(count.saturating_sub(1));
+    let mut index = (edge + 1) % count;
     loop {
+        path.push(vertices[index]);
+        if index == edge {
+            break;
+        }
+        index = (index + 1) % count;
+    }
+    path
+}
+
+fn splice_adjacent_polygons(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Option<Polygon<f64>> {
+    if !lhs.interiors().is_empty() || !rhs.interiors().is_empty() {
+        return None;
+    }
+    let lhs_vertices = ring_vertices(lhs);
+    let rhs_vertices = ring_vertices(rhs);
+    for (first, second) in polygon_edge_keys(lhs) {
+        let Some(lhs_edge) = directed_ring_edge(&lhs_vertices, first, second) else {
+            continue;
+        };
+        let Some(rhs_edge) = directed_ring_edge(&rhs_vertices, second, first) else {
+            continue;
+        };
+        let mut coordinates = path_without_edge(&lhs_vertices, lhs_edge);
+        coordinates.extend(path_without_edge(&rhs_vertices, rhs_edge));
+        let coordinates = remove_collinear(coordinates);
+        if coordinates.len() < 3 {
+            return None;
+        }
+        let merged = poly(coordinates);
+        return (polygon_area(&merged) > 1e-9).then_some(merged);
+    }
+    None
+}
+
+pub(super) fn greedy_convex_merge(polygons: Vec<Polygon<f64>>) -> Vec<Polygon<f64>> {
+    let mut active: Vec<Option<Polygon<f64>>> = polygons.into_iter().map(Some).collect();
+    loop {
+        let mut edges: HashMap<(Q, Q), Vec<usize>> = HashMap::new();
+        for (index, polygon) in active.iter().enumerate() {
+            let Some(polygon) = polygon else {
+                continue;
+            };
+            for edge in polygon_edge_keys(polygon) {
+                edges.entry(edge).or_default().push(index);
+            }
+        }
+        let mut candidates = std::collections::BTreeSet::new();
+        for indexes in edges.values() {
+            for (offset, &first) in indexes.iter().enumerate() {
+                for &second in indexes.iter().skip(offset + 1) {
+                    if first == second {
+                        continue;
+                    }
+                    candidates.insert(if first < second {
+                        (first, second)
+                    } else {
+                        (second, first)
+                    });
+                }
+            }
+        }
         let mut best: Option<(f64, usize, usize, Polygon<f64>)> = None;
-        for i in 0..pieces.len() {
-            for j in (i + 1)..pieces.len() {
-                // A shared boundary is a cheap broad-phase before invoking the
-                // considerably more expensive overlay operation.
-                let shared = pieces[i].exterior().0.iter().any(|a| {
-                    pieces[j]
-                        .exterior()
-                        .0
-                        .iter()
-                        .any(|b| (a.x - b.x).hypot(a.y - b.y) <= WELD_EPSILON)
-                });
-                if !shared {
-                    continue;
-                }
-                let merged = pieces[i].union(&pieces[j]);
-                if merged.0.len() != 1 {
-                    continue;
-                }
-                let merged = merged.0.into_iter().next().unwrap();
-                if !polygon_is_convex(&merged) {
-                    continue;
-                }
-                let (min_x, min_y, max_x, max_y) = merged.exterior().0.iter().fold(
+        for (i, j) in candidates {
+            let (Some(lhs), Some(rhs)) = (active[i].as_ref(), active[j].as_ref()) else {
+                continue;
+            };
+            let Some(merged) = splice_adjacent_polygons(lhs, rhs) else {
+                continue;
+            };
+            if !polygon_is_convex(&merged) {
+                continue;
+            }
+            let (min_x, min_y, max_x, max_y) = merged.exterior().0.iter().fold(
+                (
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ),
+                |bounds, point| {
                     (
-                        f64::INFINITY,
-                        f64::INFINITY,
-                        f64::NEG_INFINITY,
-                        f64::NEG_INFINITY,
-                    ),
-                    |bounds, point| {
-                        (
-                            bounds.0.min(point.x),
-                            bounds.1.min(point.y),
-                            bounds.2.max(point.x),
-                            bounds.3.max(point.y),
-                        )
-                    },
-                );
-                let width = (max_x - min_x).max(1e-9);
-                let height = (max_y - min_y).max(1e-9);
-                let aspect = (width / height).max(height / width);
-                let score = 1.0 - (aspect - 8.0).max(0.0);
-                if best.as_ref().is_none_or(|candidate| score > candidate.0) {
-                    best = Some((score, i, j, merged));
-                }
+                        bounds.0.min(point.x),
+                        bounds.1.min(point.y),
+                        bounds.2.max(point.x),
+                        bounds.3.max(point.y),
+                    )
+                },
+            );
+            let width = (max_x - min_x).max(1e-9);
+            let height = (max_y - min_y).max(1e-9);
+            let aspect = (width / height).max(height / width);
+            let score = 1.0 - (aspect - 8.0).max(0.0);
+            if best.as_ref().is_none_or(|candidate| score > candidate.0) {
+                best = Some((score, i, j, merged));
             }
         }
         let Some((_, i, j, merged)) = best else {
             break;
         };
-        pieces = pieces
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, piece)| (index != i && index != j).then_some(piece))
-            .collect();
-        pieces.push(merged);
+        active[i] = None;
+        active[j] = None;
+        active.push(Some(merged));
     }
-    pieces
+    active.into_iter().flatten().collect()
+}
+
+fn polygon_edge_keys(polygon: &Polygon<f64>) -> Vec<(Q, Q)> {
+    polygon
+        .exterior()
+        .0
+        .windows(2)
+        .map(|edge| {
+            let first = qkey(edge[0]);
+            let second = qkey(edge[1]);
+            if first <= second {
+                (first, second)
+            } else {
+                (second, first)
+            }
+        })
+        .filter(|(first, second)| first != second)
+        .collect()
+}
+
+fn boundary_probe(polygon: &Polygon<f64>) -> Option<Point<f64>> {
+    if let Some(centroid) = polygon.centroid()
+        && polygon.contains(&centroid)
+    {
+        return Some(centroid);
+    }
+    let centroid = polygon.centroid()?;
+    for edge in polygon.exterior().0.windows(2) {
+        let midpoint = Point::from(p2(
+            f64::midpoint(edge[0].x, edge[1].x),
+            f64::midpoint(edge[0].y, edge[1].y),
+        ));
+        let probe = Point::from(p2(
+            f64::midpoint(midpoint.x(), centroid.x()),
+            f64::midpoint(midpoint.y(), centroid.y()),
+        ));
+        if polygon.contains(&probe) {
+            return Some(probe);
+        }
+    }
+    None
+}
+
+fn normalize_ring(mut coordinates: Vec<Coord<f64>>, counter_clockwise: bool) -> LineString<f64> {
+    if coordinates.first() == coordinates.last() {
+        coordinates.pop();
+    }
+    let polygon = poly(coordinates.clone());
+    if polygon.exterior().is_ccw() != counter_clockwise {
+        coordinates.reverse();
+    }
+    coordinates.push(coordinates[0]);
+    LineString::from(coordinates)
+}
+
+type QuantizedEdge = (Q, Q);
+type BoundaryGraph = (
+    HashMap<Q, Coord<f64>>,
+    std::collections::BTreeSet<QuantizedEdge>,
+    f64,
+);
+
+fn boundary_graph(
+    mesh: &VisualMesh,
+    triangle_indices: &[usize],
+    origin: P3,
+    tangent_u: P3,
+    tangent_v: P3,
+) -> Option<BoundaryGraph> {
+    let mut incidences: HashMap<QuantizedEdge, Vec<(Q, Q)>> = HashMap::new();
+    let mut points = HashMap::<Q, Coord<f64>>::new();
+    let mut triangle_area = 0.0;
+    for triangle_index in triangle_indices {
+        let triangle = mesh.triangles[*triangle_index];
+        let coordinates: Vec<_> = triangle
+            .into_iter()
+            .map(|vertex| {
+                let point = mesh.vertices[vertex];
+                p2(
+                    (point - origin).dot(tangent_u),
+                    (point - origin).dot(tangent_v),
+                )
+            })
+            .collect();
+        let polygon = poly(coordinates.clone());
+        if polygon_area(&polygon) <= 1e-9 {
+            continue;
+        }
+        let keys: Vec<_> = coordinates.iter().copied().map(qkey).collect();
+        if keys[0] == keys[1] || keys[1] == keys[2] || keys[2] == keys[0] {
+            return None;
+        }
+        triangle_area += polygon_area(&polygon);
+        for (index, next) in [(0, 1), (1, 2), (2, 0)] {
+            points.entry(keys[index]).or_insert(coordinates[index]);
+            points.entry(keys[next]).or_insert(coordinates[next]);
+            let edge = if keys[index] <= keys[next] {
+                (keys[index], keys[next])
+            } else {
+                (keys[next], keys[index])
+            };
+            incidences
+                .entry(edge)
+                .or_default()
+                .push((keys[index], keys[next]));
+        }
+    }
+    if incidences.is_empty() {
+        return Some((points, std::collections::BTreeSet::new(), triangle_area));
+    }
+    let mut boundary_edges = Vec::new();
+    for (edge, incidence) in incidences {
+        match incidence.as_slice() {
+            [directed] => boundary_edges.push(*directed),
+            [first, second] if first.0 == second.1 && first.1 == second.0 && edge.0 != edge.1 => {}
+            _ => return None,
+        }
+    }
+    let mut boundary = std::collections::BTreeSet::new();
+    for (first, second) in boundary_edges {
+        boundary.insert(if first <= second {
+            (first, second)
+        } else {
+            (second, first)
+        });
+    }
+    Some((points, boundary, triangle_area))
+}
+
+fn boundary_cycles(
+    points: &HashMap<Q, Coord<f64>>,
+    boundary: &std::collections::BTreeSet<QuantizedEdge>,
+) -> Option<Vec<Polygon<f64>>> {
+    let mut adjacency: HashMap<Q, Vec<Q>> = HashMap::new();
+    for &(first, second) in boundary {
+        adjacency.entry(first).or_default().push(second);
+        adjacency.entry(second).or_default().push(first);
+    }
+    if adjacency.values().any(|neighbors| neighbors.len() != 2) {
+        return None;
+    }
+    for neighbors in adjacency.values_mut() {
+        neighbors.sort_unstable();
+    }
+    let mut unvisited = boundary.clone();
+    let mut cycles = Vec::new();
+    while let Some(first_edge) = unvisited.iter().next().copied() {
+        let (start, mut current) = first_edge;
+        let mut previous = start;
+        let mut keys = vec![start, current];
+        unvisited.remove(&first_edge);
+        while current != start {
+            let neighbors = adjacency.get(&current)?;
+            let following = if neighbors[0] == previous {
+                neighbors[1]
+            } else {
+                neighbors[0]
+            };
+            let edge = if current <= following {
+                (current, following)
+            } else {
+                (following, current)
+            };
+            if following == start {
+                if edge != first_edge && !unvisited.remove(&edge) {
+                    return None;
+                }
+                break;
+            }
+            if !unvisited.remove(&edge) {
+                return None;
+            }
+            keys.push(following);
+            previous = current;
+            current = following;
+            if keys.len() > adjacency.len() + 1 {
+                return None;
+            }
+        }
+        if keys.len() < 3 {
+            return None;
+        }
+        let polygon = poly(
+            keys.into_iter()
+                .map(|key| points.get(&key).copied())
+                .collect::<Option<Vec<_>>>()?,
+        );
+        if polygon_area(&polygon) <= 1e-9 {
+            return None;
+        }
+        cycles.push(polygon);
+    }
+    unvisited.is_empty().then_some(cycles)
+}
+
+fn assemble_boundary_polygons(
+    cycles: &[Polygon<f64>],
+    triangle_area: f64,
+) -> Option<Vec<Polygon<f64>>> {
+    let mut parents = vec![None; cycles.len()];
+    let probes: Vec<_> = cycles.iter().map(boundary_probe).collect::<Option<_>>()?;
+    for child in 0..cycles.len() {
+        let mut candidates: Vec<_> = (0..cycles.len())
+            .filter(|&parent| {
+                parent != child
+                    && polygon_area(&cycles[parent]) > polygon_area(&cycles[child])
+                    && cycles[parent].contains(&probes[child])
+            })
+            .collect();
+        candidates.sort_by(|lhs, rhs| {
+            polygon_area(&cycles[*lhs]).total_cmp(&polygon_area(&cycles[*rhs]))
+        });
+        parents[child] = candidates.first().copied();
+    }
+    for first in 0..cycles.len() {
+        for second in (first + 1)..cycles.len() {
+            let nested = parents[first] == Some(second) || parents[second] == Some(first);
+            if !nested && cycles[first].intersects(&cycles[second]) {
+                return None;
+            }
+        }
+    }
+    let depth = |index: usize| {
+        let mut depth = 0;
+        let mut current = parents[index];
+        while let Some(parent) = current {
+            depth += 1;
+            current = parents[parent];
+        }
+        depth
+    };
+    let mut result = Vec::new();
+    for outer in 0..cycles.len() {
+        if depth(outer) % 2 != 0 {
+            continue;
+        }
+        let holes = (0..cycles.len())
+            .filter(|&candidate| parents[candidate] == Some(outer) && depth(candidate) % 2 == 1)
+            .map(|candidate| normalize_ring(cycles[candidate].exterior().0.clone(), false))
+            .collect();
+        let exterior = normalize_ring(cycles[outer].exterior().0.clone(), true);
+        result.push(Polygon::new(exterior, holes));
+    }
+    let result_area: f64 = result.iter().map(polygon_area).sum();
+    ((result_area - triangle_area).abs() <= 1e-6_f64.max(triangle_area * 1e-7)).then_some(result)
+}
+
+pub(super) fn indexed_boundary_polygons(
+    mesh: &VisualMesh,
+    triangle_indices: &[usize],
+    origin: P3,
+    tangent_u: P3,
+    tangent_v: P3,
+) -> Option<Vec<Polygon<f64>>> {
+    let (points, boundary, triangle_area) =
+        boundary_graph(mesh, triangle_indices, origin, tangent_u, tangent_v)?;
+    if boundary.is_empty() {
+        return Some(Vec::new());
+    }
+    let cycles = boundary_cycles(&points, &boundary)?;
+    assemble_boundary_polygons(&cycles, triangle_area)
+}
+
+fn indexed_triangle_components(
+    mesh: &VisualMesh,
+    triangle_indices: &[usize],
+    origin: P3,
+    tangent_u: P3,
+    tangent_v: P3,
+) -> Vec<Vec<usize>> {
+    let valid: Vec<_> = triangle_indices
+        .iter()
+        .copied()
+        .filter(|triangle_index| {
+            let triangle = mesh.triangles[*triangle_index];
+            let coordinates: Vec<_> = triangle
+                .into_iter()
+                .map(|vertex| {
+                    let point = mesh.vertices[vertex];
+                    p2(
+                        (point - origin).dot(tangent_u),
+                        (point - origin).dot(tangent_v),
+                    )
+                })
+                .collect();
+            polygon_area(&poly(coordinates)) > 1e-9
+        })
+        .collect();
+    let mut edge_owner = HashMap::<QuantizedEdge, usize>::new();
+    let mut adjacency = vec![Vec::new(); valid.len()];
+    for (local_index, triangle_index) in valid.iter().enumerate() {
+        let triangle = mesh.triangles[*triangle_index];
+        let keys: Vec<_> = triangle
+            .into_iter()
+            .map(|vertex| {
+                let point = mesh.vertices[vertex];
+                qkey(p2(
+                    (point - origin).dot(tangent_u),
+                    (point - origin).dot(tangent_v),
+                ))
+            })
+            .collect();
+        for (first, second) in [(keys[0], keys[1]), (keys[1], keys[2]), (keys[2], keys[0])] {
+            let edge = if first <= second {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            if let Some(previous) = edge_owner.insert(edge, local_index) {
+                adjacency[local_index].push(previous);
+                adjacency[previous].push(local_index);
+            }
+        }
+    }
+    let mut components = Vec::new();
+    let mut visited = vec![false; valid.len()];
+    for start in 0..valid.len() {
+        if visited[start] {
+            continue;
+        }
+        let mut stack = vec![start];
+        let mut component = Vec::new();
+        visited[start] = true;
+        while let Some(current) = stack.pop() {
+            component.push(valid[current]);
+            for &neighbor in &adjacency[current] {
+                if !visited[neighbor] {
+                    visited[neighbor] = true;
+                    stack.push(neighbor);
+                }
+            }
+        }
+        component.sort_unstable();
+        components.push(component);
+    }
+    components.sort_by_key(|component| component[0]);
+    components
+}
+
+fn indexed_boundary_components(
+    mesh: &VisualMesh,
+    triangle_indices: &[usize],
+    origin: P3,
+    tangent_u: P3,
+    tangent_v: P3,
+) -> Option<Vec<Polygon<f64>>> {
+    indexed_triangle_components(mesh, triangle_indices, origin, tangent_u, tangent_v)
+        .into_iter()
+        .map(|component| indexed_boundary_polygons(mesh, &component, origin, tangent_u, tangent_v))
+        .collect::<Option<Vec<_>>>()
+        .map(|components| components.into_iter().flatten().collect())
 }
 
 pub(super) fn decompose(target: &Polygon<f64>) -> Result<Vec<Polygon<f64>>, Error> {
+    if polygon_is_convex(target) {
+        return Ok(vec![target.clone()]);
+    }
     let mut candidates = vec![greedy_convex_merge(triangulation_decomposition(target))];
     candidates.extend([
         slice_decomposition(target, 0),
@@ -1141,33 +1576,47 @@ pub(super) fn generic_projection(normal: P3) -> Projection {
     }
 }
 
+#[cfg(test)]
 pub(super) fn emit_face(
     points: &[P3],
     normal: P3,
     material: &str,
     projection: Option<&Projection>,
 ) -> Result<String, Error> {
+    emit_face_with_plane(points, normal, material, projection).map(|(face, _)| face)
+}
+
+fn emit_face_with_plane(
+    points: &[P3],
+    normal: P3,
+    material: &str,
+    projection: Option<&Projection>,
+) -> Result<(String, (P3, f64)), Error> {
     let (a, b, c) = tb_triplet(points, normal)?;
+    let face_normal = unit((c - a).cross(b - a))?;
     let mapping = projection
         .cloned()
         .unwrap_or_else(|| generic_projection(normal));
     let material = serialize_material_name(material);
-    Ok(format!(
-        "( {} ) ( {} ) ( {} ) {} [ {} {} {} {} ] [ {} {} {} {} ] 0 {} {}",
-        fmt_point(a),
-        fmt_point(b),
-        fmt_point(c),
-        material,
-        fmt(mapping.u.x),
-        fmt(mapping.u.y),
-        fmt(mapping.u.z),
-        fmt(mapping.u_shift),
-        fmt(mapping.v.x),
-        fmt(mapping.v.y),
-        fmt(mapping.v.z),
-        fmt(mapping.v_shift),
-        fmt(mapping.u_scale),
-        fmt(mapping.v_scale)
+    Ok((
+        format!(
+            "( {} ) ( {} ) ( {} ) {} [ {} {} {} {} ] [ {} {} {} {} ] 0 {} {}",
+            fmt_point(a),
+            fmt_point(b),
+            fmt_point(c),
+            material,
+            fmt(mapping.u.x),
+            fmt(mapping.u.y),
+            fmt(mapping.u.z),
+            fmt(mapping.u_shift),
+            fmt(mapping.v.x),
+            fmt(mapping.v.y),
+            fmt(mapping.v.z),
+            fmt(mapping.v_shift),
+            fmt(mapping.u_scale),
+            fmt(mapping.v_scale)
+        ),
+        (face_normal, face_normal.dot(a)),
     ))
 }
 
@@ -1257,20 +1706,20 @@ pub(super) fn extrude_pieces(
             .collect();
         let low_source = source_cap(sources.low, &representative(&clean));
         let high_source = source_cap(sources.high, &representative(&clean));
-        let mut faces = vec![
-            emit_face(
-                &low,
-                -sweep.direction,
-                low_source.map_or(skip, |source| source.material.as_str()),
-                low_source.and_then(|source| source.projection.as_ref()),
-            )?,
-            emit_face(
-                &high,
-                sweep.direction,
-                high_source.map_or(skip, |source| source.material.as_str()),
-                high_source.and_then(|source| source.projection.as_ref()),
-            )?,
-        ];
+        let (low_face, low_plane) = emit_face_with_plane(
+            &low,
+            -sweep.direction,
+            low_source.map_or(skip, |source| source.material.as_str()),
+            low_source.and_then(|source| source.projection.as_ref()),
+        )?;
+        let (high_face, high_plane) = emit_face_with_plane(
+            &high,
+            sweep.direction,
+            high_source.map_or(skip, |source| source.material.as_str()),
+            high_source.and_then(|source| source.projection.as_ref()),
+        )?;
+        let mut faces = vec![low_face, high_face];
+        let mut planes = vec![low_plane, high_plane];
         for index in 0..coordinates.len() {
             let next = (index + 1) % coordinates.len();
             let edge = p2(
@@ -1282,15 +1731,18 @@ pub(super) fn extrude_pieces(
             let outward = sweep.u * (outward_2d.x / length) + sweep.v * (outward_2d.y / length);
             let quad = [low[index], low[next], high[next], high[index]];
             let source = source_for_edge(sources.side, coordinates[index], coordinates[next]);
-            faces.push(emit_face(
+            let (face, plane) = emit_face_with_plane(
                 &quad,
                 outward,
                 source.map_or(skip, |source| source.material.as_str()),
                 source.and_then(|source| source.projection.as_ref()),
-            )?);
+            )?;
+            faces.push(face);
+            planes.push(plane);
         }
         brushes.push(Brush {
             faces,
+            planes,
             kind: kind.into(),
             shapes: shapes.to_vec(),
             ..Default::default()
@@ -1300,11 +1752,14 @@ pub(super) fn extrude_pieces(
 }
 
 pub(super) fn union_polygons(polygons: &[Polygon<f64>]) -> MultiPolygon<f64> {
+    if let [polygon] = polygons {
+        return MultiPolygon(vec![polygon.clone()]);
+    }
     unary_union(polygons)
 }
 
 pub(super) fn exact_extrusion(
-    meshes: &[VisualMesh],
+    meshes: &[&VisualMesh],
     sweep: &Sweep,
     skip: &str,
 ) -> Option<(Vec<Brush>, RecognizerReport)> {
@@ -1385,7 +1840,7 @@ pub(super) fn exact_extrusion(
 }
 
 pub(super) fn swept_shell(
-    meshes: &[VisualMesh],
+    meshes: &[&VisualMesh],
     sweep: &Sweep,
     thickness: f64,
     skip: &str,
@@ -1452,55 +1907,138 @@ pub(super) fn swept_shell(
     ))
 }
 
-pub(super) fn group_open_shell_shapes(
-    seed: &VisualMesh,
+fn connected_segment_positions(segment_cache: &[Vec<Segment>]) -> Vec<usize> {
+    let endpoint_sets: Vec<HashSet<Q>> = segment_cache
+        .iter()
+        .map(|segments| {
+            segments
+                .iter()
+                .flat_map(|segment| [qkey(segment.a), qkey(segment.b)])
+                .collect()
+        })
+        .collect();
+    let mut component_positions = Vec::new();
+    let mut reachable = endpoint_sets[0].clone();
+    loop {
+        let mut changed = false;
+        for position in 0..segment_cache.len().saturating_sub(1) {
+            if component_positions.contains(&position) {
+                continue;
+            }
+            if endpoint_sets[position + 1]
+                .iter()
+                .any(|key| reachable.contains(key))
+            {
+                component_positions.push(position);
+                reachable.extend(endpoint_sets[position + 1].iter().copied());
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    component_positions.sort_unstable();
+    component_positions
+}
+
+fn cached_profile_score(
+    segment_cache: &[Vec<Segment>],
+    component_positions: &[usize],
+    mask: usize,
+) -> (f64, usize) {
+    let mut edge_set = HashSet::new();
+    let mut segments = Vec::new();
+    for (component_index, &position) in component_positions.iter().enumerate() {
+        if mask != usize::MAX && mask & (1 << component_index) == 0 {
+            continue;
+        }
+        for segment in &segment_cache[position + 1] {
+            let first = qkey(segment.a);
+            let second = qkey(segment.b);
+            let edge = if first <= second {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            if edge_set.insert(edge) {
+                segments.push(segment);
+            }
+        }
+    }
+    for segment in &segment_cache[0] {
+        let first = qkey(segment.a);
+        let second = qkey(segment.b);
+        let edge = if first <= second {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        if edge_set.insert(edge) {
+            segments.push(segment);
+        }
+    }
+    let Some(cycles) = profile_cycles(&segments) else {
+        return (0.0, 0);
+    };
+    (cycles.iter().map(polygon_area).sum(), cycles.len())
+}
+
+pub(super) fn group_open_shell_shapes<'a>(
+    seed: &'a VisualMesh,
     seed_sweep: &Sweep,
-    remaining: &[VisualMesh],
+    remaining: &HashSet<usize>,
+    meshes: &[&'a VisualMesh],
     cached_sweeps: &HashMap<usize, Option<Sweep>>,
-) -> Vec<VisualMesh> {
+) -> Vec<&'a VisualMesh> {
     let mut compatible = Vec::new();
-    for mesh in remaining {
+    for mesh in meshes {
+        let mesh = *mesh;
         if mesh.block == seed.block {
             continue;
         }
-        if cached_sweeps
-            .get(&mesh.block)
-            .and_then(|sweep| sweep.as_ref())
-            .is_some_and(|sweep| compatible_sweep(seed_sweep, sweep))
+        if remaining.contains(&mesh.block)
+            && cached_sweeps
+                .get(&mesh.block)
+                .and_then(|sweep| sweep.as_ref())
+                .is_some_and(|sweep| compatible_sweep(seed_sweep, sweep))
         {
-            compatible.push(mesh.clone());
+            compatible.push(mesh);
         }
     }
-    let closed_score = |group: &[VisualMesh]| -> (f64, usize) {
-        let segments = collect_segments(group, seed_sweep, Some(0));
-        let Some(cycles) = profile_cycles(&segments) else {
-            return (0.0, 0);
-        };
-        (cycles.iter().map(polygon_area).sum(), cycles.len())
-    };
-    if closed_score(std::slice::from_ref(seed)).1 > 0 {
-        return vec![seed.clone()];
+    let mut segment_cache = Vec::with_capacity(compatible.len() + 1);
+    segment_cache.push(collect_segments(&[seed], seed_sweep, Some(0)));
+    for mesh in &compatible {
+        segment_cache.push(collect_segments(&[*mesh], seed_sweep, Some(0)));
     }
-    let mut best = vec![seed.clone()];
+    let component_positions = connected_segment_positions(&segment_cache);
+    if cached_profile_score(&segment_cache, &component_positions, 0).1 > 0 {
+        return vec![seed];
+    }
+    let mut best = vec![seed];
     let mut best_score = 0.0;
-    if compatible.len() <= 8 {
-        for mask in 1usize..(1usize << compatible.len()) {
-            let mut group = vec![seed.clone()];
-            for (index, mesh) in compatible.iter().enumerate() {
-                if mask & (1 << index) != 0 {
-                    group.push(mesh.clone());
+    if component_positions.len() <= 4 {
+        for mask in 1usize..(1usize << component_positions.len()) {
+            let mut group = vec![seed];
+            for (component_index, &position) in component_positions.iter().enumerate() {
+                if mask & (1 << component_index) != 0 {
+                    group.push(compatible[position]);
                 }
             }
-            let (score, count) = closed_score(&group);
+            let (score, count) = cached_profile_score(&segment_cache, &component_positions, mask);
             if count > 0 && score > best_score + 1e-6 {
                 best_score = score;
                 best = group;
             }
         }
     } else {
-        let mut group = vec![seed.clone()];
-        group.extend(compatible);
-        if closed_score(&group).1 > 0 {
+        let mut group = vec![seed];
+        group.extend(
+            component_positions
+                .iter()
+                .map(|&position| compatible[position]),
+        );
+        if cached_profile_score(&segment_cache, &component_positions, usize::MAX).1 > 0 {
             best = group;
         }
     }
@@ -1521,6 +2059,45 @@ pub(super) fn canonical_plane(normal: P3, distance: f64) -> (P3, f64) {
     (normal, distance)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct PlaneBucket {
+    normal: [i64; 3],
+    distance: i64,
+}
+
+const PLANE_BUCKET_SIZE: f64 = 1e-2;
+
+fn plane_bucket(normal: P3, distance: f64) -> PlaneBucket {
+    PlaneBucket {
+        normal: [normal.x, normal.y, normal.z]
+            .map(|component| (component / PLANE_BUCKET_SIZE).round() as i64),
+        distance: (distance / PLANE_BUCKET_SIZE).round() as i64,
+    }
+}
+
+fn neighboring_plane_buckets(bucket: PlaneBucket) -> [PlaneBucket; 81] {
+    let mut buckets = [bucket; 81];
+    let mut index = 0;
+    for x in -1..=1 {
+        for y in -1..=1 {
+            for z in -1..=1 {
+                for distance in -1..=1 {
+                    buckets[index] = PlaneBucket {
+                        normal: [
+                            bucket.normal[0] + x,
+                            bucket.normal[1] + y,
+                            bucket.normal[2] + z,
+                        ],
+                        distance: bucket.distance + distance,
+                    };
+                    index += 1;
+                }
+            }
+        }
+    }
+    buckets
+}
+
 pub(super) fn planar_fallback(
     mesh: &VisualMesh,
     thickness: f64,
@@ -1529,6 +2106,7 @@ pub(super) fn planar_fallback(
     // Coplanar triangles may belong to different UV charts. Merge only when
     // one affine projection reproduces the candidate triangle within tolerance.
     let mut groups: Vec<(P3, f64, Vec<usize>, Option<Projection>)> = Vec::new();
+    let mut plane_buckets: HashMap<PlaneBucket, Vec<usize>> = HashMap::new();
     for (triangle_index, triangle) in mesh.triangles.iter().enumerate() {
         let points = [
             mesh.vertices[triangle[0]],
@@ -1540,9 +2118,12 @@ pub(super) fn planar_fallback(
         };
         let (normal, distance) = canonical_plane(normal, distance);
         let projection = usable_triangle_projection(mesh, triangle_index);
-        if let Some((_, _, indices, _)) = groups.iter_mut().find(
-            |(candidate, candidate_distance, _indices, group_projection)| {
-                candidate.dot(normal).abs() >= 0.99999
+        let bucket = plane_bucket(normal, distance);
+        let mut matching_group = None;
+        for neighboring in neighboring_plane_buckets(bucket) {
+            for &group_index in plane_buckets.get(&neighboring).into_iter().flatten() {
+                let (candidate, candidate_distance, _, group_projection) = &groups[group_index];
+                if candidate.dot(normal).abs() >= 0.99999
                     && (*candidate_distance - distance).abs() <= 1e-3
                     && (mesh.uvs.is_none()
                         || can_merge_uv_triangle(
@@ -1551,11 +2132,21 @@ pub(super) fn planar_fallback(
                             projection.as_ref(),
                             group_projection.as_ref(),
                         ))
-            },
-        ) {
-            indices.push(triangle_index);
+                {
+                    matching_group = Some(group_index);
+                    break;
+                }
+            }
+            if matching_group.is_some() {
+                break;
+            }
+        }
+        if let Some(group_index) = matching_group {
+            groups[group_index].2.push(triangle_index);
         } else {
+            let group_index = groups.len();
             groups.push((normal, distance, vec![triangle_index], projection));
+            plane_buckets.entry(bucket).or_default().push(group_index);
         }
     }
     let mut brushes = Vec::new();
@@ -1597,7 +2188,7 @@ pub(super) fn fallback_group(
     let origin = first_points[0];
     let tangent_u = unit(first_points[1] - origin)?;
     let tangent_v = unit(authored_normal.cross(tangent_u))?;
-    let mut polygons = Vec::new();
+    let mut triangle_polygons = Vec::new();
     for triangle_index in triangle_indices {
         let triangle = mesh.triangles[*triangle_index];
         let points = [
@@ -1617,12 +2208,14 @@ pub(super) fn fallback_group(
                 .collect(),
         );
         if polygon_area(&polygon) > 1e-9 {
-            polygons.push(polygon);
+            triangle_polygons.push(polygon);
         }
     }
-    if polygons.is_empty() {
+    if triangle_polygons.is_empty() {
         return Ok(Vec::new());
     }
+    let polygons =
+        indexed_boundary_components(mesh, triangle_indices, origin, tangent_u, tangent_v);
     let context = FallbackContext {
         mesh,
         projection,
@@ -1634,8 +2227,19 @@ pub(super) fn fallback_group(
         skip,
     };
     let mut brushes = Vec::new();
-    for region_polygon in union_polygons(&polygons).0 {
-        for piece in decompose(&region_polygon)? {
+    let regions = if triangle_polygons.len() == 1 {
+        triangle_polygons
+    } else {
+        polygons.unwrap_or_else(|| union_polygons(&triangle_polygons).0)
+    };
+    for region_polygon in regions {
+        let pieces = if region_polygon.interiors().is_empty() && polygon_is_convex(&region_polygon)
+        {
+            vec![region_polygon]
+        } else {
+            decompose(&region_polygon)?
+        };
+        for piece in pieces {
             if let Some(brush) = fallback_piece(&context, &piece) {
                 brushes.push(brush?);
             }
@@ -1675,15 +2279,22 @@ pub(super) fn fallback_piece(
         .map(|point| *point - context.authored_normal * context.thickness)
         .collect();
     let source_projection = context.projection;
-    let mut faces = vec![
-        emit_face(
-            &front,
-            context.authored_normal,
-            &context.mesh.material,
-            source_projection,
-        ),
-        emit_face(&back, -context.authored_normal, context.skip, None),
-    ];
+    let (front_face, front_plane) = match emit_face_with_plane(
+        &front,
+        context.authored_normal,
+        &context.mesh.material,
+        source_projection,
+    ) {
+        Ok(face) => face,
+        Err(error) => return Some(Err(error)),
+    };
+    let (back_face, back_plane) =
+        match emit_face_with_plane(&back, -context.authored_normal, context.skip, None) {
+            Ok(face) => face,
+            Err(error) => return Some(Err(error)),
+        };
+    let mut faces = vec![front_face, back_face];
+    let mut planes = vec![front_plane, back_plane];
     let center = average_points(front.iter().chain(&back).copied().collect());
     for index in 0..coordinates.len() {
         let next = (index + 1) % coordinates.len();
@@ -1696,19 +2307,24 @@ pub(super) fn fallback_piece(
                 normal
             }
         });
-        faces.push(side_normal.and_then(|normal| emit_face(&quad, normal, context.skip, None)));
+        let normal = match side_normal {
+            Ok(normal) => normal,
+            Err(error) => return Some(Err(error)),
+        };
+        let (face, plane) = match emit_face_with_plane(&quad, normal, context.skip, None) {
+            Ok(face) => face,
+            Err(error) => return Some(Err(error)),
+        };
+        faces.push(face);
+        planes.push(plane);
     }
-    Some(
-        faces
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map(|faces| Brush {
-                faces,
-                kind: "planar-prism-fallback".into(),
-                shapes: vec![context.mesh.block],
-                ..Default::default()
-            }),
-    )
+    Some(Ok(Brush {
+        faces,
+        planes,
+        kind: "planar-prism-fallback".into(),
+        shapes: vec![context.mesh.block],
+        ..Default::default()
+    }))
 }
 
 pub(super) fn average_points(points: Vec<P3>) -> P3 {
@@ -1781,11 +2397,15 @@ pub(super) fn solve_planes(first: (P3, f64), second: (P3, f64), third: (P3, f64)
 }
 
 pub(super) fn validate_brush(brush: &Brush) -> Result<usize, Error> {
-    let planes: Vec<_> = brush
-        .faces
-        .iter()
-        .map(|face| emitted_plane(face))
-        .collect::<Result<_, _>>()?;
+    let planes = if brush.planes.is_empty() {
+        brush
+            .faces
+            .iter()
+            .map(|face| emitted_plane(face))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        brush.planes.clone()
+    };
     reject_duplicate_planes(&planes)?;
     let vertices = brush_vertices(&planes, brush)?;
     validate_brush_volume(&planes, &vertices)?;
@@ -1939,25 +2559,34 @@ pub(super) fn reconstruct(
     meshes: &[VisualMesh],
     options: &Options,
 ) -> Result<Reconstruction, Error> {
-    let mut partitions: BTreeMap<(ScopeId, NifState), Vec<VisualMesh>> = BTreeMap::new();
+    let mut partitions: BTreeMap<(ScopeId, NifState), Vec<&VisualMesh>> = BTreeMap::new();
     for mesh in meshes {
         partitions
             .entry((mesh.scope, mesh.nif_state.clone()))
             .or_default()
-            .push(mesh.clone());
+            .push(mesh);
     }
+    let partitions: Vec<_> = partitions.into_iter().collect();
+    let partials: Vec<_> = partitions
+        .into_iter()
+        .map(|((scope, nif_state), partition)| {
+            let mut partial = reconstruct_partition(&partition, options)?;
+            for brush in &mut partial.brushes {
+                brush.scope = scope;
+                brush.nif_state = nif_state.clone();
+            }
+            Ok::<_, Error>((partial, scope, nif_state))
+        })
+        .collect();
     let mut result = Reconstruction::default();
-    for ((scope, nif_state), partition) in partitions {
-        let mut partial = reconstruct_partition(&partition, options)?;
-        for brush in &mut partial.brushes {
-            brush.scope = scope;
-            brush.nif_state = nif_state.clone();
-        }
+    for partial in partials {
+        let (partial, _scope, _nif_state) = partial?;
         result.brushes.extend(partial.brushes);
         result.used_shapes.extend(partial.used_shapes);
         result.recognizers.extend(partial.recognizers);
         result.warnings.extend(partial.warnings);
         result.uv_max_error = result.uv_max_error.max(partial.uv_max_error);
+        result.timings.add_assign(partial.timings);
     }
     if result.brushes.len() > options.max_brushes {
         return Err(Error::Reconstruction(format!(
@@ -1970,19 +2599,17 @@ pub(super) fn reconstruct(
 }
 
 pub(super) fn reconstruct_partition(
-    meshes: &[VisualMesh],
+    meshes: &[&VisualMesh],
     options: &Options,
 ) -> Result<Reconstruction, Error> {
     let mut result = Reconstruction::default();
-    let mut remaining: HashMap<usize, VisualMesh> = meshes
-        .iter()
-        .cloned()
-        .map(|mesh| (mesh.block, mesh))
-        .collect();
+    let mut remaining: HashSet<usize> = meshes.iter().map(|mesh| mesh.block).collect();
+    let sweep_started = Instant::now();
     let sweeps: HashMap<usize, Option<Sweep>> = meshes
-        .par_iter()
+        .iter()
         .map(|mesh| (mesh.block, detect_sweep(mesh)))
         .collect();
+    result.timings.sweep_analysis = sweep_started.elapsed();
     let mut seeds = meshes.to_vec();
     seeds.sort_by(|lhs, rhs| {
         rhs.triangles
@@ -1990,11 +2617,15 @@ pub(super) fn reconstruct_partition(
             .cmp(&lhs.triangles.len())
             .then(lhs.block.cmp(&rhs.block))
     });
+    let structural_started = Instant::now();
     for seed in seeds {
-        process_seed(&seed, meshes, &sweeps, options, &mut remaining, &mut result);
+        process_seed(seed, meshes, &sweeps, options, &mut remaining, &mut result);
     }
-    apply_fallback(options, &mut remaining, &mut result)?;
-    report_unsupported(&remaining, &mut result);
+    result.timings.structural_recognition = structural_started.elapsed();
+    let fallback_started = Instant::now();
+    apply_fallback(options, meshes, &mut remaining, &mut result)?;
+    result.timings.planar_fallback = fallback_started.elapsed();
+    report_unsupported(meshes, &remaining, &mut result);
     if result.brushes.len() > options.max_brushes {
         return Err(Error::Reconstruction(format!(
             "reconstruction produced {} brushes, exceeding --max-brushes {}",
@@ -2003,41 +2634,39 @@ pub(super) fn reconstruct_partition(
         )));
     }
     if options.validate {
+        let validation_started = Instant::now();
         validate_reconstruction(&mut result)?;
+        result.timings.brush_validation = validation_started.elapsed();
     }
+    let uv_started = Instant::now();
     result.uv_max_error = max_uv_error(meshes);
+    result.timings.uv_diagnostics = uv_started.elapsed();
     Ok(result)
 }
 
 pub(super) fn process_seed(
     seed: &VisualMesh,
-    meshes: &[VisualMesh],
+    meshes: &[&VisualMesh],
     sweeps: &HashMap<usize, Option<Sweep>>,
     options: &Options,
-    remaining: &mut HashMap<usize, VisualMesh>,
+    remaining: &mut HashSet<usize>,
     result: &mut Reconstruction,
 ) {
-    if !remaining.contains_key(&seed.block) {
+    if !remaining.contains(&seed.block) {
         return;
     }
     let Some(sweep) = sweeps.get(&seed.block).and_then(|sweep| sweep.as_ref()) else {
         return;
     };
-    if let Some((brushes, report)) =
-        exact_extrusion(std::slice::from_ref(seed), sweep, &options.skip_material)
-    {
+    let seed_group = [seed];
+    if let Some((brushes, report)) = exact_extrusion(&seed_group, sweep, &options.skip_material) {
         result.brushes.extend(brushes);
         result.recognizers.push(report);
         result.used_shapes.insert(seed.block);
         remaining.remove(&seed.block);
         return;
     }
-    let available: Vec<_> = meshes
-        .iter()
-        .filter(|mesh| remaining.contains_key(&mesh.block))
-        .cloned()
-        .collect();
-    let group = group_open_shell_shapes(seed, sweep, &available, sweeps);
+    let group = group_open_shell_shapes(seed, sweep, remaining, meshes, sweeps);
     if let Some((brushes, report)) = swept_shell(
         &group,
         sweep,
@@ -2050,21 +2679,13 @@ pub(super) fn process_seed(
             result.used_shapes.insert(mesh.block);
             remaining.remove(&mesh.block);
         }
-        return;
-    }
-    if let Some((brushes, report)) =
-        exact_extrusion(std::slice::from_ref(seed), sweep, &options.skip_material)
-    {
-        result.brushes.extend(brushes);
-        result.recognizers.push(report);
-        result.used_shapes.insert(seed.block);
-        remaining.remove(&seed.block);
     }
 }
 
 pub(super) fn apply_fallback(
     options: &Options,
-    remaining: &mut HashMap<usize, VisualMesh>,
+    meshes: &[&VisualMesh],
+    remaining: &mut HashSet<usize>,
     result: &mut Reconstruction,
 ) -> Result<(), Error> {
     if options.fallback == "skip" {
@@ -2076,20 +2697,39 @@ pub(super) fn apply_fallback(
             options.fallback
         )));
     }
-    let mut fallback_meshes: Vec<_> = remaining.values().cloned().collect();
+    let mut fallback_meshes: Vec<_> = meshes
+        .iter()
+        .copied()
+        .filter(|mesh| remaining.contains(&mesh.block))
+        .collect();
     fallback_meshes.sort_by_key(|mesh| mesh.block);
-    for mesh in fallback_meshes {
-        match planar_fallback(&mesh, options.fallback_thickness, &options.skip_material) {
+    let mut fallback_results: Vec<_> = fallback_meshes
+        .iter()
+        .map(|mesh| {
+            (
+                mesh.block,
+                planar_fallback(mesh, options.fallback_thickness, &options.skip_material),
+            )
+        })
+        .collect();
+    fallback_results.sort_by_key(|(block, _)| *block);
+    for (block, fallback) in fallback_results {
+        let mesh = fallback_meshes
+            .binary_search_by_key(&block, |mesh| mesh.block)
+            .ok()
+            .and_then(|index| fallback_meshes.get(index))
+            .expect("fallback result should have a source mesh");
+        match fallback {
             Ok((brushes, report)) if !brushes.is_empty() => {
                 result.brushes.extend(brushes);
                 result.recognizers.push(report);
-                result.used_shapes.insert(mesh.block);
-                remaining.remove(&mesh.block);
+                result.used_shapes.insert(block);
+                remaining.remove(&block);
             }
             Ok(_) => {}
             Err(error) => result.warnings.push(format!(
                 "shape {} {:?}: fallback failed: {error}",
-                mesh.block, mesh.name
+                block, mesh.name
             )),
         }
     }
@@ -2097,10 +2737,15 @@ pub(super) fn apply_fallback(
 }
 
 pub(super) fn report_unsupported(
-    remaining: &HashMap<usize, VisualMesh>,
+    meshes: &[&VisualMesh],
+    remaining: &HashSet<usize>,
     result: &mut Reconstruction,
 ) {
-    let mut unsupported: Vec<_> = remaining.values().collect();
+    let mut unsupported: Vec<_> = meshes
+        .iter()
+        .copied()
+        .filter(|mesh| remaining.contains(&mesh.block))
+        .collect();
     unsupported.sort_by_key(|mesh| mesh.block);
     for mesh in unsupported {
         result.warnings.push(format!(
@@ -2131,7 +2776,7 @@ pub(super) fn validate_reconstruction(result: &mut Reconstruction) -> Result<(),
     Ok(())
 }
 
-pub(super) fn max_uv_error(meshes: &[VisualMesh]) -> f64 {
+pub(super) fn max_uv_error(meshes: &[&VisualMesh]) -> f64 {
     meshes
         .iter()
         .filter(|mesh| mesh.uvs.is_some())

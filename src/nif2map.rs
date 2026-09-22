@@ -16,11 +16,13 @@
 )]
 
 use std::{
+    borrow::Borrow,
     collections::{BTreeMap, HashMap, HashSet},
     fmt::Write as _,
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use geo::{
@@ -320,6 +322,36 @@ struct ImportedAsset {
     nodes: Vec<ImportedNode>,
     markers: Vec<ImportedMarker>,
     diagnostics: Vec<String>,
+    timings: StageTimings,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct StageTimings {
+    parse_semantic: Duration,
+    texture_resolution: Duration,
+    sweep_analysis: Duration,
+    structural_recognition: Duration,
+    planar_fallback: Duration,
+    brush_validation: Duration,
+    uv_diagnostics: Duration,
+    map_serialization: Duration,
+    report_serialization: Duration,
+    total: Duration,
+}
+
+impl StageTimings {
+    fn add_assign(&mut self, other: Self) {
+        self.parse_semantic += other.parse_semantic;
+        self.texture_resolution += other.texture_resolution;
+        self.sweep_analysis += other.sweep_analysis;
+        self.structural_recognition += other.structural_recognition;
+        self.planar_fallback += other.planar_fallback;
+        self.brush_validation += other.brush_validation;
+        self.uv_diagnostics += other.uv_diagnostics;
+        self.map_serialization += other.map_serialization;
+        self.report_serialization += other.report_serialization;
+        self.total += other.total;
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -387,6 +419,7 @@ struct Sweep {
 #[derive(Clone, Debug, Default)]
 struct Brush {
     faces: Vec<String>,
+    planes: Vec<(P3, f64)>,
     kind: String,
     shapes: Vec<usize>,
     scope: ScopeId,
@@ -401,6 +434,7 @@ struct Reconstruction {
     recognizers: Vec<RecognizerReport>,
     warnings: Vec<String>,
     uv_max_error: f64,
+    timings: StageTimings,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -444,6 +478,8 @@ struct Report {
     nodes: Vec<ImportedNode>,
     scopes: Vec<SemanticScope>,
     markers: Vec<ImportedMarker>,
+    #[serde(skip)]
+    timings: StageTimings,
 }
 
 type JobOutput = (usize, usize, Report);
@@ -658,6 +694,7 @@ fn report(
     meshes: &[VisualMesh],
     result: &Reconstruction,
     imported: &ImportedAsset,
+    timings: StageTimings,
 ) -> Report {
     Report {
         source: source.to_string_lossy().into_owned(),
@@ -696,6 +733,7 @@ fn report(
         nodes: imported.nodes.clone(),
         scopes: imported.scopes.clone(),
         markers: imported.markers.clone(),
+        timings,
     }
 }
 
@@ -706,6 +744,7 @@ fn process_one(
     options: &Options,
     resolver: &TextureResolver,
 ) -> Result<(usize, usize, Report), Error> {
+    let started = Instant::now();
     let imported = import_scene(source, resolver)?;
     let nif: Vec<_> = imported
         .meshes
@@ -722,6 +761,8 @@ fn process_one(
         ));
     }
     let mut result = reconstruct(&nif, options)?;
+    let mut timings = imported.timings;
+    timings.add_assign(result.timings);
     result.markers.clone_from(&imported.markers);
     for mesh in &nif {
         for diagnostic in &mesh.diagnostics {
@@ -735,25 +776,31 @@ fn process_one(
     if result.brushes.is_empty() {
         return Err(Error::Reconstruction("no brushes reconstructed".into()));
     }
+    let map_started = Instant::now();
+    let map = map_text(source, &result, &imported.scopes, options.include_collision);
+    timings.map_serialization += map_started.elapsed();
     let report = report(
         source,
         if options.dry_run { None } else { Some(output) },
         &nif,
         &result,
         &imported,
+        timings,
     );
     if !options.dry_run {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(
-            output,
-            map_text(source, &result, &imported.scopes, options.include_collision),
-        )?;
+        fs::write(output, map)?;
+        let report_started = Instant::now();
         let json = serde_json::to_vec_pretty(&report)
             .map_err(|error| Error::Io(io::Error::other(error)))?;
+        timings.report_serialization += report_started.elapsed();
         fs::write(report_path, [json.as_slice(), b"\n"].concat())?;
     }
+    let mut report = report;
+    report.timings = timings;
+    report.timings.total = started.elapsed();
     Ok((nif.len(), result.brushes.len(), report))
 }
 
@@ -777,8 +824,9 @@ pub fn run(options: &Options) -> io::Result<()> {
     let resolver = Arc::new(TextureResolver::new(&options.texture_roots)?);
     let jobs = build_jobs(options, inputs);
     let input_count = jobs.len();
+    let batch_started = Instant::now();
     let results = process_jobs(options, &resolver, &jobs);
-    report_results(options, results, input_count)
+    report_results(options, results, input_count, batch_started.elapsed())
 }
 
 fn validate_options(options: &Options) -> io::Result<()> {
@@ -913,6 +961,7 @@ fn report_results(
     options: &Options,
     results: Vec<JobResult>,
     input_count: usize,
+    batch_elapsed: Duration,
 ) -> io::Result<()> {
     let mut succeeded = 0;
     let mut failed = 0;
@@ -940,6 +989,26 @@ fn report_results(
                     }
                 );
                 if options.verbose {
+                    let timings = report.timings;
+                    println!(
+                        "      timing: parse/semantic {:.3} ms, texture resolution {:.3} ms",
+                        timings.parse_semantic.as_secs_f64() * 1000.0,
+                        timings.texture_resolution.as_secs_f64() * 1000.0
+                    );
+                    println!(
+                        "      timing: sweep {:.3} ms, structural {:.3} ms, planar fallback {:.3} ms",
+                        timings.sweep_analysis.as_secs_f64() * 1000.0,
+                        timings.structural_recognition.as_secs_f64() * 1000.0,
+                        timings.planar_fallback.as_secs_f64() * 1000.0
+                    );
+                    println!(
+                        "      timing: validation {:.3} ms, UV diagnostics {:.3} ms, map serialization {:.3} ms, report serialization {:.3} ms, TOTAL {:.3} ms",
+                        timings.brush_validation.as_secs_f64() * 1000.0,
+                        timings.uv_diagnostics.as_secs_f64() * 1000.0,
+                        timings.map_serialization.as_secs_f64() * 1000.0,
+                        timings.report_serialization.as_secs_f64() * 1000.0,
+                        timings.total.as_secs_f64() * 1000.0
+                    );
                     for recognizer in &report.recognizers {
                         println!(
                             "      {}",
@@ -963,6 +1032,9 @@ fn report_results(
                 failed += 1;
             }
         }
+    }
+    if options.verbose {
+        println!("batch wall time: {:.3} s", batch_elapsed.as_secs_f64());
     }
     println!(
         "\n{succeeded} succeeded, {failed} failed, {skipped} skipped ({input_count} input(s))"
