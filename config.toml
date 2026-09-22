@@ -137,7 +137,7 @@ button_style = 'rounded outline underlined_link'
 # If an extra font is specified here then it will be used
 # To override all fonts in text elements
 # Valid values are avqest, gal-basic, mystic-cards, deja-vu-sans-mono, demonic-letters, and oxanium
-#font_override = 'demonic-letters'
+font_override = 'mystic-cards'
 
 
 # Optionally, only override mod titles instead with custom fonts
