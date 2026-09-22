@@ -119,14 +119,14 @@
 [
     Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this refId will share the script." : "fallingScript"
     Icon(string) : "Ingame icon used by the object. Visible within TrenchBroom. Be sure to include the relative path to the icon." : "tx_goldicon.tga"
-    Value(int) : "Gold value of the object ingame" : 420
+    Value(integer) : "Gold value of the object ingame" : 420
     Weight(float): "Weight of the object in Todd units." : "0.0"
 ]
 
 @BaseClass base(Referenceable) = Wearable : "Wearable"
 [
     Enchantment(string): "Enchantment attached to the item. Requires a separate definition for the enchantment itself, which cannot be made in Trenchbroom." : "sc_icarianflight_en"
-    EnchantmentPoints(int): "Strength of possible enchantments applied to this particular item." : "60"
+    EnchantmentPoints(integer): "Strength of possible enchantments applied to this particular item." : 60
 ]
 
 // Used by both clothing and armor. Awkward hack.
@@ -2008,8 +2008,8 @@
 
 @BaseClass base(ArmorType) = ArmorData : "Armor Data"
 [
-    Health(int): "Total armor durability" : 0
-    ArmorRating(int): "Total defensive capability of this armor" : 0
+    Health(integer): "Total armor durability" : 0
+    ArmorRating(integer): "Total defensive capability of this armor" : 0
 ]
 
 // End armor-specific classes
@@ -2031,22 +2031,22 @@
         1 : "False"
     ]
 
-    Effect_1_Duration(int) : "Effect Duration" : 0
-    Effect_1_Magnitude(int) : "Effect 1 Magnitude" : "0"
-    Effect_2_Duration(int) : "Effect Duration" : 0
-    Effect_2_Magnitude(int) : "Effect 2 Magnitude" : "0"
-    Effect_3_Duration(int) : "Effect Duration" : 0
-    Effect_3_Magnitude(int) : "Effect 3 Magnitude" : "0"
-    Effect_4_Duration(int) : "Effect Duration" : 0
-    Effect_4_Magnitude(int) : "Effect 4 Magnitude" : "0"
-    Effect_5_Duration(int) : "Effect Duration" : 0
-    Effect_5_Magnitude(int) : "Effect 5 Magnitude" : "0"
-    Effect_6_Duration(int) : "Effect Duration" : 0
-    Effect_6_Magnitude(int) : "Effect 6 Magnitude" : "0"
-    Effect_7_Duration(int) : "Effect Duration" : 0
-    Effect_7_Magnitude(int) : "Effect 7 Magnitude" : "0"
-    Effect_7_Duration(int) : "Effect Duration" : 0
-    Effect_8_Magnitude(int) : "Effect 8 Magnitude" : "0"
+    Effect_1_Duration(integer) : "Effect Duration" : 0
+    Effect_1_Magnitude(integer) : "Effect 1 Magnitude" : 0
+    Effect_2_Duration(integer) : "Effect Duration" : 0
+    Effect_2_Magnitude(integer) : "Effect 2 Magnitude" : 0
+    Effect_3_Duration(integer) : "Effect Duration" : 0
+    Effect_3_Magnitude(integer) : "Effect 3 Magnitude" : 0
+    Effect_4_Duration(integer) : "Effect Duration" : 0
+    Effect_4_Magnitude(integer) : "Effect 4 Magnitude" : 0
+    Effect_5_Duration(integer) : "Effect Duration" : 0
+    Effect_5_Magnitude(integer) : "Effect 5 Magnitude" : 0
+    Effect_6_Duration(integer) : "Effect Duration" : 0
+    Effect_6_Magnitude(integer) : "Effect 6 Magnitude" : 0
+    Effect_7_Duration(integer) : "Effect Duration" : 0
+    Effect_7_Magnitude(integer) : "Effect 7 Magnitude" : 0
+    Effect_8_Duration(integer) : "Effect Duration" : 0
+    Effect_8_Magnitude(integer) : "Effect 8 Magnitude" : 0
 ]
 
 @SolidClass base(Referenceable) = item_Misc : "Base Miscellaneous Entity" []
@@ -2113,8 +2113,8 @@
 @SolidClass base(Referenceable) = item_Light : "Brush Light" [
     Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
     Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
-    Time(int) : "Amount of time the light will last before fading. A value of zero indicates the light does not expire."
-    Radius(int) : "Radius of the light"
+    Time(integer) : "Amount of time the light will last before fading. A value of zero indicates the light does not expire."
+    Radius(integer) : "Radius of the light"
     light_color(color) : "Light Color"
     LightFlags(Flags) =
     	[
@@ -2136,7 +2136,7 @@
 [
     Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
     Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
-    Radius(int) : "Light Radius" : 64
+    Radius(integer) : "Light Radius" : 64
     light_color(color) : "Light Color"
     LightFlags(Flags) =
     	[
@@ -2153,13 +2153,13 @@
 
 @PointClass size(-32 -32 -32, 32 32 32) iconsprite("Textures/light64.webp") base(PointLightData) = Light_Point64: "64 Unit Light" []
 
-@PointClass size(-64 -64 -64, 64 64 64) iconsprite("Textures/light128.webp") base(PointLightData) = Light_Point128: "128 Unit Light" [ Radius(int): "Light Radius" : 128 ]
+@PointClass size(-64 -64 -64, 64 64 64) iconsprite("Textures/light128.webp") base(PointLightData) = Light_Point128: "128 Unit Light" [ Radius(integer): "Light Radius" : 128 ]
 
-@PointClass size(-128 -128 -128, 128 128 128) iconsprite("Textures/light256.webp") base(PointLightData) = Light_Point256: "256 Unit Light" [ Radius(int): "Light Radius" : 256 ]
+@PointClass size(-128 -128 -128, 128 128 128) iconsprite("Textures/light256.webp") base(PointLightData) = Light_Point256: "256 Unit Light" [ Radius(integer): "Light Radius" : 256 ]
 
-@PointClass size(-256 -256 -256, 256 256 256) iconsprite("Textures/light512.webp") base(PointLightData) = Light_Point512: "512 Unit Light" [ Radius(int): "Light Radius" : 512 ]
+@PointClass size(-256 -256 -256, 256 256 256) iconsprite("Textures/light512.webp") base(PointLightData) = Light_Point512: "512 Unit Light" [ Radius(integer): "Light Radius" : 512 ]
 
-@PointClass size(-512 -512 -512, 512 512 512) iconsprite("Textures/light1024.webp") base(PointLightData) = Light_Point1024: "1024 Unit Light" [ Radius(int): "Light Radius" : 1024 ]
+@PointClass size(-512 -512 -512, 512 512 512) iconsprite("Textures/light1024.webp") base(PointLightData) = Light_Point1024: "1024 Unit Light" [ Radius(integer): "Light Radius" : 1024 ]
 
 @SolidClass base(baseObject) = world_Container : "Container type" [
     Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this refId will share the script." : "fallingScript"
