@@ -244,6 +244,10 @@ fn projection_is_valid(projection: &Projection) -> bool {
         && projection.max_error.is_finite()
 }
 
+fn projection_is_usable(projection: &Projection) -> bool {
+    projection_is_valid(projection) && projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
+}
+
 #[derive(Clone, Debug)]
 struct VisualMesh {
     block: usize,
@@ -725,7 +729,7 @@ fn fit_projection(
         let gradient = tangent_u * fit[0] + tangent_v * fit[1];
         let magnitude = gradient.norm();
         if magnitude <= 1e-12 {
-            (tangent_u, fit[2], 1.0)
+            (normal, fit[2] - normal.dot(origin), 1.0)
         } else {
             (
                 gradient / magnitude,
@@ -771,6 +775,10 @@ fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<
         mesh.texture_size,
         flip_v,
     )
+}
+
+fn usable_triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<Projection> {
+    triangle_projection(mesh, index, flip_v).filter(projection_is_usable)
 }
 
 fn projection_error(
@@ -829,8 +837,8 @@ fn can_merge_uv_triangle(
     let Some(candidate_projection) = candidate_projection else {
         return false;
     };
-    group_projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
-        && candidate_projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
+    projection_is_usable(group_projection)
+        && projection_is_usable(candidate_projection)
         && projection_error(mesh, triangle_index, group_projection, flip_v)
             <= UV_MERGE_TOLERANCE_TEXELS
 }
@@ -886,7 +894,7 @@ fn collect_caps(meshes: &[VisualMesh], sweep: &Sweep, flip_v: bool) -> (Vec<Cap>
             destination.push(Cap {
                 polygon,
                 material: mesh.material.clone(),
-                projection: triangle_projection(mesh, triangle_index, flip_v),
+                projection: usable_triangle_projection(mesh, triangle_index, flip_v),
             });
         }
     }
@@ -910,7 +918,7 @@ fn collect_segments(
                 mesh.vertices[triangle[2]],
             ];
             let values = points.map(|point| point.dot(sweep.direction));
-            let projection = triangle_projection(mesh, triangle_index, flip_v);
+            let projection = usable_triangle_projection(mesh, triangle_index, flip_v);
             for (a_index, b_index) in [(0, 1), (1, 2), (2, 0)] {
                 let layer_a = nearest_layer(values[a_index], &sweep.layers);
                 let layer_b = nearest_layer(values[b_index], &sweep.layers);
@@ -1842,7 +1850,7 @@ fn planar_fallback(
             continue;
         };
         let (normal, distance) = canonical_plane(normal, distance);
-        let projection = triangle_projection(mesh, triangle_index, flip_v);
+        let projection = usable_triangle_projection(mesh, triangle_index, flip_v);
         if let Some((_, _, indices, _)) = groups.iter_mut().find(
             |(candidate, candidate_distance, _indices, group_projection)| {
                 candidate.dot(normal).abs() >= 0.99999
@@ -3118,6 +3126,47 @@ mod tests {
             validate: true,
             max_brushes: 20_000,
         }
+    }
+
+    #[test]
+    fn zero_uv_gradients_use_the_face_normal_axis() {
+        let mesh = mesh_with_uvs(
+            vec![
+                P3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 4.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 0.0,
+                    y: 3.0,
+                    z: 0.0,
+                },
+            ],
+            vec![[0.25, 0.75], [0.25, 0.75], [0.25, 0.75]],
+            vec![[0, 1, 2]],
+        );
+        let projection = triangle_projection(&mesh, 0, true).expect("constant UVs should fit");
+
+        assert_eq!(projection.u, P3::Z);
+        assert_eq!(projection.v, P3::Z);
+        assert!(projection_error(&mesh, 0, &projection, true) <= UV_MERGE_TOLERANCE_TEXELS);
+    }
+
+    #[test]
+    fn projection_usability_rejects_high_residuals() {
+        let mut projection = generic_projection(P3::Z);
+
+        assert!(projection_is_valid(&projection));
+        assert!(projection_is_usable(&projection));
+        projection.max_error = UV_MERGE_TOLERANCE_TEXELS + f64::EPSILON;
+        assert!(projection_is_valid(&projection));
+        assert!(!projection_is_usable(&projection));
     }
 
     #[test]
