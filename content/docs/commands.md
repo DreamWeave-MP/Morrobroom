@@ -61,6 +61,7 @@ options. The short command is:
 morrobroom nif2map meshes/ \
   --recursive \
   --texture-root "/path/to/Morrowind/Data Files" \
+  --texture-root "/path/to/Morrowind/Data Files/Morrowind.bsa" \
   --output-dir nif2map-out
 ```
 

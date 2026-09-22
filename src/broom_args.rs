@@ -202,7 +202,8 @@ pub enum BroomCommand {
         #[arg(long, default_value = "skip")]
         skip_material: String,
 
-        /// Texture roots used to resolve source image dimensions. Repeatable.
+        /// Ordered `OpenMW` VFS sources: data directories or existing .bsa, .ba2, or .zip archives.
+        /// Repeatable; later directories/archives override earlier sources within their class.
         #[arg(long = "texture-root", required = true)]
         texture_roots: Vec<PathBuf>,
 

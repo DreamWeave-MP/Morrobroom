@@ -30,9 +30,17 @@ behavior or object semantics will survive the trip.
 
 NIF UV coordinates are preserved as authored. `nif2map` does not invert V for
 Valve 220 output; image-orientation normalization belongs to the texture loader.
-When exact texel dimensions matter, point `--texture-root` at the same visible
-asset directory that TrenchBroom uses. Missing textures are reported and use the
-import fails rather than guessing a dimension.
+`--texture-root` is repeatable and accepts either an OpenMW data directory or an
+existing `.bsa`, `.ba2`, or `.zip` archive. These sources form one OpenMW-style
+VFS: archives are registered first, then loose directories, and later sources
+win within each class. Missing textures are errors; dimensions are never guessed.
+
+Texture references follow OpenMW's `correctTexturePath` policy. A reference is
+normalized, rooted under `textures/` unless it already names `textures/` or
+`bookart/`, and `.dds` is tried before the referenced extension. The flat
+top-level fallback is then tried. Thus `tx_akula_face00.tga` resolves
+`textures/tx_akula_face00.dds` before `textures/tx_akula_face00.tga`, including
+when the DDS comes from an archive.
 
 ## Structural and surface reconstruction
 
@@ -60,6 +68,9 @@ before opening the result in TrenchBroom.
 morrobroom nif2map meshes/ \
   --recursive \
   --texture-root "/path/to/Morrowind/Data Files" \
+  --texture-root "/path/to/Morrowind/Data Files/Morrowind.bsa" \
+  --texture-root "/path/to/Morrowind/Data Files/Tribunal.bsa" \
+  --texture-root "/path/to/Morrowind/Data Files/Bloodmoon.bsa" \
   --output-dir nif2map-out
 ```
 
@@ -74,7 +85,7 @@ an existing asset, or produce a blockout for further brush authoring.
 | --- | --- |
 | `--recursive` | Scan input directories recursively. |
 | `--output-dir PATH` | Write `.map` and `.nif2map.json` files there. |
-| `--texture-root PATH` | **Required.** Add a TrenchBroom-visible texture root for source dimensions; repeatable. |
+| `--texture-root PATH` | **Required.** Add an ordered data directory or `.bsa`, `.ba2`, or `.zip` archive to the OpenMW-style texture VFS; repeatable. |
 | `--fallback MODE` | Choose `planar-prisms` surface reconstruction or `skip` for structural-only output. |
 | `--max-brushes N` | Stop if one input would generate more than `N` brushes. |
 | `--shell-thickness N` | Backing thickness for open swept architectural shells. |

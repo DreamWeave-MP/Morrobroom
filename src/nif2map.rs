@@ -20,7 +20,7 @@ use std::{
     fmt::Write as _,
     fs, io,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 use geo::{
@@ -41,6 +41,7 @@ use tes3::nif::{
     NiNode, NiSortAdjustNode, NiStream, NiTexturingProperty, NiTriShape, NiTriShapeData,
     NiUVController, NiUVData, RootCollisionNode, TextureMap, TextureSource,
 };
+use vfstool_lib::VFS;
 
 const WELD_EPSILON: f64 = 1e-3;
 const LAYER_EPSILON: f64 = 1e-3;
@@ -2549,96 +2550,119 @@ fn max_uv_error(meshes: &[VisualMesh]) -> f64 {
         .fold(0.0, f64::max)
 }
 
-#[derive(Debug)]
 struct TextureResolver {
-    roots: Vec<PathBuf>,
-    index: OnceLock<HashMap<String, PathBuf>>,
+    vfs: VFS,
 }
 
 impl TextureResolver {
-    fn new(roots: &[PathBuf]) -> Self {
-        Self {
-            roots: roots.to_vec(),
-            index: OnceLock::new(),
+    fn new(roots: &[PathBuf]) -> io::Result<Self> {
+        let mut archives = Vec::new();
+        let mut directories = Vec::new();
+        for root in roots {
+            if root.is_dir() {
+                directories.push(root);
+            } else {
+                archives.push(root);
+            }
         }
+
+        // OpenMW registers configured archives first and loose data directories second. The
+        // latter therefore always override the former, while order is preserved within each
+        // class. `texture-roots` is the source of truth for both classes here.
+        let mut vfs = VFS::new();
+        for archive in archives {
+            if !vfs.push_archive(archive) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("could not open texture archive {}", archive.display()),
+                ));
+            }
+        }
+        for directory in directories {
+            vfs.push_directory(directory)?;
+        }
+        Ok(Self { vfs })
     }
 
-    fn build_index(&self) -> HashMap<String, PathBuf> {
-        fn visit(root: &Path, current: &Path, index: &mut HashMap<String, PathBuf>) {
-            let Ok(entries) = fs::read_dir(current) else {
-                return;
-            };
-            let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
-            entries.sort_by_key(std::fs::DirEntry::path);
-            for entry in entries {
-                let path = entry.path();
-                if path.is_dir() {
-                    visit(root, &path, index);
-                    continue;
-                }
-                let Some(extension) = path.extension().and_then(|extension| extension.to_str())
-                else {
-                    continue;
-                };
-                if !matches!(
-                    extension.to_ascii_lowercase().as_str(),
-                    "bmp" | "dds" | "jpeg" | "jpg" | "png" | "tga" | "webp"
-                ) {
-                    continue;
-                }
-                if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
-                    index
-                        .entry(name.to_ascii_lowercase())
-                        .or_insert_with(|| path.clone());
-                }
-                if let Ok(relative) = path.strip_prefix(root) {
-                    index
-                        .entry(
-                            relative
-                                .to_string_lossy()
-                                .replace('\\', "/")
-                                .to_ascii_lowercase(),
-                        )
-                        .or_insert(path);
-                }
+    fn texture_candidates(source_texture: &str) -> Vec<String> {
+        let normalized = source_texture.replace('\\', "/").to_ascii_lowercase();
+        let corrected = ["textures", "bookart"]
+            .iter()
+            .find_map(|directory| {
+                normalized
+                    .split('/')
+                    .position(|component| component == *directory)
+                    .map(|index| {
+                        normalized
+                            .split('/')
+                            .skip(index)
+                            .collect::<Vec<_>>()
+                            .join("/")
+                    })
+            })
+            .unwrap_or_else(|| format!("textures/{normalized}"));
+        let original = corrected.clone();
+        let changed = corrected
+            .rsplit_once('.')
+            .is_some_and(|(_, extension)| extension != "dds");
+        let dds = if changed {
+            let mut path = corrected.clone();
+            if let Some(dot) = path.rfind('.') {
+                path.truncate(dot);
             }
+            path.push_str(".dds");
+            Some(path)
+        } else {
+            None
+        };
+        let filename = Path::new(&original)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&original);
+        let mut candidates = Vec::with_capacity(4);
+        if let Some(dds) = dds {
+            candidates.push(dds);
         }
-        let mut index = HashMap::new();
-        for root in &self.roots {
-            let root = root.canonicalize().unwrap_or_else(|_| root.clone());
-            if root.exists() {
-                visit(&root, &root, &mut index);
+        candidates.push(original.clone());
+        if changed {
+            let mut flat_dds = filename.to_owned();
+            if let Some(dot) = flat_dds.rfind('.') {
+                flat_dds.truncate(dot);
             }
+            flat_dds.push_str(".dds");
+            candidates.push(format!("textures/{flat_dds}"));
         }
-        index
+        candidates.push(format!("textures/{filename}"));
+        candidates.dedup();
+        candidates
     }
 
     fn resolve(&self, source_texture: &str) -> Result<TextureDimensions, String> {
-        if self.roots.is_empty() {
-            return Err("no --texture-root was provided".into());
-        }
-        let index = self.index.get_or_init(|| self.build_index());
-        let key = source_texture.replace('\\', "/").to_ascii_lowercase();
-        let Some(path) = index.get(&key).or_else(|| {
-            Path::new(&key)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .and_then(|name| index.get(name))
+        let candidates = Self::texture_candidates(source_texture);
+        let Some((resolved, file)) = candidates.iter().find_map(|candidate| {
+            self.vfs
+                .get_file(candidate)
+                .map(|file| (candidate.as_str(), file))
         }) else {
             return Err(format!(
-                "texture {source_texture:?} was not found under any --texture-root"
+                "texture {source_texture:?} was not found in the texture VFS (tried {})",
+                candidates.join(", ")
             ));
         };
-        let bytes = fs::read(path).map_err(|error| {
+        let mut reader = file.open().map_err(|error| {
             format!(
-                "texture {source_texture:?} could not be read at {}: {error}",
-                path.display()
+                "texture {source_texture:?} resolved to {resolved}, but could not be read: {error}"
+            )
+        })?;
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut reader, &mut bytes).map_err(|error| {
+            format!(
+                "texture {source_texture:?} resolved to {resolved}, but could not be read: {error}"
             )
         })?;
         let dimensions = blob_size(&bytes).map_err(|error| {
             format!(
-                "texture {source_texture:?} at {} has unreadable dimensions: {error}",
-                path.display()
+                "texture {source_texture:?} resolved to {resolved} has unreadable dimensions: {error}"
             )
         })?;
         Ok(TextureDimensions {
@@ -2657,6 +2681,14 @@ impl TextureResolver {
         self.resolve(source_texture)
             .expect("texture should resolve")
             .size
+    }
+
+    #[cfg(test)]
+    fn resolved_path(&self, source_texture: &str) -> String {
+        Self::texture_candidates(source_texture)
+            .into_iter()
+            .find(|candidate| self.vfs.get_file(candidate).is_some())
+            .expect("texture should resolve")
     }
 }
 
@@ -3790,7 +3822,7 @@ pub fn run(options: &Options) -> io::Result<()> {
         ));
     }
     fs::create_dir_all(&options.output_dir)?;
-    let resolver = Arc::new(TextureResolver::new(&options.texture_roots));
+    let resolver = Arc::new(TextureResolver::new(&options.texture_roots)?);
     let jobs = build_jobs(options, inputs);
     let input_count = jobs.len();
     let results = process_jobs(options, &resolver, &jobs);
@@ -3815,6 +3847,30 @@ fn validate_options(options: &Options) -> io::Result<()> {
             io::ErrorKind::InvalidInput,
             "at least one --texture-root is required",
         ));
+    }
+    for root in &options.texture_roots {
+        if root.is_dir() {
+            continue;
+        }
+        let is_archive = root.is_file()
+            && root
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| {
+                    matches!(
+                        extension.to_ascii_lowercase().as_str(),
+                        "bsa" | "ba2" | "zip"
+                    )
+                });
+        if !is_archive {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "--texture-root {} must be an existing directory or a .bsa, .ba2, or .zip archive",
+                    root.display()
+                ),
+            ));
+        }
     }
     if options.fallback != "planar-prisms" && options.fallback != "skip" {
         return Err(io::Error::new(
@@ -4479,7 +4535,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::write(&path, bytes).unwrap();
-        let resolver = TextureResolver::new(&[]);
+        let resolver = TextureResolver::new(&[]).expect("empty test VFS should build");
         let meshes = nif_meshes(&path, &resolver, false).expect("fixture NIF should parse");
         fs::remove_file(path).unwrap();
         assert_eq!(meshes.len(), 1);
@@ -4602,14 +4658,52 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
-        let path = root.join("fixture.dds");
+        let path = root.join("Textures/fixture.dds");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
         let mut header = vec![0; 20];
         header[..4].copy_from_slice(b"DDS ");
         header[12..16].copy_from_slice(&32u32.to_le_bytes());
         header[16..20].copy_from_slice(&64u32.to_le_bytes());
         fs::write(&path, header).unwrap();
-        let resolver = TextureResolver::new(std::slice::from_ref(&root));
+        let resolver =
+            TextureResolver::new(std::slice::from_ref(&root)).expect("test VFS should build");
         assert_eq!(resolver.dimensions("Textures/fixture.dds"), (64, 32));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn texture_resolver_prefers_dds_and_later_roots() {
+        let root = std::env::temp_dir().join(format!(
+            "morrobroom-nif2map-texture-priority-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let low = root.join("low/Textures");
+        let high = root.join("high/Textures");
+        fs::create_dir_all(&low).unwrap();
+        fs::create_dir_all(&high).unwrap();
+        let dds = |path: &Path, width: u32, height: u32| {
+            let mut header = vec![0; 20];
+            header[..4].copy_from_slice(b"DDS ");
+            header[12..16].copy_from_slice(&height.to_le_bytes());
+            header[16..20].copy_from_slice(&width.to_le_bytes());
+            fs::write(path, header).unwrap();
+        };
+        dds(&low.join("fixture.dds"), 64, 32);
+        dds(&high.join("fixture.dds"), 128, 96);
+        fs::write(low.join("fixture.tga"), b"not used").unwrap();
+        fs::write(high.join("fixture.tga"), b"not used").unwrap();
+
+        let resolver = TextureResolver::new(&[root.join("low"), root.join("high")])
+            .expect("test VFS should build");
+        assert_eq!(
+            resolver.resolved_path("Textures/fixture.tga"),
+            "textures/fixture.dds"
+        );
+        assert_eq!(resolver.dimensions("Textures/fixture.tga"), (128, 96));
         fs::remove_dir_all(root).unwrap();
     }
 
