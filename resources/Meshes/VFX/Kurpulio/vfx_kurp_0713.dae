@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor><authoring_tool>Morrobroom Kurpulio VFX preview converter</authoring_tool></contributor>
+    <unit name="unit" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_images>
+    <image id="VFXTexture" name="darkmap_newgen-1.dds">
+      <init_from>../../../Textures/Kurp/darkmap_newgen-1.dds</init_from>
+    </image>
+  </library_images>
+  <library_effects>
+    <effect id="PreviewEffect">
+      <profile_COMMON>
+        <newparam sid="VFXTexture-surface">
+          <surface type="2D"><init_from>VFXTexture</init_from></surface>
+        </newparam>
+        <newparam sid="VFXTexture-sampler">
+          <sampler2D><source>VFXTexture-surface</source></sampler2D>
+        </newparam>
+        <technique sid="common"><phong>
+          <emission><color>0.08 0.08 0.08 1</color></emission>
+          <ambient><color>0.2 0.2 0.2 1</color></ambient>
+          <diffuse><texture texture="VFXTexture-sampler" texcoord="UVSET0"/></diffuse>
+          <specular><color>0.15 0.15 0.15 1</color></specular>
+          <shininess><float>8</float></shininess>
+          <transparent opaque="A_ONE"><texture texture="VFXTexture-sampler" texcoord="UVSET0"/></transparent>
+          <transparency><float>1</float></transparency>
+        </phong></technique>
+      </profile_COMMON>
+      <extra><technique profile="GOOGLEEARTH"><double_sided>1</double_sided></technique></extra>
+    </effect>
+  </library_effects>
+  <library_materials><material id="PreviewMaterial" name="PreviewMaterial"><instance_effect url="#PreviewEffect"/></material></library_materials>
+  <library_geometries>
+    <geometry id="vfx_kurp_0713-mesh" name="vfx_kurp_0713"><mesh>
+      <source id="vfx_kurp_0713-mesh-positions">
+        <float_array id="vfx_kurp_0713-mesh-positions-array" count="114">4.91666858 -2.83863334 -2.53790962e-08 4.91666847 -2.83863348 6.49620676 3.64928769 -4.3490426 -3.46077016e-08 3.6492874 -4.3490422 7.75010681 1.94174848 -5.33489284 -3.96621047e-08 1.94174827 -5.33489236 6.85808706 5.64906566e-06 -5.67727587 -3.99326723e-08 5.28378692e-06 -5.67727557 8.07534027 -1.94173788 -5.33489598 -3.53867691e-08 -1.94173806 -5.33489582 7.18332052 -3.64927884 -4.34904857 -2.65726996e-08 -3.64927896 -4.34904847 8.07534027 -4.91666222 -2.83864391 -1.45535841e-08 -4.91666222 -2.83864391 6.85808706 -5.59102498 -0.985855274 -7.79080023e-10 -5.591024 -0.98585485 8.34836197 -5.59102721 0.985842312 1.30893945e-08 -5.59102736 0.985842129 7.54558182 -4.91666923 2.83863257 2.53790926e-08 -4.91666883 2.8386323 8.34836197 -3.64928831 4.34904187 3.4607698e-08 -3.64928846 4.34904168 6.85808706 -1.94174946 5.33489242 3.96621012e-08 -1.94174946 5.33489242 7.75010681 -6.50348845e-06 5.67727597 3.99326723e-08 -6.80999314e-06 5.6772756 6.85808706 1.94173684 5.33489622 3.53867726e-08 1.94173644 5.33489594 7.75010681 3.64927807 4.34904921 2.65727049e-08 3.64927791 4.34904934 7.18332052 4.91666274 2.83864285 1.4553577e-08 4.91666215 2.83864272 8.34836197 5.59102492 0.985854084 7.79071252e-10 5.59102492 0.985854084 6.85808706 5.59102696 -0.985843349 -1.30894016e-08 5.59102629 -0.985843407 8.08395576 4.91666858 -2.83863334 -2.53790962e-08 4.91666847 -2.83863348 6.49620676</float_array>
+        <technique_common><accessor source="#vfx_kurp_0713-mesh-positions-array" count="38" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+      </source>
+      <source id="vfx_kurp_0713-mesh-normals">
+        <float_array id="vfx_kurp_0713-mesh-normals-array" count="114">0.866025948 -0.499999057 3.32664912e-08 0.868258763 -0.4961116 3.11471419e-08 0.642788377 -0.766043799 3.7885125e-08 0.633852262 -0.773454142 6.93021963e-08 0.342020864 -0.939692358 7.15518237e-08 0.33685827 -0.941555365 6.37640471e-08 8.47076013e-07 -1 5.06289182e-08 -0.0104487236 -0.999945411 3.19810597e-08 -0.342019332 -0.939692916 1.69153102e-08 -0.342019306 -0.939692926 1.02930145e-08 -0.642786797 -0.766045125 1.01443153e-09 -0.634746805 -0.772720191 1.42703281e-09 -0.866024715 -0.500001193 -1.44353048e-09 -0.867929933 -0.496686653 5.77839892e-08 -0.984807548 -0.173649342 7.1031415e-08 -0.988358029 -0.152146004 6.04877633e-08 -0.984807967 0.173646963 4.37016982e-08 -0.984807981 0.173646883 1.37419593e-08 -0.866025978 0.499999006 2.90410265e-08 -0.876716949 0.481006644 3.83852382e-08 -0.642788478 0.766043714 3.07543571e-08 -0.649888655 0.760029431 8.02106382e-10 -0.342021114 0.939692267 4.96091663e-09 -0.342021066 0.939692285 1.7758017e-08 -9.31048946e-07 1 3.41701948e-08 -8.85389138e-07 1 4.68803635e-08 0.342019227 0.939692954 5.86556138e-08 0.351855302 0.936054404 2.56644262e-08 0.642786713 0.766045196 2.68276368e-08 0.651411712 0.758724444 2.80454882e-08 0.866024833 0.500000988 4.3558164e-08 0.860874726 0.508816968 4.27198849e-08 0.984807562 0.17364926 3.0675107e-08 0.98415976 0.17728386 3.58710225e-08 0.984807921 -0.173647225 4.59038697e-08 0.986699064 -0.162557548 5.77841624e-08 0.866025948 -0.499999057 3.32664912e-08 0.868258763 -0.4961116 3.11471419e-08</float_array>
+        <technique_common><accessor source="#vfx_kurp_0713-mesh-normals-array" count="38" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common>
+      </source>
+      <source id="vfx_kurp_0713-mesh-uv0">
+        <float_array id="vfx_kurp_0713-mesh-uv0-array" count="76">0.795625567 1 0.795625567 0 0.763043404 1 0.763043404 0 0.730461299 1 0.730461299 0 0.697879076 1 0.697879076 0 0.665296912 1 0.665296912 0 0.632714808 1 0.632714808 0 0.600132644 1 0.600132644 0 0.56755048 1 0.56755048 0 0.534968317 1 0.534968317 0 0.502386153 1 0.502386153 0 0.469804019 1 0.469804019 0 0.437221855 1 0.437221855 0 0.404639691 1 0.404639691 0 0.372057527 1 0.372057527 0 0.339475363 1 0.339475363 0 0.3068932 1 0.3068932 0 0.274311036 1 0.274311036 0 0.241728872 1 0.241728872 0 0.209146723 1 0.209146723 0</float_array>
+        <technique_common><accessor source="#vfx_kurp_0713-mesh-uv0-array" count="38" stride="2"><param name="S" type="float"/><param name="T" type="float"/></accessor></technique_common>
+      </source>
+      <vertices id="vfx_kurp_0713-mesh-vertices"><input semantic="POSITION" source="#vfx_kurp_0713-mesh-positions"/></vertices>
+      <triangles material="PreviewMaterial" count="36">
+        <input semantic="VERTEX" source="#vfx_kurp_0713-mesh-vertices" offset="0"/>
+        <input semantic="NORMAL" source="#vfx_kurp_0713-mesh-normals" offset="1"/>
+        <input semantic="TEXCOORD" source="#vfx_kurp_0713-mesh-uv0" offset="2" set="0"/>
+        <p>0 0 0 1 1 1 2 2 2 3 3 3 2 2 2 1 1 1 2 2 2 3 3 3 4 4 4 5 5 5 4 4 4 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7 6 6 6 5 5 5 6 6 6 7 7 7 8 8 8 9 9 9 8 8 8 7 7 7 8 8 8 9 9 9 10 10 10 11 11 11 10 10 10 9 9 9 10 10 10 11 11 11 12 12 12 13 13 13 12 12 12 11 11 11 12 12 12 13 13 13 14 14 14 15 15 15 14 14 14 13 13 13 14 14 14 15 15 15 16 16 16 17 17 17 16 16 16 15 15 15 16 16 16 17 17 17 18 18 18 19 19 19 18 18 18 17 17 17 18 18 18 19 19 19 20 20 20 21 21 21 20 20 20 19 19 19 20 20 20 21 21 21 22 22 22 23 23 23 22 22 22 21 21 21 22 22 22 23 23 23 24 24 24 25 25 25 24 24 24 23 23 23 24 24 24 25 25 25 26 26 26 27 27 27 26 26 26 25 25 25 26 26 26 27 27 27 28 28 28 29 29 29 28 28 28 27 27 27 28 28 28 29 29 29 30 30 30 31 31 31 30 30 30 29 29 29 30 30 30 31 31 31 32 32 32 33 33 33 32 32 32 31 31 31 32 32 32 33 33 33 34 34 34 35 35 35 34 34 34 33 33 33 34 34 34 35 35 35 36 36 36 37 37 37 36 36 36 35 35 35</p>
+      </triangles>
+    </mesh></geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="vfx_kurp_0713" name="vfx_kurp_0713" type="NODE">
+        <instance_geometry url="#vfx_kurp_0713-mesh"><bind_material><technique_common><instance_material symbol="PreviewMaterial" target="#PreviewMaterial"><bind_vertex_input semantic="UVSET0" input_semantic="TEXCOORD" input_set="0"/></instance_material></technique_common></bind_material></instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene><instance_visual_scene url="#Scene"/></scene>
+</COLLADA>

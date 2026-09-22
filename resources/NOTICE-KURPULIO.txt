@@ -1,0 +1,16 @@
+Kurpulio VFX preview asset notice
+
+Source: VFX Meshbank - Modder's resource
+Creator: Kurp
+Uploaded by: Kurpulio
+Source page: https://www.nexusmods.com/morrowind/mods/49695
+
+These 1,205 DAE files are static editor-preview conversions of unique geometry
+from kurpmesh-uv-y-5sec.nif. They preserve the source geometry, orientation,
+scale, UV0, normals, and vertex colors where present, while intentionally
+discarding the original meshbank showroom translation and animation.
+
+The Nexus permissions displayed on 2026-09-22 allow asset use and conversion
+with credit to the creator, prohibit use in sold files, and prohibit uploading
+the original file to other sites. Keep this attribution with redistributed
+derived assets and verify the source page for the current permission text.
