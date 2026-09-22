@@ -2746,6 +2746,8 @@ fn sha1_suffix(path: &Path) -> String {
 
 fn map_text(source: &Path, result: &Reconstruction) -> String {
     let mut lines = vec![
+        "// Game: Morrowind".to_string(),
+        "// Format: Quake2 (Valve)".to_string(),
         format!(
             "// Reverse-compiled from {}",
             source
@@ -3528,6 +3530,8 @@ mod tests {
             ..Default::default()
         };
         let text = map_text(Path::new("fixture.nif"), &result);
+        assert_eq!(text.lines().next(), Some("// Game: Morrowind"));
+        assert_eq!(text.lines().nth(1), Some("// Format: Quake2 (Valve)"));
         assert!(text.contains("// nif2map.py experimental visual-geometry importer"));
         assert!(text.contains("\"mapversion\" \"220\""));
     }
