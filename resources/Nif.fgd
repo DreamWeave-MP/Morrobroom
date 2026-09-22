@@ -154,10 +154,14 @@
 [
 ]
 
-// Generic authored geometry when no TES3 record semantics are required.
-@SolidClass base(NifGeometry) = nif_geometry : "NIF Geometry"
+@BaseClass = NifTransformable
 [
     mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
+]
+
+// Generic authored geometry when no TES3 record semantics are required.
+@SolidClass base(NifGeometry, NifTransformable) = nif_geometry : "NIF Geometry"
+[
 ]
 
 // -----------------------------------------------------------------------------
