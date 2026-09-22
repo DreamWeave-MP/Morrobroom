@@ -1,104 +1,52 @@
-@BaseClass = material
+// Morrobroom Morrowind / TES3 authoring definitions.
+//
+// Morrowind.fgd owns TES3 game-record, reference, and cell semantics.
+// Nif.fgd owns authored asset / scenegraph semantics. Brush-backed Morrowind
+// entities explicitly compose NifGeometry when they own authored geometry.
+
+@include "Nif.fgd"
+
+// Common identity / placement data for authored Morrowind GameObjects.
+// ESM3_RefId is optional: when omitted, Morrobroom generates a collision-safe ID.
+// Supplying ESM3_RefId explicitly is intentional and may override an existing record.
+@BaseClass = GameObject
 [
-    Material_Emissive_color(color) : "Color emitted by the brush" : "1.0 0 0"
-    Material_Ambient_color(color) : "Ambient color of the brush" : "0 1.0 0"
-    Material_Diffuse_color(color) : "Diffuse color of the brush" : "0 0 1.0"
-
-    Material_Alpha(float) : "Material Transparency" : "1.0"
-	Material_Alpha_UseBlend(choices) : "Use alpha blending for this brush" : 0 =
-    [
-        0 : "False"
-        1 : "True"
-    ]
-    Material_Alpha_BlendSourceMode(choices) : "Mode to use for alpha blending on the light source": 0 =
-    [
-        0 : "One"
-        2 : "Zero"
-        4 : "Source Color"
-        6 : "One Minus Source Color"
-        8 : "Destination Color"
-        10 : "One Minus Destination Color"
-        12 : "Source Alpha"
-        14 : "One Minus Source Alpha"
-        16 : "Destination Alpha"
-        18 : "One Minus Destination Alpha"
-        20 : "Source Alpha Saturate"
-    ]
-    Material_Alpha_BlendDestinationMode(choices) : "Mode to use for alpha blending on the light destination": 0 =
-    [
-        0 : "One"
-        32 : "Zero"
-        64 : "Source Color"
-        96 : "One Minus Source Color"
-        128 : "Destination Color"
-        160 : "One Minus Destination Color"
-        192 : "Source Alpha"
-        224 : "One Minus Source Alpha"
-        256 : "Destination Alpha"
-        288 : "One Minus Destination Alpha"
-        320 : "Source Alpha Saturate"
-    ]
-
-	Material_Alpha_TestEnable(choices) : "Use alpha testing for this brush" : 0 =
-    [
-        0 : "False"
-        512 : "True"
-    ]
-	Material_Alpha_TestFunction(choices) : "Use alpha testing for this brush" : 0 =
-    [
-        0 : "Always"
-        1024 : "Less"
-        2048 : "Equal"
-        3072 : "Less Than Or Equal"
-        4096 : "Greater Than"
-        5120 : "Not Equal"
-        6144 : "Greater Than Or Equal"
-        7168 : "Never"
-    ]
-    Material_Alpha_TestThreshold(float) : "Threshold to use against the background when alpha testing": "1.0"
-
-	Material_Alpha_NoSort(choices) : "Disable triangle sorting for this object" : 0 =
-    [
-        0 : "False"
-        8192 : "True"
-    ]
+    ESM3_RefId(string) : "TES3 record ID. Leave empty to generate a unique ID."
+    ESM3_Name(string) : "Optional in-game display name."
+    mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
 ]
 
-@SolidClass base(material) = world_Detail [
-
-    RefId(string) : "Ref Id for the object" : "agronian guy"
-    Name(string)  : "Ingame readable name for the book" : "Tarhiel"
-    mangle(string): "Object rotation, not meant to be adjusted in the property view"
-
+@SolidClass base(GameObject, NifGeometry) = world_Detail : "Brush-authored GameObject"
+[
 ]
 
-@SolidClass base(material) = worldspawn : "World entity"
+@SolidClass base(NifGeometry) = worldspawn : "World entity"
 [
-	FakeExterior(choices) : "Use sky for this cell" : 0 =
+	ESM3_FakeExterior(choices) : "Use sky for this cell" : 0 =
     [
         0 : "False"
         1 : "True"
     ]
 
-	HasWater(choices) : "Use water for this cell" : 0 =
+	ESM3_HasWater(choices) : "Use water for this cell" : 0 =
     [
         0 : "False"
         1 : "True"
     ]
 
-	RestIsIllegal(choices) : "Whether resting in this cell is legal or not." : 0 =
+	ESM3_RestIsIllegal(choices) : "Whether resting in this cell is legal or not." : 0 =
     [
         0 : "False"
         1 : "True"
     ]
 
-    Region(string) : "Region to use for interior weather" : "Ascadian Isles Region"
-    Name(string) : "Override the cell name for this map. By default the name of the map is used for the interior." : "Balmora, Caius Cosades' House"
-    WaterHeight(float) : "Water Height for this cell. Ignored if not flagged to use water." : "0"
-    Ambient_color(color) : "Ambient lighting color" : "15 15 15"
-    FogDensity(float) : "Density of interior fog. Set between 0 and 1." : "0"
-    Fog_color(color) : "Color used for interior fog" : "15 15 15"
-    Sun_color(color) : "Color used for interior sunlight" : "15 15 15"
+    ESM3_Region(string) : "Region to use for interior weather" : "Ascadian Isles Region"
+    ESM3_Name(string) : "Override the cell name for this map. By default the name of the map is used for the interior." : "Balmora, Caius Cosades' House"
+    ESM3_WaterHeight(float) : "Water Height for this cell. Ignored if not flagged to use water." : "0"
+    ESM3_Ambient_color(color) : "Ambient lighting color" : "15 15 15"
+    ESM3_FogDensity(float) : "Density of interior fog. Set between 0 and 1." : "0"
+    ESM3_Fog_color(color) : "Color used for interior fog" : "15 15 15"
+    ESM3_Sun_color(color) : "Color used for interior sunlight" : "15 15 15"
 ]
 
 @baseclass size(-16 -16 -34, 16 16 33) color(0 255 0) = PlayerClass []
@@ -107,33 +55,30 @@
 
 // Begin common classes
 
-@BaseClass base(material) = baseObject
+@BaseClass base(GameObject) = baseObject
 [
-    RefId(string) : "Ref Id for the object" : "agronian guy"
-    Name(string)  : "Ingame readable name for the book" : "Tarhiel"
-    mangle(string): "Object rotation, not meant to be adjusted in the property view"
-    Model(string) : "Model used by the gameobject. Optional. Uses the current brush if empty."
+    ESM3_Model(string) : "Model used by the GameObject. Optional. Uses authored brush geometry if empty."
 ]
 
 @BaseClass base(baseObject) = Referenceable : "Base Entity"
 [
-    Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this refId will share the script." : "fallingScript"
-    Icon(string) : "Ingame icon used by the object. Visible within TrenchBroom. Be sure to include the relative path to the icon." : "tx_goldicon.tga"
-    Value(integer) : "Gold value of the object ingame" : 420
-    Weight(float): "Weight of the object in Todd units." : "0.0"
+    ESM3_Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this ESM3_RefId will share the script." : "fallingScript"
+    ESM3_Icon(string) : "Ingame icon used by the object. Visible within TrenchBroom. Be sure to include the relative path to the icon." : "tx_goldicon.tga"
+    ESM3_Value(integer) : "Gold value of the object ingame" : 420
+    ESM3_Weight(float): "Weight of the object in Todd units." : "0.0"
 ]
 
 @BaseClass base(Referenceable) = Wearable : "Wearable"
 [
-    Enchantment(string): "Enchantment attached to the item. Requires a separate definition for the enchantment itself, which cannot be made in Trenchbroom." : "sc_icarianflight_en"
-    EnchantmentPoints(integer): "Strength of possible enchantments applied to this particular item." : 60
+    ESM3_Enchantment(string): "Enchantment attached to the item. Requires a separate definition for the enchantment itself, which cannot be made in Trenchbroom." : "sc_icarianflight_en"
+    ESM3_EnchantmentPoints(integer): "Strength of possible enchantments applied to this particular item." : 60
 ]
 
 // Used by both clothing and armor. Awkward hack.
 
 @BaseClass = BipedObject1 : "Body Part 1"
 [
-    SlotType1(choices): "Slot Used" : 0 =
+    ESM3_SlotType1(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -164,13 +109,13 @@
         26 : "Tail"
     ]
 
-    male_part1(String) : "Mesh used for male body, slot 1"
-    female_part1(String) : "Mesh used for female body, slot 1"
+    ESM3_male_part1(String) : "Mesh used for male body, slot 1"
+    ESM3_female_part1(String) : "Mesh used for female body, slot 1"
 ]
 
 @BaseClass = BipedObject2 : "Body Part 2"
 [
-    SlotType2(choices): "Slot Used" : 0 =
+    ESM3_SlotType2(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -200,13 +145,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part2(String) : "Mesh used for male body, slot 2"
-    female_part2(String) : "Mesh used for female body, slot 2"
+    ESM3_male_part2(String) : "Mesh used for male body, slot 2"
+    ESM3_female_part2(String) : "Mesh used for female body, slot 2"
 ]
 
 @BaseClass = BipedObject3 : "Body Part 3"
 [
-    SlotType3(choices): "Slot Used" : 0 =
+    ESM3_SlotType3(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -236,13 +181,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part1(String) : "Mesh used for male body, slot 3"
-    female_part1(String) : "Mesh used for female body, slot 3"
+    ESM3_male_part1(String) : "Mesh used for male body, slot 3"
+    ESM3_female_part1(String) : "Mesh used for female body, slot 3"
 ]
 
 @BaseClass = BipedObject4 : "Body Part 4"
 [
-    SlotType4(choices): "Slot Used" : 0 =
+    ESM3_SlotType4(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -272,13 +217,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part4(String) : "Mesh used for male body, slot 4"
-    female_part4(String) : "Mesh used for female body, slot 4"
+    ESM3_male_part4(String) : "Mesh used for male body, slot 4"
+    ESM3_female_part4(String) : "Mesh used for female body, slot 4"
 ]
 
 @BaseClass = BipedObject5 : "Body Part 5"
 [
-    SlotType5(choices): "Slot Used" : 0 =
+    ESM3_SlotType5(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -308,13 +253,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part5(String) : "Mesh used for male body, slot 5"
-    female_part5(String) : "Mesh used for female body, slot 5"
+    ESM3_male_part5(String) : "Mesh used for male body, slot 5"
+    ESM3_female_part5(String) : "Mesh used for female body, slot 5"
 ]
 
 @BaseClass = BipedObject6 : "Body Part 6"
 [
-    SlotType6(choices): "Slot Used" : 0 =
+    ESM3_SlotType6(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -344,13 +289,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part6(String) : "Mesh used for male body, slot 6"
-    female_part6(String) : "Mesh used for female body, slot 6"
+    ESM3_male_part6(String) : "Mesh used for male body, slot 6"
+    ESM3_female_part6(String) : "Mesh used for female body, slot 6"
 ]
 
 @BaseClass = BipedObject7 : "Body Part 7"
 [
-    SlotType7(choices): "Slot Used" : 0 =
+    ESM3_SlotType7(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -380,13 +325,13 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part7(String) : "Mesh used for male body, slot 7"
-    female_part7(String) : "Mesh used for female body, slot 7"
+    ESM3_male_part7(String) : "Mesh used for male body, slot 7"
+    ESM3_female_part7(String) : "Mesh used for female body, slot 7"
 ]
 
 @BaseClass = BipedObject8 : "Body Part 8"
 [
-    SlotType8(choices): "Slot Used" : 0 =
+    ESM3_SlotType8(choices): "Slot Used" : 0 =
     [
         0 : "Head"
         1 : "Hair"
@@ -416,8 +361,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    male_part8(String) : "Mesh used for male body, slot 8"
-    female_part8(String) : "Mesh used for female body, slot 8"
+    ESM3_male_part8(String) : "Mesh used for male body, slot 8"
+    ESM3_female_part8(String) : "Mesh used for female body, slot 8"
 ]
 
 @BaseClass base(BipedObject1, BipedObject2, BipedObject3, BipedObject4, BipedObject5, BipedObject6, BipedObject7, BipedObject8) = BodyParts : "Body Part Set" []
@@ -438,7 +383,7 @@
     // Effect_1_MagMin(int) : "Minimum Magnitude" : 0
     // Effect_1_MagMax(int) : "Maximum Magnitude" : 0
 
-    Effect_1_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_1_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -450,7 +395,7 @@
         7 : "Luck"
     ]
 
-    Effect_1_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_1_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -481,7 +426,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_1_MagicType(choices) : "Effect Type 1" : 0 =
+    ESM3_Effect_1_MagicType(choices) : "Effect Type 1" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -641,7 +586,7 @@
     // Effect_2_MagMin(int) : "Minimum Magnitude" : 0
     // Effect_2_MagMax(int) : "Maximum Magnitude" : 0
 
-    Effect_2_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_2_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -653,7 +598,7 @@
         7 : "Luck"
     ]
 
-    Effect_2_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_2_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -684,7 +629,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_2_MagicType(choices) : "Effect Type 2" : 0 =
+    ESM3_Effect_2_MagicType(choices) : "Effect Type 2" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -832,7 +777,7 @@
 
 @BaseClass = MagicEffectType3 : "Effect 3 Type"
 [
-    Effect_3_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_3_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -844,7 +789,7 @@
         7 : "Luck"
     ]
 
-    Effect_3_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_3_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -875,7 +820,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_3_MagicType(choices) : "Effect 3 Type" : 0 =
+    ESM3_Effect_3_MagicType(choices) : "Effect 3 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1023,7 +968,7 @@
 
 @BaseClass = MagicEffectType4 : "Effect 4 Type"
 [
-    Effect_4_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_4_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -1035,7 +980,7 @@
         7 : "Luck"
     ]
 
-    Effect_4_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_4_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -1066,7 +1011,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_4_MagicType(choices) : "Effect 4 Type" : 0 =
+    ESM3_Effect_4_MagicType(choices) : "Effect 4 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1215,7 +1160,7 @@
 
 @BaseClass = MagicEffectType5 : "Effect 5 Type"
 [
-    Effect_5_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_5_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -1227,7 +1172,7 @@
         7 : "Luck"
     ]
 
-    Effect_5_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_5_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -1258,7 +1203,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_5_MagicType(choices) : "Effect 5 Type" : 0 =
+    ESM3_Effect_5_MagicType(choices) : "Effect 5 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1407,7 +1352,7 @@
 
 @BaseClass = MagicEffectType6 : "Effect 6 Type"
 [
-    Effect_6_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_6_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -1419,7 +1364,7 @@
         7 : "Luck"
     ]
 
-    Effect_6_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_6_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -1450,7 +1395,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_6_MagicType(choices) : "Effect 6 Type" : 0 =
+    ESM3_Effect_6_MagicType(choices) : "Effect 6 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1598,7 +1543,7 @@
 
 @BaseClass = MagicEffectType7 : "Effect 7 Type"
 [
-    Effect_7_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_7_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -1610,7 +1555,7 @@
         7 : "Luck"
     ]
 
-    Effect_7_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_7_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -1641,7 +1586,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_7_MagicType(choices) : "Effect 7 Type" : 0 =
+    ESM3_Effect_7_MagicType(choices) : "Effect 7 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1790,7 +1735,7 @@
 
 @BaseClass = MagicEffectType8 : "Effect 8 Type"
 [
-    Effect_8_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
+    ESM3_Effect_8_Attribute(choices) : "Attribute modified by magic effect. Ignored if effect type does not use an attribute." : 0 =
     [
         0 : "Strength"
         1 : "Intelligence"
@@ -1802,7 +1747,7 @@
         7 : "Luck"
     ]
 
-    Effect_8_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
+    ESM3_Effect_8_Skill(choices) : "Skill modified by magic effect. Ignored if effect type does not use a skill." : 0 =
     [
         0 : "Block"
         1 : "Armorer"
@@ -1833,7 +1778,7 @@
         26 : "HandToHand"
     ]
 
-    Effect_8_MagicType(choices) : "Effect 8 Type" : 0 =
+    ESM3_Effect_8_MagicType(choices) : "Effect 8 Type" : 0 =
     [
         0 : "Water Breathing"
         1 : "Swift Swim"
@@ -1990,7 +1935,7 @@
 // Begin Armor-specific classes
 @BaseClass = ArmorType : "ArmorType"
 [
-    ArmorType(choices) : "Armor Type" : 0 =
+    ESM3_ArmorType(choices) : "Armor Type" : 0 =
     [
         0 : "Helmet"
         1 : "Cuirass"
@@ -2008,53 +1953,53 @@
 
 @BaseClass base(ArmorType) = ArmorData : "Armor Data"
 [
-    Health(integer): "Total armor durability" : 0
-    ArmorRating(integer): "Total defensive capability of this armor" : 0
+    ESM3_Health(integer): "Total armor durability" : 0
+    ESM3_ArmorRating(integer): "Total defensive capability of this armor" : 0
 ]
 
 // End armor-specific classes
 
 // Actual object types follow this point
-@SolidClass base(baseObject) = world_Activator: "Base Activator Entity"
+@SolidClass base(baseObject, NifGeometry) = world_Activator: "Base Activator Entity"
 [
-    Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this refId will share the script." : "fallingScript"
+    ESM3_Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this ESM3_RefId will share the script." : "fallingScript"
 ]
 
 // We're just going to no-op armor and skip clothing for now because it's going to cause problems
-// @SolidClass base(ArmorData, BodyParts, Referenceable, MagicEffect) = item_Armor : "Base Armor Entity" []
+// @SolidClass base(ArmorData, BodyParts, Referenceable, MagicEffect, NifGeometry) = item_Armor : "Base Armor Entity" []
 
-@SolidClass base(Referenceable, MagicEffect1) = item_Alchemy : "Base Potion Entity"
+@SolidClass base(Referenceable, MagicEffect1, NifGeometry) = item_Alchemy : "Base Potion Entity"
 [
-    Auto_Calculate(choices) : "Auto calculate gold value" : 0 =
+    ESM3_Auto_Calculate(choices) : "Auto calculate gold value" : 0 =
     [
         0 : "True"
         1 : "False"
     ]
 
-    Effect_1_Duration(integer) : "Effect Duration" : 0
-    Effect_1_Magnitude(integer) : "Effect 1 Magnitude" : 0
-    Effect_2_Duration(integer) : "Effect Duration" : 0
-    Effect_2_Magnitude(integer) : "Effect 2 Magnitude" : 0
-    Effect_3_Duration(integer) : "Effect Duration" : 0
-    Effect_3_Magnitude(integer) : "Effect 3 Magnitude" : 0
-    Effect_4_Duration(integer) : "Effect Duration" : 0
-    Effect_4_Magnitude(integer) : "Effect 4 Magnitude" : 0
-    Effect_5_Duration(integer) : "Effect Duration" : 0
-    Effect_5_Magnitude(integer) : "Effect 5 Magnitude" : 0
-    Effect_6_Duration(integer) : "Effect Duration" : 0
-    Effect_6_Magnitude(integer) : "Effect 6 Magnitude" : 0
-    Effect_7_Duration(integer) : "Effect Duration" : 0
-    Effect_7_Magnitude(integer) : "Effect 7 Magnitude" : 0
-    Effect_8_Duration(integer) : "Effect Duration" : 0
-    Effect_8_Magnitude(integer) : "Effect 8 Magnitude" : 0
+    ESM3_Effect_1_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_1_Magnitude(integer) : "Effect 1 Magnitude" : 0
+    ESM3_Effect_2_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_2_Magnitude(integer) : "Effect 2 Magnitude" : 0
+    ESM3_Effect_3_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_3_Magnitude(integer) : "Effect 3 Magnitude" : 0
+    ESM3_Effect_4_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_4_Magnitude(integer) : "Effect 4 Magnitude" : 0
+    ESM3_Effect_5_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_5_Magnitude(integer) : "Effect 5 Magnitude" : 0
+    ESM3_Effect_6_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_6_Magnitude(integer) : "Effect 6 Magnitude" : 0
+    ESM3_Effect_7_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_7_Magnitude(integer) : "Effect 7 Magnitude" : 0
+    ESM3_Effect_8_Duration(integer) : "Effect Duration" : 0
+    ESM3_Effect_8_Magnitude(integer) : "Effect 8 Magnitude" : 0
 ]
 
-@SolidClass base(Referenceable) = item_Misc : "Base Miscellaneous Entity" []
+@SolidClass base(Referenceable, NifGeometry) = item_Misc : "Base Miscellaneous Entity" []
 
-@SolidClass base(Referenceable) = item_Apparatus : "Base Apparatus Entity"
+@SolidClass base(Referenceable, NifGeometry) = item_Apparatus : "Base Apparatus Entity"
 [
-    Quality(float) : "Strength for creating alchemy ingredients. Multiplicative, so suggested to stay between 1 and 0." : "0.0"
-    ApparatusType(choices) : "Type of apparatus" : 0 =
+    ESM3_Quality(float) : "Strength for creating alchemy ingredients. Multiplicative, so suggested to stay between 1 and 0." : "0.0"
+    ESM3_ApparatusType(choices) : "Type of apparatus" : 0 =
     [
         0 : "Mortar And Pestle"
         1 : "Alembic"
@@ -2063,16 +2008,16 @@
     ]
 ]
 
-@SolidClass base(Referenceable) = item_Book : "Base Book Entity"
+@SolidClass base(Referenceable, NifGeometry) = item_Book : "Base Book Entity"
 [
 
-    BookType(choices) : "Book Type" : 0 =
+    ESM3_BookType(choices) : "Book Type" : 0 =
 	[
 		0 : "Book"
 		1 : "Scroll"
 	]
 
-    Skill(choices) : "Skill raised by this book." = [
+    ESM3_Skill(choices) : "Skill raised by this book." = [
         -1: "None"
         0: "Block"
         1: "Armorer"
@@ -2103,20 +2048,20 @@
         26: "HandToHand"
     ]
 
-    Text(String) : "Text of the book. You probably shouldn't write this here, but, you can."
+    ESM3_Text(String) : "Text of the book. You probably shouldn't write this here, but, you can."
     
 ]
 
-@SolidClass base(Referenceable, MagicEffect2) = item_Ingredient : "Base Ingredient Entity" []
+@SolidClass base(Referenceable, MagicEffect2, NifGeometry) = item_Ingredient : "Base Ingredient Entity" []
 
 
-@SolidClass base(Referenceable) = item_Light : "Brush Light" [
-    Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
-    Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
-    Time(integer) : "Amount of time the light will last before fading. A value of zero indicates the light does not expire."
-    Radius(integer) : "Radius of the light"
-    light_color(color) : "Light Color"
-    LightFlags(Flags) =
+@SolidClass base(Referenceable, NifGeometry) = item_Light : "Brush Light" [
+    ESM3_Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
+    ESM3_Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
+    ESM3_Time(integer) : "Amount of time the light will last before fading. A value of zero indicates the light does not expire."
+    ESM3_Radius(integer) : "Radius of the light"
+    ESM3_light_color(color) : "Light Color"
+    ESM3_LightFlags(Flags) =
     	[
 	    	1 : "Dynamic" : 0
             2 : "Carryable" : 0
@@ -2132,13 +2077,13 @@
 
 // Since lights can be carryable or not, we use this
 // So that it can be a brush or point class
-@BaseClass = PointLightData : "Light Data"
+@BaseClass base(GameObject) = PointLightData : "Light Data"
 [
-    Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
-    Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
-    Radius(integer) : "Light Radius" : 64
-    light_color(color) : "Light Color"
-    LightFlags(Flags) =
+    ESM3_Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
+    ESM3_Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
+    ESM3_Radius(integer) : "Light Radius" : 64
+    ESM3_light_color(color) : "Light Color"
+    ESM3_LightFlags(Flags) =
     	[
 	    	1 : "Dynamic" : 0
             4 : "Negative" : 0
@@ -2153,129 +2098,129 @@
 
 @PointClass size(-32 -32 -32, 32 32 32) iconsprite("Textures/light64.webp") base(PointLightData) = Light_Point64: "64 Unit Light" []
 
-@PointClass size(-64 -64 -64, 64 64 64) iconsprite("Textures/light128.webp") base(PointLightData) = Light_Point128: "128 Unit Light" [ Radius(integer): "Light Radius" : 128 ]
+@PointClass size(-64 -64 -64, 64 64 64) iconsprite("Textures/light128.webp") base(PointLightData) = Light_Point128: "128 Unit Light" [ ESM3_Radius(integer): "Light Radius" : 128 ]
 
-@PointClass size(-128 -128 -128, 128 128 128) iconsprite("Textures/light256.webp") base(PointLightData) = Light_Point256: "256 Unit Light" [ Radius(integer): "Light Radius" : 256 ]
+@PointClass size(-128 -128 -128, 128 128 128) iconsprite("Textures/light256.webp") base(PointLightData) = Light_Point256: "256 Unit Light" [ ESM3_Radius(integer): "Light Radius" : 256 ]
 
-@PointClass size(-256 -256 -256, 256 256 256) iconsprite("Textures/light512.webp") base(PointLightData) = Light_Point512: "512 Unit Light" [ Radius(integer): "Light Radius" : 512 ]
+@PointClass size(-256 -256 -256, 256 256 256) iconsprite("Textures/light512.webp") base(PointLightData) = Light_Point512: "512 Unit Light" [ ESM3_Radius(integer): "Light Radius" : 512 ]
 
-@PointClass size(-512 -512 -512, 512 512 512) iconsprite("Textures/light1024.webp") base(PointLightData) = Light_Point1024: "1024 Unit Light" [ Radius(integer): "Light Radius" : 1024 ]
+@PointClass size(-512 -512 -512, 512 512 512) iconsprite("Textures/light1024.webp") base(PointLightData) = Light_Point1024: "1024 Unit Light" [ ESM3_Radius(integer): "Light Radius" : 1024 ]
 
-@SolidClass base(baseObject) = world_Container : "Container type" [
-    Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this refId will share the script." : "fallingScript"
-    Encumbrance(float) : "Total carrying capacity of the container. Optional. 0 means unlimited capacity.": "0.0"
+@SolidClass base(baseObject, NifGeometry) = world_Container : "Container type" [
+    ESM3_Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this ESM3_RefId will share the script." : "fallingScript"
+    ESM3_Encumbrance(float) : "Total carrying capacity of the container. Optional. 0 means unlimited capacity.": "0.0"
 
-    ContainerFlags(Flags) =
+    ESM3_ContainerFlags(Flags) =
     	[
 	    	1 : "Respawns" : 0
             2 : "Organic" : 0
         ]
 
-    Item1_Id(string) : "Ref Id of contained object"
-    Item1_Count(integer): "Number of contained instances" : 1
+    ESM3_Item1_Id(string) : "Ref Id of contained object"
+    ESM3_Item1_Count(integer): "Number of contained instances" : 1
 
-    Item2_Id(string) : "Ref Id of contained object"
-    Item2_Count(integer): "Number of contained instances" : 1
+    ESM3_Item2_Id(string) : "Ref Id of contained object"
+    ESM3_Item2_Count(integer): "Number of contained instances" : 1
 
-    Item3_Id(string) : "Ref Id of contained object"
-    Item3_Count(integer): "Number of contained instances" : 1
+    ESM3_Item3_Id(string) : "Ref Id of contained object"
+    ESM3_Item3_Count(integer): "Number of contained instances" : 1
 
-    Item4_Id(string) : "Ref Id of contained object"
-    Item4_Count(integer): "Number of contained instances" : 1
+    ESM3_Item4_Id(string) : "Ref Id of contained object"
+    ESM3_Item4_Count(integer): "Number of contained instances" : 1
 
-    Item5_Id(string) : "Ref Id of contained object"
-    Item5_Count(integer): "Number of contained instances" : 1
+    ESM3_Item5_Id(string) : "Ref Id of contained object"
+    ESM3_Item5_Count(integer): "Number of contained instances" : 1
 
-    Item6_Id(string) : "Ref Id of contained object"
-    Item6_Count(integer): "Number of contained instances" : 1
+    ESM3_Item6_Id(string) : "Ref Id of contained object"
+    ESM3_Item6_Count(integer): "Number of contained instances" : 1
 
-    Item7_Id(string) : "Ref Id of contained object"
-    Item7_Count(integer): "Number of contained instances" : 1
+    ESM3_Item7_Id(string) : "Ref Id of contained object"
+    ESM3_Item7_Count(integer): "Number of contained instances" : 1
 
-    Item8_Id(string) : "Ref Id of contained object"
-    Item8_Count(integer): "Number of contained instances" : 1
+    ESM3_Item8_Id(string) : "Ref Id of contained object"
+    ESM3_Item8_Count(integer): "Number of contained instances" : 1
 ]
 
 
 @PointClass = world_CreatureList : "Leveled Creature List" [
 
-    RefId(string) : "Ref Id for the object" : "agronian guy"
-    Chance_None(integer) : "Chance nothing will spawn" : 0
-	Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
+    ESM3_RefId(string) : "Ref Id for the object" : "agronian guy"
+    ESM3_Chance_None(integer) : "Chance nothing will spawn" : 0
+	ESM3_Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
     [
         0 : "False"
         1 : "True"
     ]
 
-    Creature_1_Id(string) : "Ref Id of contained creature"
-    Creature_1_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_1_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_1_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_2_Id(string) : "Ref Id of contained creature"
-    Creature_2_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_2_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_2_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_3_Id(string) : "Ref Id of contained creature"
-    Creature_3_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_3_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_3_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_4_Id(string) : "Ref Id of contained creature"
-    Creature_4_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_4_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_4_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_5_Id(string) : "Ref Id of contained creature"
-    Creature_5_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_5_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_5_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_6_Id(string) : "Ref Id of contained creature"
-    Creature_6_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_6_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_6_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_7_Id(string) : "Ref Id of contained creature"
-    Creature_7_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_7_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_7_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_8_Id(string) : "Ref Id of contained creature"
-    Creature_8_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_8_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_8_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_9_Id(string) : "Ref Id of contained creature"
-    Creature_9_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_9_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_9_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Creature_10_Id(string) : "Ref Id of contained creature"
-    Creature_10_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Creature_10_Id(string) : "Ref Id of contained creature"
+    ESM3_Creature_10_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 ]
 
 
 @PointClass = world_ItemList : "Leveled Item List" [
 
-    RefId(string) : "Ref Id for the object" : "agronian guy"
-    Chance_None(integer) : "Chance nothing will spawn" : 0
-	Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
+    ESM3_RefId(string) : "Ref Id for the object" : "agronian guy"
+    ESM3_Chance_None(integer) : "Chance nothing will spawn" : 0
+	ESM3_Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
     [
         0 : "False"
         1 : "True"
     ]
 
-    Item_1_Id(string) : "Ref Id of contained item"
-    Item_1_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_1_Id(string) : "Ref Id of contained item"
+    ESM3_Item_1_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_2_Id(string) : "Ref Id of contained item"
-    Item_2_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_2_Id(string) : "Ref Id of contained item"
+    ESM3_Item_2_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_3_Id(string) : "Ref Id of contained item"
-    Item_3_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_3_Id(string) : "Ref Id of contained item"
+    ESM3_Item_3_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_4_Id(string) : "Ref Id of contained item"
-    Item_4_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_4_Id(string) : "Ref Id of contained item"
+    ESM3_Item_4_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_5_Id(string) : "Ref Id of contained item"
-    Item_5_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_5_Id(string) : "Ref Id of contained item"
+    ESM3_Item_5_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_6_Id(string) : "Ref Id of contained item"
-    Item_6_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_6_Id(string) : "Ref Id of contained item"
+    ESM3_Item_6_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_7_Id(string) : "Ref Id of contained item"
-    Item_7_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_7_Id(string) : "Ref Id of contained item"
+    ESM3_Item_7_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_8_Id(string) : "Ref Id of contained item"
-    Item_8_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_8_Id(string) : "Ref Id of contained item"
+    ESM3_Item_8_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_9_Id(string) : "Ref Id of contained item"
-    Item_9_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_9_Id(string) : "Ref Id of contained item"
+    ESM3_Item_9_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 
-    Item_10_Id(string) : "Ref Id of contained item"
-    Item_10_PlayerLevel(integer): "Player level required to spawn this instance" : 1
+    ESM3_Item_10_Id(string) : "Ref Id of contained item"
+    ESM3_Item_10_PlayerLevel(integer): "Player level required to spawn this instance" : 1
 ]

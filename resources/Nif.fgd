@@ -1,0 +1,215 @@
+// Morrobroom NIF authoring definitions.
+//
+// This file intentionally exposes only NIF concepts that make sense in a
+// level-design workflow. It is not a general-purpose NIF schema.
+//
+// Morrowind.fgd owns TES3 game-record semantics.
+// Nif.fgd owns authored asset / scenegraph semantics.
+//
+// Properties intentionally have no FGD default values. Maps store only explicit
+// author overrides; the Morrobroom compiler owns canonical NIF defaults and
+// fills unspecified fields when materializing NIF property/controller blocks.
+
+// -----------------------------------------------------------------------------
+// Shared geometry / render-state properties
+// -----------------------------------------------------------------------------
+
+@BaseClass = NifMaterial
+[
+    Material_Emissive_color(color) : "Color emitted by the brush"
+    Material_Ambient_color(color) : "Ambient color of the brush"
+    Material_Diffuse_color(color) : "Diffuse color of the brush"
+    Material_Specular_color(color) : "Specular material color"
+    Material_Glossiness(float) : "Material glossiness"
+    Material_Alpha(float) : "Material Transparency"
+]
+
+@BaseClass = NifAlpha
+[
+    Material_Alpha_UseBlend(choices) : "Use alpha blending for this brush" =
+    [
+        0 : "False"
+        1 : "True"
+    ]
+
+    Material_Alpha_BlendSourceMode(choices) : "Mode to use for alpha blending on the light source" =
+    [
+        0 : "One"
+        2 : "Zero"
+        4 : "Source Color"
+        6 : "One Minus Source Color"
+        8 : "Destination Color"
+        10 : "One Minus Destination Color"
+        12 : "Source Alpha"
+        14 : "One Minus Source Alpha"
+        16 : "Destination Alpha"
+        18 : "One Minus Destination Alpha"
+        20 : "Source Alpha Saturate"
+    ]
+
+    Material_Alpha_BlendDestinationMode(choices) : "Mode to use for alpha blending on the light destination" =
+    [
+        0 : "One"
+        32 : "Zero"
+        64 : "Source Color"
+        96 : "One Minus Source Color"
+        128 : "Destination Color"
+        160 : "One Minus Destination Color"
+        192 : "Source Alpha"
+        224 : "One Minus Source Alpha"
+        256 : "Destination Alpha"
+        288 : "One Minus Destination Alpha"
+        320 : "Source Alpha Saturate"
+    ]
+
+    Material_Alpha_TestEnable(choices) : "Use alpha testing for this brush" =
+    [
+        0 : "False"
+        512 : "True"
+    ]
+
+    Material_Alpha_TestFunction(choices) : "Use alpha testing for this brush" =
+    [
+        0 : "Always"
+        1024 : "Less"
+        2048 : "Equal"
+        3072 : "Less Than Or Equal"
+        4096 : "Greater Than"
+        5120 : "Not Equal"
+        6144 : "Greater Than Or Equal"
+        7168 : "Never"
+    ]
+
+    Material_Alpha_TestThreshold(float) : "Threshold to use against the background when alpha testing"
+
+    Material_Alpha_NoSort(choices) : "Disable triangle sorting for this object" =
+    [
+        0 : "False"
+        8192 : "True"
+    ]
+]
+
+@BaseClass = NifTexturing
+[
+    Nif_Texture_ApplyMode(choices) : "Texture apply mode" =
+    [
+        0 : "Replace"
+        1 : "Decal"
+        2 : "Modulate"
+        3 : "Highlight"
+        4 : "Highlight 2"
+    ]
+
+    Nif_Texture_FilterMode(choices) : "Base texture filtering" =
+    [
+        0 : "Nearest"
+        1 : "Bilinear"
+        2 : "Trilinear"
+        3 : "Nearest Mip Nearest"
+        4 : "Nearest Mip Linear"
+        5 : "Bilinear Mip Nearest"
+    ]
+
+    Nif_Texture_ClampMode(choices) : "Base texture clamping" =
+    [
+        0 : "Clamp S / Clamp T"
+        1 : "Clamp S / Wrap T"
+        2 : "Wrap S / Clamp T"
+        3 : "Wrap S / Wrap T"
+    ]
+
+    Nif_Texture_DarkMap(string) : "Optional dark-map texture"
+    Nif_Texture_DetailMap(string) : "Optional detail-map texture"
+    Nif_Texture_GlossMap(string) : "Optional gloss-map texture"
+    Nif_Texture_GlowMap(string) : "Optional glow-map texture"
+    Nif_Texture_BumpMap(string) : "Optional bump-map texture"
+]
+
+// Simple procedural UV animation. The compiler owns the generated NiUVController
+// and NiUVData; authors describe intent rather than keyframes.
+@BaseClass = NifUVAnimation
+[
+    Nif_UV_Mode(choices) : "Procedural UV animation" =
+    [
+        0 : "None"
+        1 : "Scroll"
+        2 : "Oscillate"
+    ]
+
+    Nif_UV_U(float) : "U movement per second, or oscillation amplitude"
+    Nif_UV_V(float) : "V movement per second, or oscillation amplitude"
+    Nif_UV_Period(float) : "Oscillation period in seconds"
+]
+
+// Optional authoring links between NIF elements. TrenchBroom understands
+// target_source / target_destination and visualizes these relationships.
+// These are Morrobroom authoring identifiers, not raw NIF block indices.
+@BaseClass = NifLinks
+[
+    Nif_LinkName(target_source) : "Optional name other NIF entities can target"
+    Nif_Target(target_destination) : "Optional target NIF entity"
+]
+
+@BaseClass base(NifMaterial, NifAlpha, NifTexturing, NifUVAnimation, NifLinks) = NifGeometry
+[
+]
+
+// Generic authored geometry when no TES3 record semantics are required.
+@SolidClass base(NifGeometry) = nif_geometry : "NIF Geometry"
+[
+    mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
+]
+
+// -----------------------------------------------------------------------------
+// Structural scenegraph markers
+// -----------------------------------------------------------------------------
+// Structural markers apply to the containing TrenchBroom group.
+
+@PointClass size(-8 -8 -8, 8 8 8) color(128 192 255) base(NifLinks) = nif_node_billboard : "NIF Billboard Node"
+[
+    Nif_Billboard_Mode(choices) : "Billboard mode" =
+    [
+        0 : "Always Face Camera"
+        1 : "Rotate About Up"
+        2 : "Rigid Face Camera"
+        3 : "Always Face Center"
+        4 : "Rigid Face Center"
+        5 : "Rotate About Up (Bethesda)"
+        9 : "Rotate About Up 2"
+    ]
+]
+
+@PointClass size(-8 -8 -8, 8 8 8) color(255 160 64) base(NifLinks) = nif_node_collision_root : "NIF Collision Root"
+[
+]
+
+@PointClass size(-8 -8 -8, 8 8 8) color(192 128 255) base(NifLinks) = nif_node_sort_adjust : "NIF Sort Adjust Node"
+[
+    Nif_Sort_Mode(choices) : "Sorting mode" =
+    [
+        0 : "Inherit"
+        1 : "Off"
+        2 : "Subsort"
+        64 : "Grouped"
+    ]
+]
+
+// -----------------------------------------------------------------------------
+// High-level baked effects
+// -----------------------------------------------------------------------------
+// These are Morrobroom compiler presets, not raw NIF object definitions.
+
+@PointClass size(-12 -12 -12, 12 12 12) color(255 96 32) base(NifLinks) = nif_fx_fire : "Baked NIF Fire Effect"
+[
+    Nif_Fire_Texture(string) : "Particle texture"
+    Nif_Fire_Color(color) : "Primary flame color"
+    Nif_Fire_Size(float) : "Particle size"
+    Nif_Fire_BirthRate(float) : "Particles emitted per second"
+    Nif_Fire_Lifetime(float) : "Particle lifetime in seconds"
+    Nif_Fire_Speed(float) : "Initial particle speed"
+    Nif_Fire_SpeedVariation(float) : "Random speed variation"
+    Nif_Fire_Spread(float) : "Emission spread"
+    Nif_Fire_Grow(float) : "Grow time"
+    Nif_Fire_Fade(float) : "Fade time"
+    Nif_Fire_Gravity(float) : "Vertical gravity modifier"
+]
