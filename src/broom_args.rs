@@ -214,7 +214,7 @@ pub enum BroomCommand {
         #[arg(long)]
         no_flip_v: bool,
 
-        /// Include `RootCollisionNode` descendants as visual input.
+        /// Import `RootCollisionNode` descendants into a separate Collision authoring group.
         #[arg(long)]
         include_collision: bool,
 

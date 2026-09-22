@@ -14,15 +14,16 @@ semantics do not become `.map` data.
 
 ## What it reads and writes
 
-The input is the NIF's **visual geometry**. Collision nodes are excluded by
-default; use `--include-collision` only when collision geometry is part of what
-you need to inspect or reconstruct.
+The input is the NIF's **visual geometry**. Collision nodes are always inspected
+and reported, but are excluded from authored map output by default; use
+`--include-collision` to emit them in a separate Collision group.
 
 For each input, `nif2map` writes:
 
 - a `.map` file that can be opened in TrenchBroom;
 - a `.nif2map.json` report containing reconstruction metadata and recognizer
-  results.
+  results, semantic node scopes, unsupported-state diagnostics, base-texture UV
+  set selection, and texture-dimension provenance.
 
 The result is editable geometry, not a promise that the original NIF's scene
 behavior or object semantics will survive the trip.
@@ -71,7 +72,7 @@ an existing asset, or produce a blockout for further brush authoring.
 | `--max-brushes N` | Stop if one input would generate more than `N` brushes. |
 | `--shell-thickness N` | Backing thickness for open swept architectural shells. |
 | `--fallback-thickness N` | Thickness used by planar-prism surface reconstruction. |
-| `--include-collision` | Include `RootCollisionNode` descendants. |
+| `--include-collision` | Emit `RootCollisionNode` descendants in a separate Collision group. |
 | `--overwrite` | Permit existing outputs to be replaced. |
 | `--dry-run` | Analyze without writing map files. |
 | `--verbose` | Print recognizer details and warnings. |

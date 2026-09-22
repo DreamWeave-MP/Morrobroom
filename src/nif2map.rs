@@ -1,11 +1,11 @@
 //! Native, batch-oriented replacement for the experimental `nif2map.py` tool.
 //!
-//! The public contract intentionally follows the prototype: visual
-//! `NiTriShape` geometry is authoritative, collision-node descendants are
-//! ignored by default, reconstruction is conservative, and every emitted
-//! brush is convex.  The implementation keeps geometry in compact `f64`
-//! structs and processes independent files in parallel; no Python or `NumPy`
-//! runtime is involved.
+//! The importer keeps visual `NiTriShape` geometry authoritative, reconstructs
+//! conservative convex brushes, and retains supported NIF state in a semantic
+//! intermediate representation. Collision descendants are inspected for every
+//! import and are emitted only when requested, in a separate authoring scope.
+//! Geometry remains in compact `f64` structs and independent files are processed
+//! in parallel; no Python or `NumPy` runtime is involved.
 #![allow(
     clippy::cast_precision_loss,
     reason = "NIF geometry uses bounded mesh cardinalities and world coordinates."
@@ -16,7 +16,7 @@
 )]
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Write as _,
     fs, io,
     path::{Path, PathBuf},
@@ -36,8 +36,9 @@ use nalgebra::Matrix3;
 use rayon::prelude::*;
 use serde::Serialize;
 use tes3::nif::{
-    NiKey, NiNode, NiStream, NiTexturingProperty, NiTriShape, NiTriShapeData, RootCollisionNode,
-    TextureMap, TextureSource,
+    NiAlphaProperty, NiBillboardNode, NiFloatData, NiFloatKey, NiKey, NiLink, NiMaterialProperty,
+    NiNode, NiSortAdjustNode, NiStream, NiTexturingProperty, NiTriShape, NiTriShapeData,
+    NiUVController, NiUVData, RootCollisionNode, TextureMap, TextureSource,
 };
 
 const WELD_EPSILON: f64 = 1e-3;
@@ -248,6 +249,98 @@ fn projection_is_usable(projection: &Projection) -> bool {
     projection_is_valid(projection) && projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+struct NifProperty {
+    key: String,
+    value: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+struct NifState {
+    /// Only non-default authoring state is retained. The compiler owns the
+    /// defaults; the map records overrides.
+    properties: Vec<NifProperty>,
+}
+
+impl NifState {
+    fn is_default(&self) -> bool {
+        self.properties.is_empty()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ImportScope {
+    #[default]
+    Visual,
+    Collision,
+}
+
+type ScopeId = usize;
+
+#[derive(Clone, Debug, Serialize)]
+struct SemanticScope {
+    id: ScopeId,
+    parent: Option<ScopeId>,
+    name: String,
+    kind: ImportScope,
+    node_kind: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct NifProvenance {
+    av_flags: u16,
+    has_controller: bool,
+    has_extra_data: bool,
+    has_skin_instance: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct TextureBinding {
+    source: String,
+    uv_set: usize,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum TextureSizeSource {
+    Resolved,
+    Fallback,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TextureDimensions {
+    size: (u32, u32),
+    source: TextureSizeSource,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ImportedAsset {
+    meshes: Vec<VisualMesh>,
+    scopes: Vec<SemanticScope>,
+    nodes: Vec<ImportedNode>,
+    markers: Vec<ImportedMarker>,
+    diagnostics: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct ImportedNode {
+    name: String,
+    flags: u16,
+    effects: usize,
+    has_controller: bool,
+    has_extra_data: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct ImportedMarker {
+    classname: String,
+    name: String,
+    origin: [f64; 3],
+    scope: ScopeId,
+    properties: Vec<NifProperty>,
+}
+
 #[derive(Clone, Debug)]
 struct VisualMesh {
     block: usize,
@@ -256,8 +349,12 @@ struct VisualMesh {
     uvs: Option<Vec<[f64; 2]>>,
     triangles: Vec<[usize; 3]>,
     material: String,
-    source_texture: Option<String>,
-    texture_size: (u32, u32),
+    texture: Option<TextureBinding>,
+    texture_size: TextureDimensions,
+    scope: ScopeId,
+    nif_state: NifState,
+    provenance: NifProvenance,
+    diagnostics: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -288,16 +385,19 @@ struct Sweep {
     score: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 struct Brush {
     faces: Vec<String>,
     kind: String,
     shapes: Vec<usize>,
+    scope: ScopeId,
+    nif_state: NifState,
 }
 
 #[derive(Default, Debug)]
 struct Reconstruction {
     brushes: Vec<Brush>,
+    markers: Vec<ImportedMarker>,
     used_shapes: HashSet<usize>,
     recognizers: Vec<RecognizerReport>,
     warnings: Vec<String>,
@@ -320,8 +420,14 @@ struct ShapeReport {
     vertices: usize,
     triangles: usize,
     material: String,
-    source_texture: Option<String>,
+    texture: Option<TextureBinding>,
     texture_size: [u32; 2],
+    texture_size_source: TextureSizeSource,
+    scope: ScopeId,
+    scope_kind: ImportScope,
+    nif_state: NifState,
+    provenance: NifProvenance,
+    diagnostics: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -335,6 +441,10 @@ struct Report {
     recognizers: Vec<RecognizerReport>,
     max_triangle_uv_fit_error_texels: f64,
     warnings: Vec<String>,
+    import_diagnostics: Vec<String>,
+    nodes: Vec<ImportedNode>,
+    scopes: Vec<SemanticScope>,
+    markers: Vec<ImportedMarker>,
 }
 
 type JobOutput = (usize, usize, Report);
@@ -383,6 +493,26 @@ fn fmt(value: f64) -> String {
         .trim_end_matches('0')
         .trim_end_matches('.')
         .to_string()
+}
+
+const STATE_FLOAT_EPSILON: f32 = 1e-5;
+const CANONICAL_ALPHA: f32 = 1.0;
+const CANONICAL_ALPHA_TEST_THRESHOLD: u8 = 128;
+
+fn canonical_float(value: f32) -> String {
+    let value = if value.abs() <= STATE_FLOAT_EPSILON {
+        0.0
+    } else {
+        (value / STATE_FLOAT_EPSILON).round() * STATE_FLOAT_EPSILON
+    };
+    let mut text = format!("{value:.5}");
+    while text.ends_with('0') {
+        text.pop();
+    }
+    if text.ends_with('.') {
+        text.pop();
+    }
+    if text == "-0" { "0".into() } else { text }
 }
 
 fn fmt_point(point: P3) -> String {
@@ -772,7 +902,7 @@ fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<
             mesh.vertices[triangle[2]],
         ],
         [uvs[triangle[0]], uvs[triangle[1]], uvs[triangle[2]]],
-        mesh.texture_size,
+        mesh.texture_size.size,
         flip_v,
     )
 }
@@ -791,8 +921,8 @@ fn projection_error(
         return f64::INFINITY;
     };
     let triangle = mesh.triangles[triangle_index];
-    let width = f64::from(mesh.texture_size.0);
-    let height = f64::from(mesh.texture_size.1);
+    let width = f64::from(mesh.texture_size.size.0);
+    let height = f64::from(mesh.texture_size.size.1);
     triangle
         .into_iter()
         .map(|vertex_index| {
@@ -1601,6 +1731,7 @@ fn extrude_pieces(
             faces,
             kind: kind.into(),
             shapes: shapes.to_vec(),
+            ..Default::default()
         });
     }
     Ok(brushes)
@@ -2018,6 +2149,7 @@ fn fallback_piece(
                 faces,
                 kind: "planar-prism-fallback".into(),
                 shapes: vec![context.mesh.block],
+                ..Default::default()
             }),
     )
 }
@@ -2247,6 +2379,40 @@ fn validate_brush_volume(planes: &[(P3, f64)], vertices: &[P3]) -> Result<(), Er
 }
 
 fn reconstruct(meshes: &[VisualMesh], options: &Options) -> Result<Reconstruction, Error> {
+    let mut partitions: BTreeMap<(ScopeId, NifState), Vec<VisualMesh>> = BTreeMap::new();
+    for mesh in meshes {
+        partitions
+            .entry((mesh.scope, mesh.nif_state.clone()))
+            .or_default()
+            .push(mesh.clone());
+    }
+    let mut result = Reconstruction::default();
+    for ((scope, nif_state), partition) in partitions {
+        let mut partial = reconstruct_partition(&partition, options)?;
+        for brush in &mut partial.brushes {
+            brush.scope = scope;
+            brush.nif_state = nif_state.clone();
+        }
+        result.brushes.extend(partial.brushes);
+        result.used_shapes.extend(partial.used_shapes);
+        result.recognizers.extend(partial.recognizers);
+        result.warnings.extend(partial.warnings);
+        result.uv_max_error = result.uv_max_error.max(partial.uv_max_error);
+    }
+    if result.brushes.len() > options.max_brushes {
+        return Err(Error::Reconstruction(format!(
+            "reconstruction produced {} brushes, exceeding --max-brushes {}",
+            result.brushes.len(),
+            options.max_brushes
+        )));
+    }
+    Ok(result)
+}
+
+fn reconstruct_partition(
+    meshes: &[VisualMesh],
+    options: &Options,
+) -> Result<Reconstruction, Error> {
     let mut result = Reconstruction::default();
     let mut remaining: HashMap<usize, VisualMesh> = meshes
         .iter()
@@ -2487,12 +2653,18 @@ impl TextureResolver {
         index
     }
 
-    fn dimensions(&self, source_texture: Option<&str>) -> (u32, u32) {
+    fn resolve(&self, source_texture: Option<&str>) -> TextureDimensions {
         let Some(source_texture) = source_texture else {
-            return self.fallback;
+            return TextureDimensions {
+                size: self.fallback,
+                source: TextureSizeSource::Fallback,
+            };
         };
         if self.roots.is_empty() {
-            return self.fallback;
+            return TextureDimensions {
+                size: self.fallback,
+                source: TextureSizeSource::Fallback,
+            };
         }
         let index = self.index.get_or_init(|| self.build_index());
         let key = source_texture.replace('\\', "/").to_ascii_lowercase();
@@ -2502,12 +2674,18 @@ impl TextureResolver {
                 .and_then(|name| name.to_str())
                 .and_then(|name| index.get(name))
         }) else {
-            return self.fallback;
+            return TextureDimensions {
+                size: self.fallback,
+                source: TextureSizeSource::Fallback,
+            };
         };
         let Ok(bytes) = fs::read(path) else {
-            return self.fallback;
+            return TextureDimensions {
+                size: self.fallback,
+                source: TextureSizeSource::Fallback,
+            };
         };
-        match path
+        let size = match path
             .extension()
             .and_then(|extension| extension.to_str())
             .map(str::to_ascii_lowercase)
@@ -2521,8 +2699,22 @@ impl TextureResolver {
                 u32::from(u16::from_le_bytes(bytes[12..14].try_into().unwrap())),
                 u32::from(u16::from_le_bytes(bytes[14..16].try_into().unwrap())),
             ),
-            _ => self.fallback,
+            _ => {
+                return TextureDimensions {
+                    size: self.fallback,
+                    source: TextureSizeSource::Fallback,
+                };
+            }
+        };
+        TextureDimensions {
+            size,
+            source: TextureSizeSource::Resolved,
         }
+    }
+
+    #[cfg(test)]
+    fn dimensions(&self, source_texture: Option<&str>) -> (u32, u32) {
+        self.resolve(source_texture).size
     }
 }
 
@@ -2544,31 +2736,9 @@ fn material_name(source_texture: Option<&str>) -> String {
     }
 }
 
-fn collision_descendants(stream: &NiStream) -> HashSet<NiKey> {
-    let mut descendants = HashSet::new();
-    let roots: Vec<_> = stream
-        .objects_of_type_with_link::<RootCollisionNode>()
-        .map(|(key, root)| (key.key, root.base.children.clone()))
-        .collect();
-    let mut stack = Vec::new();
-    for (key, children) in roots {
-        descendants.insert(key);
-        stack.extend(children);
-    }
-    while let Some(link) = stack.pop() {
-        if !descendants.insert(link.key) {
-            continue;
-        }
-        if let Some(node) = stream.get_as::<_, NiNode>(link) {
-            stack.extend(node.children.iter().copied());
-        }
-    }
-    descendants
-}
-
 fn reject_legacy_bounds(stream: &NiStream, path: &Path) -> Result<(), Error> {
     for (_, node) in stream.objects_of_type_with_link::<NiNode>() {
-        if node.base.bounding_volume.is_some() {
+        if node.bounding_volume.is_some() {
             return Err(Error::Nif(format!(
                 "{}: NiNode uses an unsupported legacy bounding volume",
                 path.display()
@@ -2576,7 +2746,7 @@ fn reject_legacy_bounds(stream: &NiStream, path: &Path) -> Result<(), Error> {
         }
     }
     for (_, root) in stream.objects_of_type_with_link::<RootCollisionNode>() {
-        if root.base.base.bounding_volume.is_some() {
+        if root.bounding_volume.is_some() {
             return Err(Error::Nif(format!(
                 "{}: RootCollisionNode uses an unsupported legacy bounding volume",
                 path.display()
@@ -2584,7 +2754,7 @@ fn reject_legacy_bounds(stream: &NiStream, path: &Path) -> Result<(), Error> {
         }
     }
     for (_, shape) in stream.objects_of_type_with_link::<NiTriShape>() {
-        if shape.base.base.base.bounding_volume.is_some() {
+        if shape.bounding_volume.is_some() {
             return Err(Error::Nif(format!(
                 "{}: NiTriShape uses an unsupported legacy bounding volume",
                 path.display()
@@ -2594,32 +2764,637 @@ fn reject_legacy_bounds(stream: &NiStream, path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-fn shape_texture(stream: &NiStream, shape: &NiTriShape) -> Option<String> {
-    let properties = &shape.base.base.base.properties;
+fn texture_binding(stream: &NiStream, properties: &[NiKey]) -> Option<TextureBinding> {
     for property in properties {
-        let Some(texturing) = stream.get_as::<_, NiTexturingProperty>(*property) else {
+        let Some(texturing) = stream.get_as::<_, NiTexturingProperty>(NiLink::<()>::new(*property))
+        else {
             continue;
         };
-        for map in &texturing.texture_maps {
-            let Some(TextureMap::Map(map)) = map else {
-                continue;
-            };
-            let Some(source) = stream.get(map.texture) else {
-                continue;
-            };
-            if let TextureSource::External(path) = &source.source {
-                return Some(path.clone());
-            }
+        let Some(Some(TextureMap::Map(map))) = texturing.texture_maps.first() else {
+            continue;
+        };
+        let Some(source) = stream.get(map.texture) else {
+            continue;
+        };
+        if let TextureSource::External(source) = &source.source {
+            return Some(TextureBinding {
+                source: source.clone(),
+                uv_set: map.texture_index,
+            });
         }
     }
     None
 }
 
-fn nif_meshes(
-    path: &Path,
-    resolver: &TextureResolver,
-    include_collision: bool,
-) -> Result<Vec<VisualMesh>, Error> {
+fn push_nif_property(state: &mut NifState, key: &str, value: impl Into<String>) {
+    state.properties.retain(|property| property.key != key);
+    state.properties.push(NifProperty {
+        key: key.into(),
+        value: value.into(),
+    });
+}
+
+fn format_color(color: tes3::nif::glam::Vec3) -> String {
+    format!(
+        "{} {} {}",
+        canonical_float(color.x),
+        canonical_float(color.y),
+        canonical_float(color.z)
+    )
+}
+
+fn texture_source(stream: &NiStream, map: &TextureMap) -> Option<String> {
+    let texture = match map {
+        TextureMap::Map(map) => map.texture,
+        TextureMap::BumpMap(map) => map.texture,
+    };
+    match &stream.get(texture)?.source {
+        TextureSource::External(path) => Some(path.clone()),
+        TextureSource::Internal(_) => None,
+    }
+}
+
+fn float_differs(lhs: f32, rhs: f32) -> bool {
+    (lhs - rhs).abs() > STATE_FLOAT_EPSILON
+}
+
+fn material_nif_state(state: &mut NifState, material: &NiMaterialProperty) {
+    // These are the defaults used by BrushNiNode when an authoring property is
+    // materialized. NiMaterialProperty::default() is a serialization default,
+    // not the public NIF authoring contract (in particular, its alpha is 0).
+    let default_color = tes3::nif::glam::Vec3::ZERO;
+    if material.emissive_color != default_color {
+        push_nif_property(
+            state,
+            "Material_Emissive_color",
+            format_color(material.emissive_color),
+        );
+    }
+    if material.ambient_color != default_color {
+        push_nif_property(
+            state,
+            "Material_Ambient_color",
+            format_color(material.ambient_color),
+        );
+    }
+    if material.diffuse_color != default_color {
+        push_nif_property(
+            state,
+            "Material_Diffuse_color",
+            format_color(material.diffuse_color),
+        );
+    }
+    if material.specular_color != default_color {
+        push_nif_property(
+            state,
+            "Material_Specular_color",
+            format_color(material.specular_color),
+        );
+    }
+    if float_differs(material.shine, 0.0) {
+        push_nif_property(
+            state,
+            "Material_Glossiness",
+            canonical_float(material.shine),
+        );
+    }
+    if float_differs(material.alpha, CANONICAL_ALPHA) {
+        push_nif_property(state, "Material_Alpha", canonical_float(material.alpha));
+    }
+}
+
+fn alpha_nif_state(state: &mut NifState, alpha: &NiAlphaProperty) {
+    let flags = alpha.flags;
+    if flags == 0 {
+        return;
+    }
+    for (key, mask) in [
+        ("Material_Alpha_UseBlend", 0x0001),
+        ("Material_Alpha_BlendSourceMode", 0x001e),
+        ("Material_Alpha_BlendDestinationMode", 0x01e0),
+        ("Material_Alpha_TestEnable", 0x0200),
+        ("Material_Alpha_TestFunction", 0x1c00),
+        ("Material_Alpha_NoSort", 0x2000),
+    ] {
+        let value = flags & mask;
+        if value != 0 {
+            push_nif_property(state, key, value.to_string());
+        }
+    }
+    if flags & 0x0200 != 0 && alpha.test_ref != CANONICAL_ALPHA_TEST_THRESHOLD {
+        push_nif_property(
+            state,
+            "Material_Alpha_TestThreshold",
+            alpha.test_ref.to_string(),
+        );
+    }
+}
+
+fn texturing_nif_state(state: &mut NifState, stream: &NiStream, texturing: &NiTexturingProperty) {
+    if texturing.apply_mode as i32 != 2 {
+        push_nif_property(
+            state,
+            "Nif_Texture_ApplyMode",
+            (texturing.apply_mode as i32).to_string(),
+        );
+    }
+    for (index, map) in texturing.texture_maps.iter().enumerate() {
+        let Some(map) = map else {
+            continue;
+        };
+        let Some(source) = texture_source(stream, map) else {
+            continue;
+        };
+        let key = match index {
+            1 => "Nif_Texture_DarkMap",
+            2 => "Nif_Texture_DetailMap",
+            3 => "Nif_Texture_GlossMap",
+            4 => "Nif_Texture_GlowMap",
+            5 => "Nif_Texture_BumpMap",
+            _ => continue,
+        };
+        push_nif_property(state, key, source);
+    }
+    if let Some(Some(TextureMap::Map(map))) = texturing.texture_maps.first() {
+        if map.clamp_mode as i32 != 3 {
+            push_nif_property(
+                state,
+                "Nif_Texture_ClampMode",
+                (map.clamp_mode as i32).to_string(),
+            );
+        }
+        if map.filter_mode as i32 != 2 {
+            push_nif_property(
+                state,
+                "Nif_Texture_FilterMode",
+                (map.filter_mode as i32).to_string(),
+            );
+        }
+    }
+}
+
+fn shape_nif_state(stream: &NiStream, properties: &[NiKey]) -> NifState {
+    let mut state = NifState::default();
+    for property in properties {
+        if let Some(material) = stream.get_as::<_, NiMaterialProperty>(NiLink::<()>::new(*property))
+        {
+            material_nif_state(&mut state, material);
+        }
+        if let Some(alpha) = stream.get_as::<_, NiAlphaProperty>(NiLink::<()>::new(*property)) {
+            alpha_nif_state(&mut state, alpha);
+        }
+        if let Some(texturing) =
+            stream.get_as::<_, NiTexturingProperty>(NiLink::<()>::new(*property))
+        {
+            texturing_nif_state(&mut state, stream, texturing);
+        }
+    }
+    state.properties.sort();
+    state
+}
+
+fn add_scope(
+    scopes: &mut Vec<SemanticScope>,
+    parent: ScopeId,
+    name: &str,
+    kind: ImportScope,
+    node_kind: &str,
+) -> ScopeId {
+    let id = scopes.len();
+    scopes.push(SemanticScope {
+        id,
+        parent: Some(parent),
+        name: name.to_owned(),
+        kind,
+        node_kind: node_kind.to_owned(),
+    });
+    id
+}
+
+fn marker_origin<F>(transform_for: &F, key: NiKey, transform: tes3::nif::glam::Affine3A) -> [f64; 3]
+where
+    F: Fn(NiKey, tes3::nif::glam::Affine3A) -> tes3::nif::glam::Affine3A,
+{
+    let origin = transform_for(key, transform).transform_point3(tes3::nif::glam::Vec3::ZERO);
+    [
+        f64::from(origin.x),
+        f64::from(origin.y),
+        f64::from(origin.z),
+    ]
+}
+
+struct SemanticContext {
+    scopes: Vec<SemanticScope>,
+    shape_scopes: HashMap<NiKey, ScopeId>,
+    shape_properties: HashMap<NiKey, Vec<NiKey>>,
+    markers: Vec<ImportedMarker>,
+    diagnostics: Vec<String>,
+}
+
+struct SemanticWalker<'a, F> {
+    stream: &'a NiStream,
+    transform_for: &'a F,
+    context: SemanticContext,
+    active: HashSet<NiKey>,
+}
+
+impl<F> SemanticWalker<'_, F>
+where
+    F: Fn(NiKey, tes3::nif::glam::Affine3A) -> tes3::nif::glam::Affine3A,
+{
+    fn visit(&mut self, key: NiKey, parent_scope: ScopeId, inherited_properties: &[NiKey]) {
+        if !self.active.insert(key) {
+            return;
+        }
+
+        let mut scope = parent_scope;
+        let mut properties = inherited_properties.to_vec();
+        let mut children = Vec::new();
+        let inherited_kind = self.context.scopes[parent_scope].kind;
+
+        if let Some(root) = self
+            .stream
+            .get_as::<_, RootCollisionNode>(NiLink::<()>::new(key))
+        {
+            properties.extend(root.properties.iter().map(|link| link.key));
+            children.extend(root.children.iter().map(|link| link.key));
+            scope = add_scope(
+                &mut self.context.scopes,
+                parent_scope,
+                &root.name,
+                ImportScope::Collision,
+                "RootCollisionNode",
+            );
+            self.context.markers.push(ImportedMarker {
+                classname: "nif_node_collision_root".into(),
+                name: root.name.clone(),
+                origin: marker_origin(self.transform_for, key, root.transform()),
+                scope,
+                properties: Vec::new(),
+            });
+        } else if let Some(node) = self
+            .stream
+            .get_as::<_, NiBillboardNode>(NiLink::<()>::new(key))
+        {
+            properties.extend(node.properties.iter().map(|link| link.key));
+            children.extend(node.children.iter().map(|link| link.key));
+            scope = add_scope(
+                &mut self.context.scopes,
+                parent_scope,
+                &node.name,
+                if inherited_kind == ImportScope::Collision {
+                    ImportScope::Collision
+                } else {
+                    ImportScope::Visual
+                },
+                "NiBillboardNode",
+            );
+            self.context.markers.push(ImportedMarker {
+                classname: "nif_node_billboard".into(),
+                name: node.name.clone(),
+                origin: marker_origin(self.transform_for, key, node.transform()),
+                scope,
+                properties: Vec::new(),
+            });
+            self.context.diagnostics.push(format!(
+                "node {:?}: billboard mode is not encoded by the supported NIF version",
+                node.name
+            ));
+        } else if let Some(node) = self
+            .stream
+            .get_as::<_, NiSortAdjustNode>(NiLink::<()>::new(key))
+        {
+            properties.extend(node.properties.iter().map(|link| link.key));
+            children.extend(node.children.iter().map(|link| link.key));
+            scope = add_scope(
+                &mut self.context.scopes,
+                parent_scope,
+                &node.name,
+                if inherited_kind == ImportScope::Collision {
+                    ImportScope::Collision
+                } else {
+                    ImportScope::Visual
+                },
+                "NiSortAdjustNode",
+            );
+            self.context.markers.push(ImportedMarker {
+                classname: "nif_node_sort_adjust".into(),
+                name: node.name.clone(),
+                origin: marker_origin(self.transform_for, key, node.transform()),
+                scope,
+                properties: vec![NifProperty {
+                    key: "Nif_Sort_Mode".into(),
+                    value: (node.sorting_mode as i32).to_string(),
+                }],
+            });
+        } else if let Some(node) = self.stream.get_as::<_, NiNode>(NiLink::<()>::new(key)) {
+            properties.extend(node.properties.iter().map(|link| link.key));
+            children.extend(node.children.iter().map(|link| link.key));
+        } else if let Some(shape) = self.stream.get_as::<_, NiTriShape>(NiLink::<()>::new(key)) {
+            properties.extend(shape.properties.iter().map(|link| link.key));
+            self.context.shape_scopes.insert(key, scope);
+            self.context
+                .shape_properties
+                .insert(key, properties.clone());
+        }
+
+        for child in children {
+            self.visit(child, scope, &properties);
+        }
+        self.active.remove(&key);
+    }
+}
+
+fn semantic_context<F>(stream: &NiStream, transform_for: &F) -> SemanticContext
+where
+    F: Fn(NiKey, tes3::nif::glam::Affine3A) -> tes3::nif::glam::Affine3A,
+{
+    let context = SemanticContext {
+        scopes: vec![SemanticScope {
+            id: 0,
+            parent: None,
+            name: "Asset".into(),
+            kind: ImportScope::Visual,
+            node_kind: "asset".into(),
+        }],
+        shape_scopes: HashMap::new(),
+        shape_properties: HashMap::new(),
+        markers: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    let mut walker = SemanticWalker {
+        stream,
+        transform_for,
+        context,
+        active: HashSet::new(),
+    };
+    for root in &stream.roots {
+        walker.visit(root.key, 0, &[]);
+    }
+    walker.context
+}
+
+fn import_nodes(stream: &NiStream) -> (Vec<ImportedNode>, Vec<String>) {
+    let mut nodes = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (_, node) in stream.objects_of_type_with_link::<NiNode>() {
+        let has_controller = stream.get(node.controller).is_some();
+        let has_extra_data = stream.get(node.extra_data).is_some();
+        if has_controller {
+            diagnostics.push(format!(
+                "node {:?}: NiTimeController chain is not represented",
+                node.name
+            ));
+        }
+        if has_extra_data {
+            diagnostics.push(format!(
+                "node {:?}: NiExtraData chain is not represented",
+                node.name
+            ));
+        }
+        if !node.effects.is_empty() {
+            diagnostics.push(format!(
+                "node {:?}: {} effect(s) are not represented",
+                node.name,
+                node.effects.len()
+            ));
+        }
+        nodes.push(ImportedNode {
+            name: node.name.clone(),
+            flags: node.flags,
+            effects: node.effects.len(),
+            has_controller,
+            has_extra_data,
+        });
+    }
+    (nodes, diagnostics)
+}
+
+fn linear_uv_rate(data: &NiFloatData) -> Option<f32> {
+    let NiFloatKey::LinKey(keys) = &data.keys else {
+        return None;
+    };
+    if keys.len() != 2
+        || keys
+            .iter()
+            .any(|key| !key.time.is_finite() || !key.value.is_finite())
+    {
+        return None;
+    }
+    let first = keys.first()?;
+    let last = keys.last()?;
+    let duration = last.time - first.time;
+    if duration <= STATE_FLOAT_EPSILON || first.time.abs() > STATE_FLOAT_EPSILON {
+        return None;
+    }
+    Some((last.value - first.value) / duration)
+}
+
+fn uv_data_has_keys(data: &NiFloatData) -> bool {
+    match &data.keys {
+        NiFloatKey::LinKey(keys) => !keys.is_empty(),
+        NiFloatKey::BezKey(keys) => !keys.is_empty(),
+        NiFloatKey::TCBKey(keys) => !keys.is_empty(),
+    }
+}
+
+fn approximately(lhs: f32, rhs: f32) -> bool {
+    (lhs - rhs).abs() <= STATE_FLOAT_EPSILON
+}
+
+fn import_uv_state(
+    stream: &NiStream,
+    shape_key: NiKey,
+    base_uv_set: Option<usize>,
+    controllers: &HashMap<NiKey, Vec<&NiUVController>>,
+    state: &mut NifState,
+    diagnostics: &mut Vec<String>,
+) {
+    for controller in controllers.get(&shape_key).into_iter().flatten() {
+        if base_uv_set != Some(usize::from(controller.texture_set)) {
+            diagnostics.push(
+                "NiUVController targets a non-base texture set; animation was not represented"
+                    .into(),
+            );
+            continue;
+        }
+        if !controller.active()
+            || controller.cycle_type() != tes3::nif::CycleType::Cycle
+            || !approximately(controller.frequency, 1.0)
+            || !approximately(controller.phase, 0.0)
+            || !approximately(controller.start_time, 0.0)
+            || !approximately(controller.stop_time, 0.0)
+        {
+            diagnostics.push(
+                "NiUVController timing/cycle settings do not prove indefinite scrolling; animation was not represented"
+                    .into(),
+            );
+            continue;
+        }
+        let Some(data) = stream.get_as::<_, NiUVData>(controller.data) else {
+            diagnostics
+                .push("NiUVController has no NiUVData; animation was not represented".into());
+            continue;
+        };
+        let u_rate = linear_uv_rate(&data.u_offset_data);
+        let v_rate = linear_uv_rate(&data.v_offset_data);
+        if uv_data_has_keys(&data.u_tiling_data) || uv_data_has_keys(&data.v_tiling_data) {
+            diagnostics
+                .push("NiUVController changes UV tiling; animation was not represented".into());
+            continue;
+        }
+        if u_rate.is_none() && v_rate.is_none() {
+            diagnostics.push(
+                "NiUVController uses unsupported key data; animation was not represented".into(),
+            );
+            continue;
+        }
+        push_nif_property(state, "Nif_UV_Mode", "1");
+        if let Some(rate) = u_rate {
+            push_nif_property(state, "Nif_UV_U", canonical_float(rate));
+        }
+        if let Some(rate) = v_rate {
+            push_nif_property(state, "Nif_UV_V", canonical_float(rate));
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ShapeImportContext<'a, F> {
+    stream: &'a NiStream,
+    resolver: &'a TextureResolver,
+    ordinals: &'a HashMap<NiKey, usize>,
+    transform_for: &'a F,
+    scope: ScopeId,
+    properties: &'a [NiKey],
+    uv_controllers: &'a HashMap<NiKey, Vec<&'a NiUVController>>,
+}
+
+fn shape_provenance(stream: &NiStream, shape: &NiTriShape) -> NifProvenance {
+    NifProvenance {
+        av_flags: shape.flags,
+        has_controller: stream.get(shape.controller).is_some(),
+        has_extra_data: stream.get(shape.extra_data).is_some(),
+        has_skin_instance: stream.get(shape.skin_instance).is_some(),
+    }
+}
+
+fn shape_diagnostics(
+    data: &NiTriShapeData,
+    texture: Option<&TextureBinding>,
+    provenance: &NifProvenance,
+) -> Vec<String> {
+    let mut diagnostics = Vec::new();
+    if provenance.has_skin_instance {
+        diagnostics
+            .push("NiSkinInstance is not represented; geometry was imported statically".into());
+    }
+    if provenance.has_controller {
+        diagnostics.push("NiTimeController chain is not represented".into());
+    }
+    if provenance.has_extra_data {
+        diagnostics.push("NiExtraData chain is not represented".into());
+    }
+    if data.num_uv_sets() > 1 {
+        diagnostics.push(format!(
+            "{} additional UV set(s) are not representable in Valve 220",
+            data.num_uv_sets() - 1
+        ));
+    }
+    if let Some(texture) = texture
+        && texture.uv_set >= data.num_uv_sets()
+    {
+        diagnostics.push(format!(
+            "base texture selects UV set {}, but geometry provides only {} set(s)",
+            texture.uv_set,
+            data.num_uv_sets()
+        ));
+    }
+    diagnostics
+}
+
+fn import_shape<F>(
+    context: &ShapeImportContext<'_, F>,
+    link: NiKey,
+    shape: &NiTriShape,
+) -> Result<VisualMesh, String>
+where
+    F: Fn(NiKey, tes3::nif::glam::Affine3A) -> tes3::nif::glam::Affine3A,
+{
+    let data = context
+        .stream
+        .get_as::<_, NiTriShapeData>(shape.geometry_data)
+        .ok_or_else(|| format!("shape {link:?}: missing NiTriShapeData"))?;
+    let block = *context
+        .ordinals
+        .get(&link)
+        .ok_or_else(|| format!("shape {link:?}: missing diagnostic ordinal"))?;
+    let transform = (context.transform_for)(link, shape.transform());
+    let vertices: Vec<_> = data
+        .vertices
+        .iter()
+        .map(|vertex| {
+            let point = transform.transform_point3(*vertex);
+            P3 {
+                x: f64::from(point.x),
+                y: f64::from(point.y),
+                z: f64::from(point.z),
+            }
+        })
+        .collect();
+    let texture = texture_binding(context.stream, context.properties);
+    let uvs = texture
+        .as_ref()
+        .and_then(|texture| data.uv_set(texture.uv_set))
+        .map(|uvs| {
+            uvs.iter()
+                .map(|uv| [f64::from(uv.x), f64::from(uv.y)])
+                .collect()
+        });
+    let triangles = data
+        .triangles
+        .iter()
+        .map(|triangle| {
+            [
+                triangle[0] as usize,
+                triangle[1] as usize,
+                triangle[2] as usize,
+            ]
+        })
+        .collect();
+    let name = shape.name.clone();
+    let provenance = shape_provenance(context.stream, shape);
+    let mut diagnostics = shape_diagnostics(data, texture.as_ref(), &provenance);
+    let mut nif_state = shape_nif_state(context.stream, context.properties);
+    import_uv_state(
+        context.stream,
+        link,
+        texture.as_ref().map(|texture| texture.uv_set),
+        context.uv_controllers,
+        &mut nif_state,
+        &mut diagnostics,
+    );
+    nif_state.properties.sort();
+    let texture_size = context
+        .resolver
+        .resolve(texture.as_ref().map(|texture| texture.source.as_str()));
+    Ok(VisualMesh {
+        block,
+        name,
+        vertices,
+        uvs,
+        triangles,
+        material: material_name(texture.as_ref().map(|texture| texture.source.as_str())),
+        texture,
+        texture_size,
+        scope: context.scope,
+        nif_state,
+        provenance,
+        diagnostics,
+    })
+}
+
+fn import_scene(path: &Path, resolver: &TextureResolver) -> Result<ImportedAsset, Error> {
     let stream = NiStream::from_path(path)
         .map_err(|error| Error::Nif(format!("{}: {error}", path.display())))?;
     reject_legacy_bounds(&stream, path)?;
@@ -2630,65 +3405,79 @@ fn nif_meshes(
         .map(|(index, (key, _))| (key, index))
         .collect();
     let transforms = stream.world_transforms();
-    let collision = collision_descendants(&stream);
-    let mut meshes = Vec::new();
+    let transform_for = |key, fallback| transforms.get(&key).copied().unwrap_or(fallback);
+    let semantic = semantic_context(&stream, &transform_for);
+    let uv_controllers: HashMap<NiKey, Vec<&NiUVController>> = stream
+        .objects_of_type_with_link::<NiUVController>()
+        .fold(HashMap::new(), |mut index, (_, controller)| {
+            index
+                .entry(controller.target.key)
+                .or_default()
+                .push(controller);
+            index
+        });
+    let SemanticContext {
+        scopes,
+        shape_scopes,
+        shape_properties,
+        markers,
+        diagnostics,
+    } = semantic;
+    let mut asset = ImportedAsset {
+        scopes,
+        markers,
+        diagnostics,
+        ..Default::default()
+    };
+    let (nodes, node_diagnostics) = import_nodes(&stream);
+    asset.nodes = nodes;
+    asset.diagnostics.extend(node_diagnostics);
+    let import_context = ShapeImportContext {
+        stream: &stream,
+        resolver,
+        ordinals: &ordinals,
+        transform_for: &transform_for,
+        scope: 0,
+        properties: &[],
+        uv_controllers: &uv_controllers,
+    };
     for (link, shape) in stream.objects_of_type_with_link::<NiTriShape>() {
-        if !include_collision && collision.contains(&link.key) {
-            continue;
+        let import_context = ShapeImportContext {
+            scope: shape_scopes.get(&link.key).copied().unwrap_or_default(),
+            properties: shape_properties
+                .get(&link.key)
+                .map_or(&[][..], Vec::as_slice),
+            ..import_context
+        };
+        match import_shape(&import_context, link.key, shape) {
+            Ok(mesh) => asset.meshes.push(mesh),
+            Err(diagnostic) => asset.diagnostics.push(diagnostic),
         }
-        let Some(data) = stream.get_as::<_, NiTriShapeData>(shape.base.base.geometry_data) else {
-            continue;
-        };
-        let Some(&block) = ordinals.get(&link.key) else {
-            continue;
-        };
-        let transform = transforms
-            .get(&link.key)
-            .copied()
-            .unwrap_or_else(|| shape.base.base.base.transform());
-        let vertices: Vec<_> = data
-            .base
-            .base
-            .vertices
-            .iter()
-            .map(|vertex| {
-                let point = transform.transform_point3(*vertex);
-                P3 {
-                    x: f64::from(point.x),
-                    y: f64::from(point.y),
-                    z: f64::from(point.z),
-                }
-            })
-            .collect();
-        let uvs = data.base.base.uv_set(0).map(|uvs| {
-            uvs.iter()
-                .map(|uv| [f64::from(uv.x), f64::from(uv.y)])
-                .collect()
-        });
-        let triangles = data
-            .triangles
-            .iter()
-            .map(|triangle| {
-                [
-                    triangle[0] as usize,
-                    triangle[1] as usize,
-                    triangle[2] as usize,
-                ]
-            })
-            .collect();
-        let source_texture = shape_texture(&stream, shape);
-        meshes.push(VisualMesh {
-            block,
-            name: shape.base.base.base.base.name.clone(),
-            vertices,
-            uvs,
-            triangles,
-            material: material_name(source_texture.as_deref()),
-            texture_size: resolver.dimensions(source_texture.as_deref()),
-            source_texture,
-        });
     }
-    Ok(meshes)
+    asset.meshes.sort_by_key(|mesh| (mesh.scope, mesh.block));
+    asset.nodes.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+    asset.markers.sort_by(|lhs, rhs| {
+        lhs.scope
+            .cmp(&rhs.scope)
+            .then(lhs.classname.cmp(&rhs.classname))
+            .then(lhs.name.cmp(&rhs.name))
+    });
+    Ok(asset)
+}
+
+#[cfg(test)]
+fn nif_meshes(
+    path: &Path,
+    resolver: &TextureResolver,
+    include_collision: bool,
+) -> Result<Vec<VisualMesh>, Error> {
+    let asset = import_scene(path, resolver)?;
+    let scopes = asset.scopes;
+    Ok(asset
+        .meshes
+        .into_iter()
+        .filter(|mesh| include_collision || scope_kind(&scopes, mesh.scope) == ImportScope::Visual)
+        .collect())
 }
 
 fn gather_inputs(paths: &[PathBuf], recursive: bool) -> Vec<PathBuf> {
@@ -2744,7 +3533,78 @@ fn sha1_suffix(path: &Path) -> String {
         })
 }
 
-fn map_text(source: &Path, result: &Reconstruction) -> String {
+fn emit_tb_group(lines: &mut Vec<String>, name: &str, id: usize, parent: Option<usize>) {
+    lines.push("{".into());
+    lines.push("\"classname\" \"func_group\"".into());
+    lines.push("\"_tb_type\" \"_tb_group\"".into());
+    lines.push(format!("\"_tb_name\" {name:?}"));
+    lines.push(format!("\"_tb_id\" \"{id}\""));
+    if let Some(parent) = parent {
+        lines.push(format!("\"_tb_group\" \"{parent}\""));
+    }
+    lines.push("}".into());
+}
+
+fn emit_brush_entity(lines: &mut Vec<String>, parent: usize, state: &NifState, brushes: &[&Brush]) {
+    lines.push("{".into());
+    lines.push("\"classname\" \"nif_geometry\"".into());
+    lines.push(format!("\"_tb_group\" \"{parent}\""));
+    for property in &state.properties {
+        lines.push(format!("{:?} {:?}", property.key, property.value));
+    }
+    for brush in brushes {
+        lines.push("{".into());
+        lines.extend(brush.faces.iter().cloned());
+        lines.push("}".into());
+    }
+    lines.push("}".into());
+}
+
+fn emit_marker(lines: &mut Vec<String>, marker: &ImportedMarker, parent: usize) {
+    lines.push("{".into());
+    lines.push(format!("\"classname\" {:?}", marker.classname));
+    lines.push(format!(
+        "\"origin\" \"{} {} {}\"",
+        marker.origin[0], marker.origin[1], marker.origin[2]
+    ));
+    lines.push(format!("\"_tb_group\" \"{parent}\""));
+    for property in &marker.properties {
+        lines.push(format!("{:?} {:?}", property.key, property.value));
+    }
+    lines.push("}".into());
+}
+
+fn brush_groups(result: &Reconstruction) -> Vec<(ScopeId, NifState, Vec<&Brush>)> {
+    let mut groups: Vec<(ScopeId, NifState, Vec<&Brush>)> = Vec::new();
+    for brush in &result.brushes {
+        if let Some((_, _, brushes)) = groups
+            .iter_mut()
+            .find(|(scope, state, _)| *scope == brush.scope && *state == brush.nif_state)
+        {
+            brushes.push(brush);
+        } else {
+            groups.push((brush.scope, brush.nif_state.clone(), vec![brush]));
+        }
+    }
+    groups
+}
+
+fn scope_kind(scopes: &[SemanticScope], id: ScopeId) -> ImportScope {
+    scopes
+        .get(id)
+        .map_or(ImportScope::Visual, |scope| scope.kind)
+}
+
+fn map_text(
+    source: &Path,
+    result: &Reconstruction,
+    scopes: &[SemanticScope],
+    include_collision: bool,
+) -> String {
+    let asset_name = source
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("Imported NIF");
     let mut lines = vec![
         "// Game: Morrowind".to_string(),
         "// Format: Quake2 (Valve)".to_string(),
@@ -2755,7 +3615,6 @@ fn map_text(source: &Path, result: &Reconstruction) -> String {
                 .and_then(|name| name.to_str())
                 .unwrap_or("unknown.nif")
         ),
-        "// nif2map.py experimental visual-geometry importer".to_string(),
         "// Artificial closure/partition faces use skip material.".into(),
         "{".into(),
         "\"classname\" \"worldspawn\"".into(),
@@ -2767,23 +3626,57 @@ fn map_text(source: &Path, result: &Reconstruction) -> String {
                 .and_then(|stem| stem.to_str())
                 .unwrap_or("nif")
         ),
+        "}".into(),
     ];
-    for (index, brush) in result.brushes.iter().enumerate() {
-        let shapes = brush
-            .shapes
-            .iter()
-            .map(usize::to_string)
-            .collect::<Vec<_>>()
-            .join(",");
-        lines.push(format!(
-            "// brush_{index:04} kind={} source_shapes={shapes}",
-            brush.kind
-        ));
-        lines.push("{".into());
-        lines.extend(brush.faces.iter().cloned());
-        lines.push("}".into());
+    let groups = brush_groups(result);
+    emit_tb_group(&mut lines, asset_name, 1, None);
+
+    let mut scope_group_ids = HashMap::from([(0_usize, 1_usize)]);
+    for (group_id, scope) in
+        (2..).zip(scopes.iter().filter(|scope| {
+            scope.id != 0 && (include_collision || scope.kind == ImportScope::Visual)
+        }))
+    {
+        let parent = scope
+            .parent
+            .and_then(|parent| scope_group_ids.get(&parent).copied())
+            .unwrap_or(1);
+        let scope_name = if scope.name.is_empty() {
+            scope.node_kind.as_str()
+        } else {
+            scope.name.as_str()
+        };
+        emit_tb_group(
+            &mut lines,
+            &format!(
+                "{}: {}",
+                match scope.kind {
+                    ImportScope::Visual => "Visual",
+                    ImportScope::Collision => "Collision",
+                },
+                scope_name
+            ),
+            group_id,
+            Some(parent),
+        );
+        scope_group_ids.insert(scope.id, group_id);
     }
-    lines.push("}".into());
+    for (scope, state, brushes) in groups {
+        let parent = scope_group_ids.get(&scope).copied().unwrap_or(1);
+        if scope == 0 && !state.is_default() {
+            emit_brush_entity(&mut lines, parent, &state, &brushes);
+            continue;
+        }
+        emit_brush_entity(&mut lines, parent, &state, &brushes);
+    }
+
+    for marker in &result.markers {
+        if !include_collision && scope_kind(scopes, marker.scope) == ImportScope::Collision {
+            continue;
+        }
+        let parent = scope_group_ids.get(&marker.scope).copied().unwrap_or(1);
+        emit_marker(&mut lines, marker, parent);
+    }
     lines.join("\n") + "\n"
 }
 
@@ -2792,6 +3685,7 @@ fn report(
     output: Option<&Path>,
     meshes: &[VisualMesh],
     result: &Reconstruction,
+    imported: &ImportedAsset,
 ) -> Report {
     Report {
         source: source.to_string_lossy().into_owned(),
@@ -2804,8 +3698,14 @@ fn report(
                 vertices: mesh.vertices.len(),
                 triangles: mesh.triangles.len(),
                 material: mesh.material.clone(),
-                source_texture: mesh.source_texture.clone(),
-                texture_size: [mesh.texture_size.0, mesh.texture_size.1],
+                texture: mesh.texture.clone(),
+                texture_size: [mesh.texture_size.size.0, mesh.texture_size.size.1],
+                texture_size_source: mesh.texture_size.source,
+                scope: mesh.scope,
+                scope_kind: scope_kind(&imported.scopes, mesh.scope),
+                nif_state: mesh.nif_state.clone(),
+                provenance: mesh.provenance.clone(),
+                diagnostics: mesh.diagnostics.clone(),
             })
             .collect(),
         brushes: result.brushes.len(),
@@ -2818,6 +3718,10 @@ fn report(
         recognizers: result.recognizers.clone(),
         max_triangle_uv_fit_error_texels: result.uv_max_error,
         warnings: result.warnings.clone(),
+        import_diagnostics: imported.diagnostics.clone(),
+        nodes: imported.nodes.clone(),
+        scopes: imported.scopes.clone(),
+        markers: imported.markers.clone(),
     }
 }
 
@@ -2828,13 +3732,32 @@ fn process_one(
     options: &Options,
     resolver: &TextureResolver,
 ) -> Result<(usize, usize, Report), Error> {
-    let nif = nif_meshes(source, resolver, options.include_collision)?;
+    let imported = import_scene(source, resolver)?;
+    let nif: Vec<_> = imported
+        .meshes
+        .iter()
+        .filter(|mesh| {
+            options.include_collision
+                || scope_kind(&imported.scopes, mesh.scope) == ImportScope::Visual
+        })
+        .cloned()
+        .collect();
     if nif.is_empty() {
         return Err(Error::Reconstruction(
             "no visual NiTriShape meshes found".into(),
         ));
     }
-    let result = reconstruct(&nif, options)?;
+    let mut result = reconstruct(&nif, options)?;
+    result.markers.clone_from(&imported.markers);
+    for mesh in &nif {
+        for diagnostic in &mesh.diagnostics {
+            result.warnings.push(format!(
+                "shape {} {:?}: {diagnostic}",
+                mesh.block, mesh.name
+            ));
+        }
+    }
+    result.warnings.extend(imported.diagnostics.iter().cloned());
     if result.brushes.is_empty() {
         return Err(Error::Reconstruction("no brushes reconstructed".into()));
     }
@@ -2843,9 +3766,13 @@ fn process_one(
         if options.dry_run { None } else { Some(output) },
         &nif,
         &result,
+        &imported,
     );
     if !options.dry_run {
-        fs::write(output, map_text(source, &result))?;
+        fs::write(
+            output,
+            map_text(source, &result, &imported.scopes, options.include_collision),
+        )?;
         let json = serde_json::to_vec_pretty(&report)
             .map_err(|error| Error::Io(io::Error::other(error)))?;
         fs::write(report_path, [json.as_slice(), b"\n"].concat())?;
@@ -3047,8 +3974,20 @@ mod tests {
             uvs: None,
             triangles,
             material: "fixture/mat".into(),
-            source_texture: None,
-            texture_size: (256, 256),
+            texture: None,
+            texture_size: TextureDimensions {
+                size: (256, 256),
+                source: TextureSizeSource::Fallback,
+            },
+            scope: 0,
+            nif_state: NifState::default(),
+            provenance: NifProvenance {
+                av_flags: 0,
+                has_controller: false,
+                has_extra_data: false,
+                has_skin_instance: false,
+            },
+            diagnostics: Vec::new(),
         }
     }
 
@@ -3469,16 +4408,32 @@ mod tests {
 
         let result = reconstruct(std::slice::from_ref(&mesh), &options("planar-prisms"))
             .expect("malformed UVs should use a finite fallback projection");
-        let map_output = map_text(Path::new("malformed-uv.nif"), &result).to_ascii_lowercase();
+        let map_output = map_text(
+            Path::new("malformed-uv.nif"),
+            &result,
+            &[SemanticScope {
+                id: 0,
+                parent: None,
+                name: "Asset".into(),
+                kind: ImportScope::Visual,
+                node_kind: "asset".into(),
+            }],
+            false,
+        )
+        .to_ascii_lowercase();
         assert!(!map_output.contains("nan"));
         assert!(!map_output.contains("inf"));
     }
 
     #[test]
+    #[allow(
+        clippy::field_reassign_with_default,
+        reason = "The tes3 NIF facade exposes flattened accessors but nested constructors."
+    )]
     fn nif_adapter_preserves_visual_shape_and_transform() {
         let mut stream = NiStream::default();
         let mut data = NiTriShapeData::default();
-        data.base.base.vertices = vec![
+        data.vertices = vec![
             tes3::nif::glam::vec3(0.0, 0.0, 0.0),
             tes3::nif::glam::vec3(1.0, 0.0, 0.0),
             tes3::nif::glam::vec3(0.0, 1.0, 0.0),
@@ -3486,9 +4441,9 @@ mod tests {
         data.triangles = vec![[0, 1, 2]];
         let data_link = stream.insert(data);
         let mut shape = NiTriShape::default();
-        shape.base.base.geometry_data = data_link.cast();
-        shape.base.base.base.name = "fixture-shape".into();
-        shape.base.base.base.translation = tes3::nif::glam::vec3(10.0, 20.0, 30.0);
+        shape.geometry_data = data_link.cast();
+        shape.name = "fixture-shape".into();
+        shape.translation = tes3::nif::glam::vec3(10.0, 20.0, 30.0);
         let shape_link = stream.insert(shape);
         let mut root = NiNode::default();
         root.children.push(shape_link.cast());
@@ -3526,14 +4481,94 @@ mod tests {
                 faces: vec!["face".into()],
                 kind: "test".into(),
                 shapes: vec![1],
+                ..Default::default()
             }],
             ..Default::default()
         };
-        let text = map_text(Path::new("fixture.nif"), &result);
+        let text = map_text(
+            Path::new("fixture.nif"),
+            &result,
+            &[SemanticScope {
+                id: 0,
+                parent: None,
+                name: "Asset".into(),
+                kind: ImportScope::Visual,
+                node_kind: "asset".into(),
+            }],
+            false,
+        );
         assert_eq!(text.lines().next(), Some("// Game: Morrowind"));
         assert_eq!(text.lines().nth(1), Some("// Format: Quake2 (Valve)"));
-        assert!(text.contains("// nif2map.py experimental visual-geometry importer"));
         assert!(text.contains("\"mapversion\" \"220\""));
+        assert!(text.contains("\"classname\" \"func_group\""));
+        assert!(text.contains("\"_tb_type\" \"_tb_group\""));
+        assert!(!text.contains("// brush_"));
+    }
+
+    #[test]
+    fn authored_map_separates_collision_and_nif_state() {
+        let mut state = NifState::default();
+        state.properties.push(NifProperty {
+            key: "Material_Alpha".into(),
+            value: "0.5".into(),
+        });
+        let result = Reconstruction {
+            brushes: vec![
+                Brush {
+                    faces: vec!["visual".into()],
+                    kind: "test".into(),
+                    shapes: vec![1],
+                    ..Default::default()
+                },
+                Brush {
+                    faces: vec!["collision".into()],
+                    kind: "test".into(),
+                    shapes: vec![2],
+                    scope: 1,
+                    ..Default::default()
+                },
+                Brush {
+                    faces: vec!["state".into()],
+                    kind: "test".into(),
+                    shapes: vec![3],
+                    nif_state: state,
+                    ..Default::default()
+                },
+            ],
+            markers: vec![ImportedMarker {
+                classname: "nif_node_collision_root".into(),
+                name: "Collision Root".into(),
+                origin: [0.0, 0.0, 0.0],
+                scope: 1,
+                properties: Vec::new(),
+            }],
+            ..Default::default()
+        };
+        let text = map_text(
+            Path::new("fixture.nif"),
+            &result,
+            &[
+                SemanticScope {
+                    id: 0,
+                    parent: None,
+                    name: "Asset".into(),
+                    kind: ImportScope::Visual,
+                    node_kind: "asset".into(),
+                },
+                SemanticScope {
+                    id: 1,
+                    parent: Some(0),
+                    name: "Collision Root".into(),
+                    kind: ImportScope::Collision,
+                    node_kind: "RootCollisionNode".into(),
+                },
+            ],
+            true,
+        );
+        assert!(text.contains("\"classname\" \"nif_geometry\""));
+        assert!(text.contains("\"Material_Alpha\" \"0.5\""));
+        assert!(text.contains("\"classname\" \"nif_node_collision_root\""));
+        assert!(text.contains("\"_tb_name\" \"Collision: Collision Root\""));
     }
 
     #[test]
@@ -3556,5 +4591,26 @@ mod tests {
         let resolver = TextureResolver::new(std::slice::from_ref(&root), 256);
         assert_eq!(resolver.dimensions(Some("Textures/fixture.dds")), (64, 32));
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn base_texture_binding_preserves_the_declared_uv_set() {
+        let mut stream = NiStream::default();
+        let texture_link = stream.insert(tes3::nif::NiSourceTexture {
+            source: TextureSource::External("Textures/base.tga".into()),
+            ..Default::default()
+        });
+        let property_link = stream.insert(NiTexturingProperty {
+            texture_maps: vec![Some(TextureMap::Map(tes3::nif::Map {
+                texture: texture_link.cast(),
+                texture_index: 1,
+                ..Default::default()
+            }))],
+            ..Default::default()
+        });
+
+        let binding = texture_binding(&stream, &[property_link.key]).expect("base map binding");
+        assert_eq!(binding.source, "Textures/base.tga");
+        assert_eq!(binding.uv_set, 1);
     }
 }
