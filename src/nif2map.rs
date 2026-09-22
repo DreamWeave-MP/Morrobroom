@@ -49,6 +49,7 @@ const FACE_TRIPLET_QUALITY_EPSILON: f64 = 1e-8;
 const PLANE_DOT_EPSILON: f64 = 1e-9;
 const PLANE_DISTANCE_EPSILON: f64 = 1e-5;
 const UV_ERROR_WARNING: f64 = 0.25;
+const UV_MERGE_TOLERANCE_TEXELS: f64 = 0.05;
 
 #[derive(Debug)]
 pub enum Error {
@@ -225,6 +226,22 @@ struct Projection {
     v_shift: f64,
     v_scale: f64,
     max_error: f64,
+}
+
+fn projection_is_valid(projection: &Projection) -> bool {
+    projection.u.x.is_finite()
+        && projection.u.y.is_finite()
+        && projection.u.z.is_finite()
+        && projection.u_shift.is_finite()
+        && projection.u_scale.is_finite()
+        && projection.u_scale.abs() > f64::EPSILON
+        && projection.v.x.is_finite()
+        && projection.v.y.is_finite()
+        && projection.v.z.is_finite()
+        && projection.v_shift.is_finite()
+        && projection.v_scale.is_finite()
+        && projection.v_scale.abs() > f64::EPSILON
+        && projection.max_error.is_finite()
 }
 
 #[derive(Clone, Debug)]
@@ -729,7 +746,7 @@ fn fit_projection(
             .max((actual_s - expected_s).abs())
             .max((actual_t - expected_t).abs());
     }
-    Some(Projection {
+    let projection = Projection {
         u,
         u_shift,
         u_scale,
@@ -737,7 +754,8 @@ fn fit_projection(
         v_shift,
         v_scale,
         max_error,
-    })
+    };
+    projection_is_valid(&projection).then_some(projection)
 }
 
 fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<Projection> {
@@ -753,6 +771,68 @@ fn triangle_projection(mesh: &VisualMesh, index: usize, flip_v: bool) -> Option<
         mesh.texture_size,
         flip_v,
     )
+}
+
+fn projection_error(
+    mesh: &VisualMesh,
+    triangle_index: usize,
+    projection: &Projection,
+    flip_v: bool,
+) -> f64 {
+    let Some(uvs) = mesh.uvs.as_ref() else {
+        return f64::INFINITY;
+    };
+    let triangle = mesh.triangles[triangle_index];
+    let width = f64::from(mesh.texture_size.0);
+    let height = f64::from(mesh.texture_size.1);
+    triangle
+        .into_iter()
+        .map(|vertex_index| {
+            let point = mesh.vertices[vertex_index];
+            let uv = uvs[vertex_index];
+            let expected_s = uv[0] * width;
+            let expected_t = (if flip_v { 1.0 - uv[1] } else { uv[1] }) * height;
+            let actual_s = projection.u.dot(point) / projection.u_scale + projection.u_shift;
+            let actual_t = projection.v.dot(point) / projection.v_scale + projection.v_shift;
+            if !actual_s.is_finite()
+                || !actual_t.is_finite()
+                || !expected_s.is_finite()
+                || !expected_t.is_finite()
+            {
+                return f64::INFINITY;
+            }
+            let error = (actual_s - expected_s)
+                .abs()
+                .max((actual_t - expected_t).abs());
+            if error.is_finite() {
+                error
+            } else {
+                f64::INFINITY
+            }
+        })
+        .fold(0.0, f64::max)
+}
+
+fn can_merge_uv_triangle(
+    mesh: &VisualMesh,
+    triangle_index: usize,
+    candidate_projection: Option<&Projection>,
+    group_projection: Option<&Projection>,
+    flip_v: bool,
+) -> bool {
+    if mesh.uvs.is_none() {
+        return true;
+    }
+    let Some(group_projection) = group_projection else {
+        return false;
+    };
+    let Some(candidate_projection) = candidate_projection else {
+        return false;
+    };
+    group_projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
+        && candidate_projection.max_error <= UV_MERGE_TOLERANCE_TEXELS
+        && projection_error(mesh, triangle_index, group_projection, flip_v)
+            <= UV_MERGE_TOLERANCE_TEXELS
 }
 
 fn project(point: P3, sweep: &Sweep) -> Coord<f64> {
@@ -1749,7 +1829,9 @@ fn planar_fallback(
     flip_v: bool,
     skip: &str,
 ) -> Result<(Vec<Brush>, RecognizerReport), Error> {
-    let mut groups: Vec<(P3, f64, Vec<usize>)> = Vec::new();
+    // Coplanar triangles may belong to different UV charts. Merge only when
+    // one affine projection reproduces the candidate triangle within tolerance.
+    let mut groups: Vec<(P3, f64, Vec<usize>, Option<Projection>)> = Vec::new();
     for (triangle_index, triangle) in mesh.triangles.iter().enumerate() {
         let points = [
             mesh.vertices[triangle[0]],
@@ -1760,26 +1842,33 @@ fn planar_fallback(
             continue;
         };
         let (normal, distance) = canonical_plane(normal, distance);
-        if let Some((_, _, indices)) =
-            groups
-                .iter_mut()
-                .find(|(candidate, candidate_distance, _)| {
-                    candidate.dot(normal).abs() >= 0.99999
-                        && (*candidate_distance - distance).abs() <= 1e-3
-                })
-        {
+        let projection = triangle_projection(mesh, triangle_index, flip_v);
+        if let Some((_, _, indices, _)) = groups.iter_mut().find(
+            |(candidate, candidate_distance, _indices, group_projection)| {
+                candidate.dot(normal).abs() >= 0.99999
+                    && (*candidate_distance - distance).abs() <= 1e-3
+                    && (mesh.uvs.is_none()
+                        || can_merge_uv_triangle(
+                            mesh,
+                            triangle_index,
+                            projection.as_ref(),
+                            group_projection.as_ref(),
+                            flip_v,
+                        ))
+            },
+        ) {
             indices.push(triangle_index);
         } else {
-            groups.push((normal, distance, vec![triangle_index]));
+            groups.push((normal, distance, vec![triangle_index], projection));
         }
     }
     let mut brushes = Vec::new();
-    for (_, _, triangle_indices) in &groups {
+    for (_, _, triangle_indices, projection) in &groups {
         brushes.extend(fallback_group(
             mesh,
             triangle_indices,
+            projection.as_ref(),
             thickness,
-            flip_v,
             skip,
         )?);
     }
@@ -1797,8 +1886,8 @@ fn planar_fallback(
 fn fallback_group(
     mesh: &VisualMesh,
     triangle_indices: &[usize],
+    projection: Option<&Projection>,
     thickness: f64,
-    flip_v: bool,
     skip: &str,
 ) -> Result<Vec<Brush>, Error> {
     let first = mesh.triangles[triangle_indices[0]];
@@ -1813,7 +1902,6 @@ fn fallback_group(
     let tangent_u = unit(first_points[1] - origin)?;
     let tangent_v = unit(authored_normal.cross(tangent_u))?;
     let mut polygons = Vec::new();
-    let mut projections = Vec::new();
     for triangle_index in triangle_indices {
         let triangle = mesh.triangles[*triangle_index];
         let points = [
@@ -1834,10 +1922,6 @@ fn fallback_group(
         );
         if polygon_area(&polygon) > 1e-9 {
             polygons.push(polygon);
-            projections.push((
-                *triangle_index,
-                triangle_projection(mesh, *triangle_index, flip_v),
-            ));
         }
     }
     if polygons.is_empty() {
@@ -1845,7 +1929,7 @@ fn fallback_group(
     }
     let context = FallbackContext {
         mesh,
-        projections: &projections,
+        projection,
         origin,
         tangent_u,
         tangent_v,
@@ -1866,7 +1950,7 @@ fn fallback_group(
 
 struct FallbackContext<'a> {
     mesh: &'a VisualMesh,
-    projections: &'a [(usize, Option<Projection>)],
+    projection: Option<&'a Projection>,
     origin: P3,
     tangent_u: P3,
     tangent_v: P3,
@@ -1894,30 +1978,7 @@ fn fallback_piece(
         .iter()
         .map(|point| *point - context.authored_normal * context.thickness)
         .collect();
-    let representative_point = representative(&poly(coordinates.clone()));
-    let source_projection = context
-        .projections
-        .iter()
-        .find(|(index, _)| {
-            let triangle = context.mesh.triangles[*index];
-            let source = poly(
-                [
-                    context.mesh.vertices[triangle[0]],
-                    context.mesh.vertices[triangle[1]],
-                    context.mesh.vertices[triangle[2]],
-                ]
-                .into_iter()
-                .map(|point| {
-                    p2(
-                        (point - context.origin).dot(context.tangent_u),
-                        (point - context.origin).dot(context.tangent_v),
-                    )
-                })
-                .collect(),
-            );
-            source.buffer(1e-6).covers(&representative_point)
-        })
-        .and_then(|(_, projection)| projection.as_ref());
+    let source_projection = context.projection;
     let mut faces = vec![
         emit_face(
             &front,
@@ -2981,6 +3042,63 @@ mod tests {
         }
     }
 
+    fn mesh_with_uvs(
+        vertices: Vec<P3>,
+        uvs: Vec<[f64; 2]>,
+        triangles: Vec<[usize; 3]>,
+    ) -> VisualMesh {
+        VisualMesh {
+            uvs: Some(uvs),
+            ..mesh(vertices, triangles)
+        }
+    }
+
+    fn emitted_projection(face: &str) -> Projection {
+        let mut mappings = face.split('[').skip(1);
+        let parse_mapping = |mapping: &str| {
+            mapping
+                .split(']')
+                .next()
+                .expect("mapping should have a closing bracket")
+                .split_whitespace()
+                .map(|value| {
+                    value
+                        .parse::<f64>()
+                        .expect("mapping value should be numeric")
+                })
+                .collect::<Vec<_>>()
+        };
+        let u = parse_mapping(mappings.next().expect("face should have a U mapping"));
+        let v = parse_mapping(mappings.next().expect("face should have a V mapping"));
+        let scales = face
+            .split("] 0 ")
+            .nth(1)
+            .expect("face should have texture scales")
+            .split_whitespace()
+            .map(|value| value.parse::<f64>().expect("scale should be numeric"))
+            .collect::<Vec<_>>();
+        assert_eq!(u.len(), 4);
+        assert_eq!(v.len(), 4);
+        assert_eq!(scales.len(), 2);
+        Projection {
+            u: P3 {
+                x: u[0],
+                y: u[1],
+                z: u[2],
+            },
+            u_shift: u[3],
+            u_scale: scales[0],
+            v: P3 {
+                x: v[0],
+                y: v[1],
+                z: v[2],
+            },
+            v_shift: v[3],
+            v_scale: scales[1],
+            max_error: 0.0,
+        }
+    }
+
     fn options(fallback: &str) -> Options {
         Options {
             inputs: Vec::new(),
@@ -3094,6 +3212,215 @@ mod tests {
         assert_eq!(result.brushes.len(), 1);
         assert_eq!(result.recognizers[0].kind, "planar-prism-fallback");
         assert_eq!(validate_brush(&result.brushes[0]).unwrap(), 6);
+    }
+
+    #[test]
+    fn planar_fallback_merges_triangles_with_one_uv_chart() {
+        let vertices = vec![
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 3.0,
+                z: 0.0,
+            },
+        ];
+        let mesh = mesh_with_uvs(
+            vertices,
+            vec![
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+            ],
+            vec![[0, 1, 2], [3, 4, 5]],
+        );
+        let result = reconstruct(std::slice::from_ref(&mesh), &options("planar-prisms"))
+            .expect("compatible triangles should reconstruct");
+
+        assert_eq!(result.recognizers[0].kind, "planar-prism-fallback");
+        assert_eq!(result.brushes.len(), 1);
+        assert!(validate_brush(&result.brushes[0]).is_ok());
+        let projection = emitted_projection(&result.brushes[0].faces[0]);
+        for triangle_index in 0..mesh.triangles.len() {
+            assert!(
+                projection_error(&mesh, triangle_index, &projection, true)
+                    <= UV_MERGE_TOLERANCE_TEXELS
+            );
+        }
+    }
+
+    #[test]
+    fn planar_fallback_preserves_uv_seams_between_coplanar_triangles() {
+        let vertices = vec![
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 4.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 3.0,
+                z: 0.0,
+            },
+        ];
+        let mesh = mesh_with_uvs(
+            vertices,
+            vec![
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.5, 0.0],
+                [1.5, 1.0],
+                [0.5, 1.0],
+            ],
+            vec![[0, 1, 2], [3, 4, 5]],
+        );
+        let result = reconstruct(&[mesh], &options("planar-prisms"))
+            .expect("seamed triangles should reconstruct");
+
+        assert_eq!(result.recognizers[0].kind, "planar-prism-fallback");
+        assert_eq!(result.brushes.len(), 2);
+        assert!(
+            result
+                .brushes
+                .iter()
+                .all(|brush| validate_brush(brush).is_ok())
+        );
+    }
+
+    #[test]
+    fn planar_fallback_respects_uv_merge_tolerance() {
+        for (shift_texels, expected_brushes) in [(0.049, 1), (0.051, 2)] {
+            let shift = shift_texels / 256.0;
+            let mesh = mesh_with_uvs(
+                vec![
+                    P3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    P3 {
+                        x: 4.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    P3 {
+                        x: 4.0,
+                        y: 3.0,
+                        z: 0.0,
+                    },
+                    P3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    P3 {
+                        x: 4.0,
+                        y: 3.0,
+                        z: 0.0,
+                    },
+                    P3 {
+                        x: 0.0,
+                        y: 3.0,
+                        z: 0.0,
+                    },
+                ],
+                vec![
+                    [0.0, 0.0],
+                    [1.0, 0.0],
+                    [1.0, 1.0],
+                    [shift, 0.0],
+                    [1.0 + shift, 1.0],
+                    [shift, 1.0],
+                ],
+                vec![[0, 1, 2], [3, 4, 5]],
+            );
+            let result = reconstruct(std::slice::from_ref(&mesh), &options("planar-prisms"))
+                .expect("tolerance fixture should reconstruct");
+
+            assert_eq!(result.brushes.len(), expected_brushes);
+        }
+    }
+
+    #[test]
+    fn malformed_uvs_cannot_reach_map_output() {
+        let mesh = mesh_with_uvs(
+            vec![
+                P3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 4.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                P3 {
+                    x: 0.0,
+                    y: 3.0,
+                    z: 0.0,
+                },
+            ],
+            vec![[0.0, 0.0], [f64::NAN, 1.0], [0.0, 1.0]],
+            vec![[0, 1, 2]],
+        );
+        let projection = generic_projection(P3::Z);
+
+        assert!(projection_error(&mesh, 0, &projection, true).is_infinite());
+        assert!(triangle_projection(&mesh, 0, true).is_none());
+
+        let result = reconstruct(std::slice::from_ref(&mesh), &options("planar-prisms"))
+            .expect("malformed UVs should use a finite fallback projection");
+        let map_output = map_text(Path::new("malformed-uv.nif"), &result).to_ascii_lowercase();
+        assert!(!map_output.contains("nan"));
+        assert!(!map_output.contains("inf"));
     }
 
     #[test]
