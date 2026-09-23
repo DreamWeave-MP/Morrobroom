@@ -856,132 +856,26 @@ pub(super) fn triangulation_decomposition(target: &Polygon<f64>) -> Vec<Polygon<
         .collect()
 }
 
-pub(super) fn decomposition_score(target: &Polygon<f64>, pieces: &[Polygon<f64>]) -> f64 {
-    if pieces.is_empty() {
-        return f64::INFINITY;
-    }
-    let characteristic = polygon_area(target).max(1e-9).sqrt().max(1.0);
-    let perimeter: f64 = pieces
-        .iter()
-        .map(|piece| ring_length(piece.exterior()))
-        .sum();
-    let internal = ((perimeter - ring_length(target.exterior())) * 0.5).max(0.0);
-    let sliver_penalty: f64 = pieces
-        .iter()
-        .map(|piece| {
-            let (min_x, min_y, max_x, max_y) = piece.exterior().0.iter().fold(
-                (
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::NEG_INFINITY,
-                    f64::NEG_INFINITY,
-                ),
-                |bounds, point| {
-                    (
-                        bounds.0.min(point.x),
-                        bounds.1.min(point.y),
-                        bounds.2.max(point.x),
-                        bounds.3.max(point.y),
-                    )
-                },
-            );
-            let width = (max_x - min_x).max(1e-9);
-            let height = (max_y - min_y).max(1e-9);
-            let aspect = (width / height).max(height / width);
-            (aspect - 12.0).max(0.0)
+fn decomposition_preserves_target(target: &Polygon<f64>, pieces: &[Polygon<f64>]) -> bool {
+    !pieces.is_empty()
+        && pieces.iter().all(|piece| {
+            piece.interiors().is_empty() && polygon_is_convex(piece) && target.covers(piece)
         })
-        .sum();
-    pieces.len() as f64 * 12.0 + internal / characteristic * 3.0 + sliver_penalty
+        && (pieces.iter().map(polygon_area).sum::<f64>() - polygon_area(target)).abs()
+            <= 1e-6_f64.max(polygon_area(target) * 1e-8)
 }
 
-pub(super) fn rounded_level(value: f64) -> f64 {
-    (value * 1e8).round() / 1e8
-}
-
-pub(super) fn slice_decomposition(target: &Polygon<f64>, axis: usize) -> Vec<Polygon<f64>> {
-    let mut levels: Vec<_> = target
-        .exterior()
-        .0
-        .iter()
-        .map(|point| rounded_level(if axis == 0 { point.x } else { point.y }))
-        .collect();
-    for ring in target.interiors() {
-        levels.extend(
-            ring.0
-                .iter()
-                .map(|point| rounded_level(if axis == 0 { point.x } else { point.y })),
-        );
+fn validated_triangulation_decomposition(
+    target: &Polygon<f64>,
+) -> Result<Vec<Polygon<f64>>, Error> {
+    let floor = triangulation_decomposition(target);
+    if decomposition_preserves_target(target, &floor) {
+        Ok(floor)
+    } else {
+        Err(Error::Reconstruction(
+            "earcut could not convex-decompose 2D target without losing geometry".into(),
+        ))
     }
-    levels.sort_by(f64::total_cmp);
-    levels.dedup_by(|lhs, rhs| (*lhs - *rhs).abs() <= 1e-12);
-    if levels.len() < 2 {
-        return Vec::new();
-    }
-    let (min_x, min_y, max_x, max_y) = target.exterior().0.iter().fold(
-        (
-            f64::INFINITY,
-            f64::INFINITY,
-            f64::NEG_INFINITY,
-            f64::NEG_INFINITY,
-        ),
-        |bounds, point| {
-            (
-                bounds.0.min(point.x),
-                bounds.1.min(point.y),
-                bounds.2.max(point.x),
-                bounds.3.max(point.y),
-            )
-        },
-    );
-    let margin = (max_x - min_x).max(max_y - min_y).max(1.0) * 4.0;
-    let mut pieces = Vec::new();
-    for pair in levels.windows(2) {
-        let low = pair[0];
-        let high = pair[1];
-        if high - low <= 1e-8 {
-            continue;
-        }
-        let slab = if axis == 0 {
-            poly(vec![
-                p2(low, min_y - margin),
-                p2(high, min_y - margin),
-                p2(high, max_y + margin),
-                p2(low, max_y + margin),
-            ])
-        } else {
-            poly(vec![
-                p2(min_x - margin, low),
-                p2(max_x + margin, low),
-                p2(max_x + margin, high),
-                p2(min_x - margin, high),
-            ])
-        };
-        let intersection = target.intersection(&slab);
-        for polygon in intersection.0 {
-            if polygon_area(&polygon) <= 1e-8 {
-                continue;
-            }
-            let coordinates = remove_collinear(ring_points(&polygon));
-            if coordinates.len() < 3 {
-                continue;
-            }
-            let clean = Polygon::new(
-                LineString::from({
-                    let mut ring = coordinates;
-                    let first = ring[0];
-                    ring.push(first);
-                    ring
-                }),
-                polygon.interiors().to_vec(),
-            );
-            if polygon_is_convex(&clean) {
-                pieces.push(clean);
-            } else {
-                pieces.extend(triangulation_decomposition(&clean));
-            }
-        }
-    }
-    greedy_convex_merge(pieces)
 }
 
 fn ring_vertices(polygon: &Polygon<f64>) -> Vec<Coord<f64>> {
@@ -1012,13 +906,41 @@ fn path_without_edge(vertices: &[Coord<f64>], edge: usize) -> Vec<Coord<f64>> {
     path
 }
 
+type SharedBoundaryEdge = ((Q, Q), [Coord<f64>; 2]);
+const MAX_LOCAL_REPAIR_REGION_PIECES: usize = 16;
+const MAX_LOCAL_REPAIR_REGION_CANDIDATES: usize = 4_096;
+
+fn shared_boundary_edge(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Option<SharedBoundaryEdge> {
+    let lhs_vertices = ring_vertices(lhs);
+    let rhs_vertices = ring_vertices(rhs);
+    for lhs_edge in lhs_vertices.windows(2) {
+        let start = qkey(lhs_edge[0]);
+        let end = qkey(lhs_edge[1]);
+        if start == end {
+            continue;
+        }
+        if rhs_vertices
+            .windows(2)
+            .any(|edge| qkey(edge[0]) == end && qkey(edge[1]) == start)
+        {
+            return Some(((start, end), [lhs_edge[0], lhs_edge[1]]));
+        }
+    }
+    None
+}
+
 fn splice_adjacent_polygons(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Option<Polygon<f64>> {
     if !lhs.interiors().is_empty() || !rhs.interiors().is_empty() {
         return None;
     }
     let lhs_vertices = ring_vertices(lhs);
     let rhs_vertices = ring_vertices(rhs);
-    for (first, second) in polygon_edge_keys(lhs) {
+    for edge in lhs_vertices.windows(2) {
+        let first = qkey(edge[0]);
+        let second = qkey(edge[1]);
+        if first == second {
+            continue;
+        }
         let Some(lhs_edge) = directed_ring_edge(&lhs_vertices, first, second) else {
             continue;
         };
@@ -1026,7 +948,11 @@ fn splice_adjacent_polygons(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Option<Po
             continue;
         };
         let mut coordinates = path_without_edge(&lhs_vertices, lhs_edge);
-        coordinates.extend(path_without_edge(&rhs_vertices, rhs_edge));
+        coordinates.extend(
+            path_without_edge(&rhs_vertices, rhs_edge)
+                .into_iter()
+                .skip(1),
+        );
         let coordinates = remove_collinear(coordinates);
         if coordinates.len() < 3 {
             return None;
@@ -1035,6 +961,392 @@ fn splice_adjacent_polygons(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Option<Po
         return (polygon_area(&merged) > 1e-9).then_some(merged);
     }
     None
+}
+
+fn covers_with_weld_tolerance(polygon: &Polygon<f64>, point: Coord<f64>) -> bool {
+    let point_geometry = Point::from(point);
+    polygon.covers(&point_geometry)
+        || polygon
+            .exterior()
+            .0
+            .windows(2)
+            .any(|edge| point_segment_distance(edge[0], edge[1], point) <= WELD_EPSILON)
+}
+
+fn valid_convex_merge(lhs: &Polygon<f64>, rhs: &Polygon<f64>, merged: &Polygon<f64>) -> bool {
+    let source_area = polygon_area(lhs) + polygon_area(rhs);
+    let area_tolerance =
+        1e-6_f64.max((ring_length(lhs.exterior()) + ring_length(rhs.exterior())) * WELD_EPSILON);
+    lhs.interiors().is_empty()
+        && rhs.interiors().is_empty()
+        && merged.interiors().is_empty()
+        && polygon_is_convex(lhs)
+        && polygon_is_convex(rhs)
+        && polygon_is_convex(merged)
+        && [lhs, rhs].into_iter().all(|piece| {
+            piece
+                .exterior()
+                .0
+                .iter()
+                .all(|point| covers_with_weld_tolerance(merged, *point))
+        })
+        && (polygon_area(merged) - source_area).abs() <= area_tolerance
+}
+
+pub(super) fn flip_shared_diagonal(
+    lhs: &Polygon<f64>,
+    rhs: &Polygon<f64>,
+) -> Option<[Polygon<f64>; 2]> {
+    let ((start_key, end_key), [start, end]) = shared_boundary_edge(lhs, rhs)?;
+    let lhs_vertices = ring_vertices(lhs);
+    let rhs_vertices = ring_vertices(rhs);
+    let lhs_other: Vec<_> = lhs_vertices[..lhs_vertices.len() - 1]
+        .iter()
+        .copied()
+        .filter(|point| {
+            let key = qkey(*point);
+            key != start_key && key != end_key
+        })
+        .collect();
+    let rhs_other: Vec<_> = rhs_vertices[..rhs_vertices.len() - 1]
+        .iter()
+        .copied()
+        .filter(|point| {
+            let key = qkey(*point);
+            key != start_key && key != end_key
+        })
+        .collect();
+    let [lhs_opposite] = lhs_other.as_slice() else {
+        return None;
+    };
+    let [rhs_opposite] = rhs_other.as_slice() else {
+        return None;
+    };
+    let merged = splice_adjacent_polygons(lhs, rhs)?;
+    if !valid_convex_merge(lhs, rhs, &merged) || merged.exterior().0.len() != 5 {
+        return None;
+    }
+    let flipped = [
+        poly(vec![*lhs_opposite, *rhs_opposite, start]),
+        poly(vec![*rhs_opposite, *lhs_opposite, end]),
+    ];
+    let merged_area = polygon_area(&merged);
+    let flipped_area: f64 = flipped.iter().map(polygon_area).sum();
+    if flipped.iter().any(|piece| {
+        polygon_area(piece) <= 1e-9 || !polygon_is_convex(piece) || !merged.covers(piece)
+    }) || (flipped_area - merged_area).abs()
+        > 1e-6_f64.max(
+            (ring_length(merged.exterior())
+                + ring_length(lhs.exterior())
+                + ring_length(rhs.exterior()))
+                * WELD_EPSILON,
+        )
+    {
+        return None;
+    }
+    Some(flipped)
+}
+
+fn stitch_piece_region(pieces: &[&Polygon<f64>]) -> Option<Polygon<f64>> {
+    if pieces.len() < 2 || pieces.iter().any(|piece| !polygon_is_convex(piece)) {
+        return None;
+    }
+    let mut boundary = HashMap::<(Q, Q), (Coord<f64>, Coord<f64>)>::new();
+    for piece in pieces {
+        let vertices = ring_vertices(piece);
+        for edge in vertices.windows(2) {
+            let start = qkey(edge[0]);
+            let end = qkey(edge[1]);
+            if start == end {
+                continue;
+            }
+            if boundary.remove(&(end, start)).is_none()
+                && boundary.insert((start, end), (edge[0], edge[1])).is_some()
+            {
+                return None;
+            }
+        }
+    }
+    if boundary.len() < 3 {
+        return None;
+    }
+    let mut outgoing = HashMap::<Q, (Q, Coord<f64>)>::new();
+    for (&(start, end), &(point, _)) in &boundary {
+        if outgoing.insert(start, (end, point)).is_some() {
+            return None;
+        }
+    }
+    let (&start_key, _) = outgoing.iter().next()?;
+    let mut coordinates = Vec::with_capacity(boundary.len());
+    let mut current = start_key;
+    let mut visited = HashSet::new();
+    loop {
+        let (next, point) = *outgoing.get(&current)?;
+        if !visited.insert((current, next)) {
+            return None;
+        }
+        coordinates.push(point);
+        current = next;
+        if current == start_key {
+            break;
+        }
+        if visited.len() >= boundary.len() {
+            return None;
+        }
+    }
+    if visited.len() != boundary.len() {
+        return None;
+    }
+    let merged = poly(remove_collinear(coordinates));
+    let expected_area: f64 = pieces.iter().map(|piece| polygon_area(piece)).sum();
+    let area_tolerance = 1e-6_f64.max(
+        pieces
+            .iter()
+            .map(|piece| ring_length(piece.exterior()))
+            .sum::<f64>()
+            * WELD_EPSILON,
+    );
+    (merged.interiors().is_empty()
+        && pieces.iter().all(|piece| {
+            piece
+                .exterior()
+                .0
+                .iter()
+                .all(|point| covers_with_weld_tolerance(&merged, *point))
+        })
+        && (polygon_area(&merged) - expected_area).abs() <= area_tolerance)
+        .then_some(merged)
+}
+
+fn polygon_signature(polygon: &Polygon<f64>) -> Vec<Q> {
+    let mut vertices: Vec<_> = polygon
+        .exterior()
+        .0
+        .iter()
+        .take(polygon.exterior().0.len().saturating_sub(1))
+        .map(|point| qkey(*point))
+        .collect();
+    vertices.sort_unstable();
+    vertices.dedup();
+    vertices
+}
+
+fn pair_signature(lhs: &Polygon<f64>, rhs: &Polygon<f64>, operation: u8) -> (Vec<Q>, Vec<Q>, u8) {
+    let lhs_signature = polygon_signature(lhs);
+    let rhs_signature = polygon_signature(rhs);
+    if lhs_signature <= rhs_signature {
+        (lhs_signature, rhs_signature, operation)
+    } else {
+        (rhs_signature, lhs_signature, operation)
+    }
+}
+
+fn replace_piece_pair(
+    pieces: &mut Vec<Polygon<f64>>,
+    first: usize,
+    second: usize,
+    replacements: impl IntoIterator<Item = Polygon<f64>>,
+) {
+    let low = first.min(second);
+    let high = first.max(second);
+    pieces.remove(high);
+    pieces.remove(low);
+    for (offset, replacement) in replacements.into_iter().enumerate() {
+        pieces.insert(low + offset, replacement);
+    }
+}
+
+fn try_pair_repair<F>(
+    pieces: &mut Vec<Polygon<f64>>,
+    failed_index: usize,
+    neighbor_index: usize,
+    tried: &mut HashSet<(Vec<Q>, Vec<Q>, u8)>,
+    emit: &mut F,
+) -> bool
+where
+    F: FnMut(&Polygon<f64>) -> Result<Brush, Error>,
+{
+    let failed = &pieces[failed_index];
+    let neighbor = &pieces[neighbor_index];
+    if shared_boundary_edge(failed, neighbor).is_none() {
+        return false;
+    }
+    let flip_key = pair_signature(failed, neighbor, 0);
+    let flipped = tried
+        .insert(flip_key)
+        .then(|| flip_shared_diagonal(failed, neighbor))
+        .flatten();
+    if let Some(flipped) = flipped
+        && flipped.iter().all(|piece| {
+            emit(piece)
+                .and_then(|brush| {
+                    validate_brush(&brush)?;
+                    Ok(())
+                })
+                .is_ok()
+        })
+    {
+        replace_piece_pair(pieces, failed_index, neighbor_index, flipped);
+        return true;
+    }
+    let merge_key = pair_signature(failed, neighbor, 1);
+    let merged = tried
+        .insert(merge_key)
+        .then(|| splice_adjacent_polygons(failed, neighbor))
+        .flatten();
+    if let Some(merged) = merged.filter(|merged| valid_convex_merge(failed, neighbor, merged))
+        && emit(&merged)
+            .and_then(|brush| {
+                validate_brush(&brush)?;
+                Ok(())
+            })
+            .is_ok()
+    {
+        replace_piece_pair(pieces, failed_index, neighbor_index, [merged]);
+        return true;
+    }
+    false
+}
+
+fn try_grow_local_repair_region<F>(
+    pieces: &mut Vec<Polygon<f64>>,
+    failed_index: usize,
+    tried_regions: &mut HashSet<Vec<usize>>,
+    emit: &mut F,
+) -> bool
+where
+    F: FnMut(&Polygon<f64>) -> Result<Brush, Error>,
+{
+    let mut queue = std::collections::VecDeque::from([vec![failed_index]]);
+    while let Some(mut region) = queue.pop_front() {
+        if region.len() >= MAX_LOCAL_REPAIR_REGION_PIECES
+            || tried_regions.len() >= MAX_LOCAL_REPAIR_REGION_CANDIDATES
+        {
+            continue;
+        }
+        let adjacent: Vec<_> = (0..pieces.len())
+            .filter(|candidate| !region.contains(candidate))
+            .filter(|candidate| {
+                region.iter().any(|&member| {
+                    shared_boundary_edge(&pieces[member], &pieces[*candidate]).is_some()
+                })
+            })
+            .collect();
+        for candidate in adjacent {
+            region.push(candidate);
+            region.sort_unstable();
+            if tried_regions.insert(region.clone()) {
+                let region_pieces: Vec<_> = region.iter().map(|&index| &pieces[index]).collect();
+                if let Some(region_polygon) = stitch_piece_region(&region_pieces) {
+                    let replacements = if polygon_is_convex(&region_polygon) {
+                        vec![region_polygon.clone()]
+                    } else {
+                        triangulation_decomposition(&region_polygon)
+                    };
+                    if decomposition_preserves_target(&region_polygon, &replacements)
+                        && replacements.iter().all(|piece| {
+                            emit(piece)
+                                .and_then(|brush| {
+                                    validate_brush(&brush)?;
+                                    Ok(())
+                                })
+                                .is_ok()
+                        })
+                    {
+                        let first = region[0];
+                        for &index in region.iter().rev() {
+                            pieces.remove(index);
+                        }
+                        for (offset, replacement) in replacements.into_iter().enumerate() {
+                            pieces.insert(first + offset, replacement);
+                        }
+                        return true;
+                    }
+                }
+                queue.push_back(region.clone());
+            }
+            region.retain(|&index| index != candidate);
+        }
+    }
+    false
+}
+
+pub(super) fn emit_with_local_repairs<F>(
+    mut pieces: Vec<Polygon<f64>>,
+    mut emit: F,
+) -> Result<Vec<Brush>, Error>
+where
+    F: FnMut(&Polygon<f64>) -> Result<Brush, Error>,
+{
+    let mut tried = HashSet::<(Vec<Q>, Vec<Q>, u8)>::new();
+    let mut tried_regions = HashSet::<Vec<usize>>::new();
+    loop {
+        let mut brushes = Vec::with_capacity(pieces.len());
+        let mut failed_piece = None;
+        let mut emission_error = None;
+        for (index, piece) in pieces.iter().enumerate() {
+            match emit(piece).and_then(|brush| {
+                validate_brush(&brush)?;
+                Ok(brush)
+            }) {
+                Ok(brush) => brushes.push(brush),
+                Err(error) => {
+                    failed_piece = Some(index);
+                    emission_error = Some(error);
+                    break;
+                }
+            }
+        }
+        let Some(failed_index) = failed_piece else {
+            return Ok(brushes);
+        };
+        let mut repaired = false;
+        for neighbor_index in 0..pieces.len() {
+            if neighbor_index != failed_index
+                && try_pair_repair(
+                    &mut pieces,
+                    failed_index,
+                    neighbor_index,
+                    &mut tried,
+                    &mut emit,
+                )
+            {
+                repaired = true;
+                tried_regions.clear();
+                break;
+            }
+        }
+        if !repaired {
+            repaired = try_grow_local_repair_region(
+                &mut pieces,
+                failed_index,
+                &mut tried_regions,
+                &mut emit,
+            );
+            if repaired {
+                tried_regions.clear();
+            }
+        }
+        if !repaired {
+            let error = emission_error.expect("failed piece always captures its error");
+            return Err(Error::Reconstruction(format!(
+                "{error}; local repair tried {} edge operations and {} connected regions",
+                tried.len(),
+                tried_regions.len()
+            )));
+        }
+    }
+}
+
+fn convex_hull_merge(lhs: &Polygon<f64>, rhs: &Polygon<f64>) -> Polygon<f64> {
+    let points = lhs
+        .exterior()
+        .0
+        .iter()
+        .chain(rhs.exterior().0.iter())
+        .copied()
+        .collect::<Vec<_>>();
+    LineString::from(points).convex_hull()
 }
 
 pub(super) fn greedy_convex_merge(polygons: Vec<Polygon<f64>>) -> Vec<Polygon<f64>> {
@@ -1069,12 +1381,18 @@ pub(super) fn greedy_convex_merge(polygons: Vec<Polygon<f64>>) -> Vec<Polygon<f6
             let (Some(lhs), Some(rhs)) = (active[i].as_ref(), active[j].as_ref()) else {
                 continue;
             };
-            let Some(merged) = splice_adjacent_polygons(lhs, rhs) else {
+            // Candidate pairs come from the same complete quantized edge;
+            // the hull fallback only repairs coordinate/winding noise in the
+            // ring splice and is still admitted only by the local invariants.
+            let merged = splice_adjacent_polygons(lhs, rhs)
+                .filter(|merged| valid_convex_merge(lhs, rhs, merged))
+                .or_else(|| {
+                    let merged = convex_hull_merge(lhs, rhs);
+                    valid_convex_merge(lhs, rhs, &merged).then_some(merged)
+                });
+            let Some(merged) = merged else {
                 continue;
             };
-            if !polygon_is_convex(&merged) {
-                continue;
-            }
             let (min_x, min_y, max_x, max_y) = merged.exterior().0.iter().fold(
                 (
                     f64::INFINITY,
@@ -1464,23 +1782,13 @@ pub(super) fn decompose(target: &Polygon<f64>) -> Result<Vec<Polygon<f64>>, Erro
     if polygon_is_convex(target) {
         return Ok(vec![target.clone()]);
     }
-    let mut candidates = vec![greedy_convex_merge(triangulation_decomposition(target))];
-    candidates.extend([
-        slice_decomposition(target, 0),
-        slice_decomposition(target, 1),
-    ]);
-    let area = polygon_area(target);
-    candidates.retain(|pieces| {
-        !pieces.is_empty()
-            && (pieces.iter().map(polygon_area).sum::<f64>() - area).abs()
-                <= 1e-6_f64.max(area * 1e-8)
-    });
-    candidates
-        .into_iter()
-        .min_by(|lhs, rhs| {
-            decomposition_score(target, lhs).total_cmp(&decomposition_score(target, rhs))
-        })
-        .ok_or_else(|| Error::Reconstruction("could not convex-decompose 2D target".into()))
+    let floor = validated_triangulation_decomposition(target)?;
+    let merged = greedy_convex_merge(floor.clone());
+    if decomposition_preserves_target(target, &merged) {
+        Ok(merged)
+    } else {
+        Ok(floor)
+    }
 }
 
 pub(super) fn tb_triplet(points: &[P3], desired_normal: P3) -> Result<(P3, P3, P3), Error> {
@@ -1686,7 +1994,7 @@ pub(super) fn extrude_pieces(
     shapes: &[usize],
 ) -> Result<Vec<Brush>, Error> {
     let mut brushes = Vec::new();
-    for piece in pieces {
+    for (piece_index, piece) in pieces.iter().enumerate() {
         let mut coordinates = remove_collinear(ring_points(piece));
         if coordinates.len() < 3 {
             continue;
@@ -1711,13 +2019,19 @@ pub(super) fn extrude_pieces(
             -sweep.direction,
             low_source.map_or(skip, |source| source.material.as_str()),
             low_source.and_then(|source| source.projection.as_ref()),
-        )?;
+        )
+        .map_err(|error| {
+            Error::Reconstruction(format!("{kind} piece {piece_index} low face: {error}"))
+        })?;
         let (high_face, high_plane) = emit_face_with_plane(
             &high,
             sweep.direction,
             high_source.map_or(skip, |source| source.material.as_str()),
             high_source.and_then(|source| source.projection.as_ref()),
-        )?;
+        )
+        .map_err(|error| {
+            Error::Reconstruction(format!("{kind} piece {piece_index} high face: {error}"))
+        })?;
         let mut faces = vec![low_face, high_face];
         let mut planes = vec![low_plane, high_plane];
         for index in 0..coordinates.len() {
@@ -1736,7 +2050,10 @@ pub(super) fn extrude_pieces(
                 outward,
                 source.map_or(skip, |source| source.material.as_str()),
                 source.and_then(|source| source.projection.as_ref()),
-            )?;
+            )
+            .map_err(|error| {
+                Error::Reconstruction(format!("{kind} piece {piece_index} side face: {error}"))
+            })?;
             faces.push(face);
             planes.push(plane);
         }
@@ -1802,12 +2119,15 @@ pub(super) fn exact_extrusion(
     }
     let profile = low_area.0.first()?.clone();
     let mut pieces = Vec::new();
+    let mut floor_pieces = Vec::new();
     for polygon in &low_area.0 {
-        pieces.extend(decompose(polygon).ok()?);
+        let floor = validated_triangulation_decomposition(polygon).ok()?;
+        floor_pieces.extend(floor.clone());
+        pieces.extend(decompose(polygon).unwrap_or(floor));
     }
     let shapes: Vec<_> = meshes.iter().map(|mesh| mesh.block).collect();
     let side_sources = collect_segments(meshes, sweep, None);
-    let brushes = extrude_pieces(
+    let brushes = match extrude_pieces(
         &pieces,
         sweep,
         &ExtrusionSources {
@@ -1818,8 +2138,31 @@ pub(super) fn exact_extrusion(
         skip,
         "exact-extrusion",
         &shapes,
-    )
-    .ok()?;
+    ) {
+        Ok(brushes) if brushes.iter().all(|brush| validate_brush(brush).is_ok()) => brushes,
+        _ => emit_with_local_repairs(floor_pieces, |piece| {
+            let mut brushes = extrude_pieces(
+                std::slice::from_ref(piece),
+                sweep,
+                &ExtrusionSources {
+                    side: &side_sources,
+                    low: &low_caps,
+                    high: &high_caps,
+                },
+                skip,
+                "exact-extrusion",
+                &shapes,
+            )?;
+            if brushes.len() != 1 {
+                return Err(Error::Reconstruction(format!(
+                    "exact-extrusion floor piece emitted {} brushes instead of one",
+                    brushes.len()
+                )));
+            }
+            Ok(brushes.remove(0))
+        })
+        .ok()?,
+    };
     let details = serde_json::json!({
         "sweep_direction": [sweep.direction.x, sweep.direction.y, sweep.direction.z],
         "sweep_layers": sweep.layers.len(),
@@ -1866,11 +2209,14 @@ pub(super) fn swept_shell(
         shell_polygons.extend(ring.0);
     }
     let mut pieces = Vec::new();
+    let mut floor_pieces = Vec::new();
     for polygon in shell_polygons {
-        pieces.extend(decompose(&polygon).ok()?);
+        let floor = validated_triangulation_decomposition(&polygon).ok()?;
+        floor_pieces.extend(floor.clone());
+        pieces.extend(decompose(&polygon).unwrap_or(floor));
     }
     let shapes: Vec<_> = meshes.iter().map(|mesh| mesh.block).collect();
-    let brushes = extrude_pieces(
+    let brushes = match extrude_pieces(
         &pieces,
         sweep,
         &ExtrusionSources {
@@ -1881,8 +2227,31 @@ pub(super) fn swept_shell(
         skip,
         "swept-shell",
         &shapes,
-    )
-    .ok()?;
+    ) {
+        Ok(brushes) if brushes.iter().all(|brush| validate_brush(brush).is_ok()) => brushes,
+        _ => emit_with_local_repairs(floor_pieces, |piece| {
+            let mut brushes = extrude_pieces(
+                std::slice::from_ref(piece),
+                sweep,
+                &ExtrusionSources {
+                    side: &segments,
+                    low: &[],
+                    high: &[],
+                },
+                skip,
+                "swept-shell",
+                &shapes,
+            )?;
+            if brushes.len() != 1 {
+                return Err(Error::Reconstruction(format!(
+                    "swept-shell floor piece emitted {} brushes instead of one",
+                    brushes.len()
+                )));
+            }
+            Ok(brushes.remove(0))
+        })
+        .ok()?,
+    };
     let details = serde_json::json!({
         "sweep_direction": [sweep.direction.x, sweep.direction.y, sweep.direction.z],
         "sweep_layers": sweep.layers.len(),
@@ -2235,17 +2604,32 @@ pub(super) fn fallback_group(
     for region_polygon in regions {
         let pieces = if region_polygon.interiors().is_empty() && polygon_is_convex(&region_polygon)
         {
-            vec![region_polygon]
+            vec![region_polygon.clone()]
         } else {
-            decompose(&region_polygon)?
+            decompose(&region_polygon)
+                .or_else(|_| validated_triangulation_decomposition(&region_polygon))?
         };
-        for piece in pieces {
-            if let Some(brush) = fallback_piece(&context, &piece) {
-                brushes.push(brush?);
-            }
+        if let Ok(region_brushes) = emit_fallback_pieces(&context, &pieces) {
+            brushes.extend(region_brushes);
+        } else {
+            let floor = validated_triangulation_decomposition(&region_polygon)?;
+            brushes.extend(emit_fallback_pieces(&context, &floor)?);
         }
     }
     Ok(brushes)
+}
+
+fn emit_fallback_pieces(
+    context: &FallbackContext<'_>,
+    pieces: &[Polygon<f64>],
+) -> Result<Vec<Brush>, Error> {
+    emit_with_local_repairs(pieces.to_vec(), |piece| {
+        fallback_piece(context, piece).unwrap_or_else(|| {
+            Err(Error::Reconstruction(
+                "fallback piece collapsed during brush emission".into(),
+            ))
+        })
+    })
 }
 
 pub(super) struct FallbackContext<'a> {

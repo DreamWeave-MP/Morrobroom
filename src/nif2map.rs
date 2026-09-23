@@ -774,7 +774,14 @@ fn process_one(
     }
     result.warnings.extend(imported.diagnostics.iter().cloned());
     if result.brushes.is_empty() {
-        return Err(Error::Reconstruction("no brushes reconstructed".into()));
+        let details = if result.warnings.is_empty() {
+            String::new()
+        } else {
+            format!("; {}", result.warnings.join("; "))
+        };
+        return Err(Error::Reconstruction(format!(
+            "no brushes reconstructed{details}"
+        )));
     }
     let map_started = Instant::now();
     let map = map_text(source, &result, &imported.scopes, options.include_collision);

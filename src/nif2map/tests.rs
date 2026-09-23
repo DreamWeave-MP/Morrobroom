@@ -1,10 +1,14 @@
 use super::geometry::{
-    generic_projection, indexed_boundary_polygons, polygon_area, projection_error,
-    triangle_projection, validate_brush,
+    decompose, emit_with_local_repairs, flip_shared_diagonal, generic_projection,
+    greedy_convex_merge, indexed_boundary_polygons, poly, polygon_area, polygon_is_convex,
+    projection_error, triangle_projection, validate_brush,
 };
 use super::semantic::{material_name, nif_meshes, texture_binding};
 use super::*;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    cell::RefCell,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tes3::nif::{NiNode, NiStream};
 
 fn mesh(vertices: Vec<P3>, triangles: Vec<[usize; 3]>) -> VisualMesh {
@@ -371,6 +375,274 @@ fn planar_fallback_emits_a_convex_prism() {
     assert_eq!(result.brushes.len(), 1);
     assert_eq!(result.recognizers[0].kind, "planar-prism-fallback");
     assert_eq!(validate_brush(&result.brushes[0]).unwrap(), 6);
+}
+
+#[test]
+fn decomposition_preserves_concave_target_geometry() {
+    let target = Polygon::new(
+        LineString::from(vec![
+            p2(0.0, 0.0),
+            p2(4.0, 0.0),
+            p2(4.0, 1.0),
+            p2(1.0, 1.0),
+            p2(1.0, 4.0),
+            p2(0.0, 4.0),
+            p2(0.0, 0.0),
+        ]),
+        Vec::new(),
+    );
+    let pieces = decompose(&target).expect("earcut should decompose an L shape");
+    assert!(!pieces.is_empty());
+    assert!(pieces.iter().all(|piece| {
+        piece.interiors().is_empty() && polygon_is_convex(piece) && target.covers(piece)
+    }));
+    assert!((pieces.iter().map(polygon_area).sum::<f64>() - polygon_area(&target)).abs() <= 1e-8);
+}
+
+#[test]
+fn decomposition_preserves_holes() {
+    let target = Polygon::new(
+        LineString::from(vec![
+            p2(-2.0, -2.0),
+            p2(2.0, -2.0),
+            p2(2.0, 2.0),
+            p2(-2.0, 2.0),
+            p2(-2.0, -2.0),
+        ]),
+        vec![LineString::from(vec![
+            p2(-1.0, -1.0),
+            p2(-1.0, 1.0),
+            p2(1.0, 1.0),
+            p2(1.0, -1.0),
+            p2(-1.0, -1.0),
+        ])],
+    );
+    let pieces = decompose(&target).expect("earcut should decompose a polygon with a hole");
+    assert!(pieces.iter().all(|piece| {
+        piece.interiors().is_empty() && polygon_is_convex(piece) && target.covers(piece)
+    }));
+    assert!((pieces.iter().map(polygon_area).sum::<f64>() - polygon_area(&target)).abs() <= 1e-8);
+    assert!(
+        !pieces
+            .iter()
+            .any(|piece| piece.covers(&Point::new(0.0, 0.0)))
+    );
+}
+
+#[test]
+fn unmergeable_pieces_remain_a_valid_decomposition() {
+    let pieces = greedy_convex_merge(vec![
+        poly(vec![p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]),
+        poly(vec![p2(2.0, 0.0), p2(3.0, 0.0), p2(2.0, 1.0)]),
+    ]);
+    assert_eq!(pieces.len(), 2);
+    assert!(pieces.iter().all(polygon_is_convex));
+    assert!((pieces.iter().map(polygon_area).sum::<f64>() - 1.0).abs() <= 1e-9);
+}
+
+#[test]
+fn adjacent_convex_pieces_can_be_safely_merged() {
+    let pieces = greedy_convex_merge(vec![
+        poly(vec![p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]),
+        poly(vec![p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]),
+    ]);
+    assert_eq!(pieces.len(), 1);
+    assert!(polygon_is_convex(&pieces[0]));
+    assert!((polygon_area(&pieces[0]) - 1.0).abs() <= 1e-9);
+}
+
+#[test]
+fn adjacent_triangles_can_flip_diagonal_without_changing_coverage() {
+    let lhs = poly(vec![p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0)]);
+    let rhs = poly(vec![p2(0.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]);
+    let flipped =
+        flip_shared_diagonal(&lhs, &rhs).expect("convex quad should accept other diagonal");
+    assert!(flipped.iter().all(polygon_is_convex));
+    assert!((flipped.iter().map(polygon_area).sum::<f64>() - 2.0).abs() <= 1e-9);
+    let quad = poly(vec![p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]);
+    assert!(flipped.iter().all(|piece| quad.covers(piece)));
+}
+
+#[test]
+fn invalid_triangle_pair_is_repaired_by_a_valid_diagonal_flip() {
+    let vertices = vec![
+        P3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        P3 {
+            x: 2.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        P3 {
+            x: 2.0,
+            y: 1.0,
+            z: 0.0,
+        },
+        P3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        },
+        P3 {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        },
+        P3 {
+            x: 2.0,
+            y: 0.0,
+            z: 1.0,
+        },
+        P3 {
+            x: 2.0,
+            y: 1.0,
+            z: 1.0,
+        },
+        P3 {
+            x: 0.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    ];
+    let triangles = vec![
+        [0, 2, 1],
+        [0, 3, 2],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 1, 5],
+        [0, 5, 4],
+        [1, 2, 6],
+        [1, 6, 5],
+        [2, 3, 7],
+        [2, 7, 6],
+        [3, 0, 4],
+        [3, 4, 7],
+    ];
+    let valid_brush = reconstruct(&[mesh(vertices, triangles)], &options("skip"))
+        .expect("cube fixture should emit a valid brush")
+        .brushes
+        .into_iter()
+        .next()
+        .expect("cube fixture should produce a brush");
+    let floor = [
+        poly(vec![p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0)]),
+        poly(vec![p2(0.0, 0.0), p2(2.0, 1.0), p2(0.0, 1.0)]),
+    ];
+    let emitted = emit_with_local_repairs(floor.to_vec(), |piece| {
+        let has_old_diagonal = piece.exterior().0.windows(2).any(|edge| {
+            let has_origin = edge
+                .iter()
+                .any(|point| point.x.abs() < 1e-9 && point.y.abs() < 1e-9);
+            let has_far_corner = edge
+                .iter()
+                .any(|point| (point.x - 2.0).abs() < 1e-9 && (point.y - 1.0).abs() < 1e-9);
+            has_origin && has_far_corner
+        });
+        if has_old_diagonal {
+            Err(Error::Reconstruction(
+                "fixture rejects original diagonal".into(),
+            ))
+        } else {
+            Ok(valid_brush.clone())
+        }
+    })
+    .expect("alternate diagonal should make both pieces emit-safe");
+    assert_eq!(emitted.len(), 2);
+    assert!(emitted.iter().all(|brush| validate_brush(brush).is_ok()));
+}
+
+#[test]
+fn connected_region_repair_replaces_all_source_pieces() {
+    let cube = mesh(
+        vec![
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 0.0,
+                z: 1.0,
+            },
+            P3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            P3 {
+                x: 0.0,
+                y: 1.0,
+                z: 1.0,
+            },
+        ],
+        vec![
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [1, 2, 6],
+            [1, 6, 5],
+            [2, 3, 7],
+            [2, 7, 6],
+            [3, 0, 4],
+            [3, 4, 7],
+        ],
+    );
+    let valid_brush = reconstruct(&[cube], &options("skip"))
+        .expect("cube fixture should reconstruct")
+        .brushes
+        .into_iter()
+        .next()
+        .expect("cube fixture should emit a brush");
+    let source = vec![
+        poly(vec![p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]),
+        poly(vec![p2(0.0, 1.0), p2(1.0, 1.0), p2(1.0, 2.0), p2(0.0, 2.0)]),
+        poly(vec![p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]),
+        poly(vec![p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 2.0), p2(1.0, 2.0)]),
+    ];
+    let emitted_areas = RefCell::new(Vec::new());
+    let brushes = emit_with_local_repairs(source, |piece| {
+        let area = polygon_area(piece);
+        emitted_areas.borrow_mut().push(area);
+        if (area - 4.0).abs() <= 1e-9 {
+            Ok(valid_brush.clone())
+        } else {
+            Err(Error::Reconstruction(
+                "fixture requires growing the repair region to the full square".into(),
+            ))
+        }
+    })
+    .expect("the connected four-piece region should become one valid brush");
+
+    assert_eq!(brushes.len(), 1);
+    assert!(validate_brush(&brushes[0]).is_ok());
+    assert_eq!(emitted_areas.borrow().last(), Some(&4.0));
 }
 
 #[test]
