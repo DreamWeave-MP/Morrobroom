@@ -341,15 +341,32 @@ pub fn write_object_flags<W: Write>(fgd_string: &mut W, flags: &ObjectFlags) -> 
     )
 }
 
+pub fn write_fgd_flags<W: Write>(
+    fgd_string: &mut W,
+    property_name: &str,
+    choices: &[(u32, &str)],
+    active_bits: u32,
+) -> io::Result<()> {
+    writeln!(fgd_string, "    ESM3_{property_name}(Flags) =\n    [")?;
+    for (bit, name) in choices {
+        writeln!(
+            fgd_string,
+            "        {bit} : \"{name}\" : {}",
+            i32::from(active_bits & bit != 0)
+        )?;
+    }
+    writeln!(fgd_string, "    ]")
+}
+
 pub fn serialize_objects_as_fgd<W: Write>(
     config_manager: &crate::fgd::ConfigurationManager,
     fgd_string: &mut W,
 ) -> Result<(), std::io::Error> {
+    writeln!(fgd_string, "@include \"Morrowind.fgd\"\n")?;
+
     let set: Vec<&'static str> = config_manager.object_types.iter().copied().collect();
 
     write_dictionary(&config_manager.merged_objects, &set, fgd_string)?;
-
-    serialize_base_object_to_fgd(fgd_string)?;
 
     for (object, parent_plugin) in config_manager.merged_objects.values() {
         let bounds = if let Some(path) = get_object_model_path(object) {
@@ -523,8 +540,6 @@ pub fn serialize_typed_objects_as_fgd<W: Write>(
     fgd_string: &mut W,
     object_type: &'static str,
 ) -> Result<(), std::io::Error> {
-    serialize_base_object_to_fgd(fgd_string)?;
-
     write_dictionary(&config_manager.merged_objects, &[object_type], fgd_string)?;
 
     let (class_name, list_name, list_desc, object_type) = get_object_type_data(object_type);
@@ -628,15 +643,6 @@ pub fn serialize_object_to_fgd<W: Write>(
     }
 
     Ok(())
-}
-
-pub fn serialize_base_object_to_fgd<W: Write>(fgd_string: &mut W) -> Result<(), std::io::Error> {
-    write_base_class(fgd_string, "world_Base")?;
-
-    writeln!(
-        fgd_string,
-        "    mangle (string) : \"Object Rotation\" : \"0 0 0\"\n]\n"
-    )
 }
 
 /// Write a choice list that groups TES3 records by owner plug‑in and displays them in an FGD

@@ -18,17 +18,41 @@ fn scaled_radius(radius: u32, scale_mode: f32) -> u32 {
     (radius as f32 * scale_mode) as u32
 }
 
+macro_rules! parse_flags {
+    ($flag_type:ty, $value:expr) => {{ <$flag_type>::from_bits_retain($value.parse::<u32>().unwrap_or_default()) }};
+}
+
+macro_rules! parse_named_flags {
+    ($flag_type:ty, $value:expr) => {{
+        let names: Vec<String> = $value
+            .split('|')
+            .map(|name| name.trim().to_owned())
+            .collect();
+        <$flag_type>::all()
+            .iter_names()
+            .filter(|(name, _)| names.iter().any(|candidate| candidate == name))
+            .fold(<$flag_type>::empty(), |mut flags, (_, flag)| {
+                flags.insert(flag);
+                flags
+            })
+    }};
+}
+
+pub fn object_flags(entity_props: &HashMap<&String, &String>) -> ObjectFlags {
+    parse_named_flags!(ObjectFlags, get_prop("ObjectFlags", entity_props))
+}
+
 pub fn activator(
     entity_props: &HashMap<&String, &String>,
     ref_id: &str,
     mesh_name: &str,
 ) -> TES3Object {
     TES3Object::Activator(Activator {
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
         mesh: mesh_name.to_owned(),
-        ..Default::default()
     })
 }
 
@@ -38,6 +62,7 @@ pub fn apparatus(
     mesh_name: &str,
 ) -> TES3Object {
     TES3Object::Apparatus(Apparatus {
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -68,7 +93,7 @@ pub fn armor(
     mesh_name: &str,
 ) -> TES3Object {
     TES3Object::Armor(Armor {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -103,7 +128,7 @@ pub fn armor(
 
 pub fn book(entity_props: &HashMap<&String, &String>, ref_id: &str, mesh_name: &str) -> TES3Object {
     TES3Object::Book(Book {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -154,7 +179,7 @@ pub fn cell(entity_props: &HashMap<&String, &String>) -> Cell {
     });
 
     Cell {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         name: get_prop("Name", entity_props),
         data: tes3::esp::CellData {
             flags,
@@ -191,7 +216,7 @@ pub fn container(
     mesh_name: &str,
 ) -> TES3Object {
     TES3Object::Container(Container {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -199,27 +224,21 @@ pub fn container(
         encumbrance: get_prop("Encumbrance", entity_props)
             .parse::<f32>()
             .unwrap_or_default(),
-        container_flags: ContainerFlags::from_bits(
-            get_prop("ContainerFlags", entity_props)
-                .parse::<u32>()
-                .unwrap_or_default()
-                | 8,
-        )
-        .expect("Invalid Potion Flags!"),
+        container_flags: parse_flags!(ContainerFlags, get_prop("ContainerFlags", entity_props)),
         inventory: collect_contained_objects(entity_props),
     })
 }
 
 pub fn creature_list(entity_props: &HashMap<&String, &String>, ref_id: &str) -> TES3Object {
     TES3Object::LeveledCreature(LeveledCreature {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         chance_none: entity_props
-            .get(&"Chance_None".to_string())
+            .get(&"ESM3_Chance_None".to_string())
             .map_or("0", |v| v)
             .parse::<u8>()
             .unwrap_or_default(),
-        leveled_creature_flags: match entity_props.get(&"Spawn_From_All_Levels".to_string()) {
+        leveled_creature_flags: match entity_props.get(&"ESM3_Spawn_From_All_Levels".to_string()) {
             Some(value) if *value == "1" => LeveledCreatureFlags::CALCULATE_FROM_ALL_LEVELS,
             Some(_) | None => LeveledCreatureFlags::empty(),
         },
@@ -228,18 +247,22 @@ pub fn creature_list(entity_props: &HashMap<&String, &String>, ref_id: &str) -> 
 }
 
 pub fn item_list(entity_props: &HashMap<&String, &String>, ref_id: &str) -> TES3Object {
+    let mut leveled_item_flags = LeveledItemFlags::empty();
+    if get_prop("Spawn_From_All_Levels", entity_props) == "1" {
+        leveled_item_flags.insert(LeveledItemFlags::CALCULATE_FROM_ALL_LEVELS);
+    }
+    if get_prop("Calculate_For_Each_Item", entity_props) == "1" {
+        leveled_item_flags.insert(LeveledItemFlags::CALCULATE_FOR_EACH_ITEM);
+    }
     TES3Object::LeveledItem(LeveledItem {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         chance_none: entity_props
-            .get(&"Chance_None".to_string())
+            .get(&"ESM3_Chance_None".to_string())
             .map_or("0", |v| v)
             .parse::<u8>()
             .unwrap_or_default(),
-        leveled_item_flags: match entity_props.get(&"Spawn_From_All_Levels".to_string()) {
-            Some(value) if *value == "1" => LeveledItemFlags::CALCULATE_FROM_ALL_LEVELS,
-            Some(_) | None => LeveledItemFlags::empty(),
-        },
+        leveled_item_flags,
         items: collect_list_items(entity_props),
     })
 }
@@ -281,6 +304,7 @@ pub fn ingredient(
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
         mesh: mesh_name.to_owned(),
+        flags: object_flags(entity_props),
         data: IngredientData {
             weight: get_prop("Weight", entity_props)
                 .parse::<f32>()
@@ -312,7 +336,7 @@ pub fn point_light(
             value: 0,
             time: 0,
             radius: scaled_radius(
-                match entity_props.get(&"Radius".to_string()) {
+                match entity_props.get(&"ESM3_Radius".to_string()) {
                     Some(radius_override) => radius_override.parse().unwrap_or_else(|_| {
                         panic!(
                             "{}",
@@ -323,12 +347,7 @@ pub fn point_light(
                 },
                 scale_mode,
             ),
-            flags: LightFlags::from_bits(
-                get_prop("LightFlags", entity_props)
-                    .parse::<u32>()
-                    .unwrap_or_default(),
-            )
-            .expect("This cannot fail"), // Famous last words
+            flags: parse_flags!(LightFlags, get_prop("LightFlags", entity_props)),
             color: get_color(&get_prop("light_color", entity_props)),
         },
         ..Default::default()
@@ -342,7 +361,7 @@ pub fn light(
     mesh_name: &str,
 ) -> TES3Object {
     TES3Object::Light(Light {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -365,12 +384,7 @@ pub fn light(
                     .unwrap_or_default(),
                 scale_mode,
             ),
-            flags: LightFlags::from_bits(
-                get_prop("LightFlags", entity_props)
-                    .parse::<u32>()
-                    .unwrap_or_default(),
-            )
-            .expect("This cannot fail"), // Famous last words
+            flags: parse_flags!(LightFlags, get_prop("LightFlags", entity_props)),
             color: get_color(&get_prop("light_color", entity_props)),
         },
     })
@@ -378,7 +392,7 @@ pub fn light(
 
 pub fn misc(entity_props: &HashMap<&String, &String>, ref_id: &str, mesh_name: &str) -> TES3Object {
     TES3Object::MiscItem(MiscItem {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -391,12 +405,7 @@ pub fn misc(entity_props: &HashMap<&String, &String>, ref_id: &str, mesh_name: &
             value: get_prop("Value", entity_props)
                 .parse::<u32>()
                 .unwrap_or_default(),
-            flags: MiscItemFlags::from_bits(
-                get_prop("MiscFlags", entity_props)
-                    .parse::<u32>()
-                    .unwrap_or_default(),
-            )
-            .expect("Invalid Potion Flags!"),
+            flags: parse_named_flags!(MiscItemFlags, get_prop("MiscFlags", entity_props)),
         },
     })
 }
@@ -406,8 +415,17 @@ pub fn potion(
     ref_id: &str,
     mesh_name: &str,
 ) -> TES3Object {
+    let alchemy_flags = if get_prop("Auto_Calculate", entity_props)
+        .parse::<u32>()
+        .unwrap_or_default()
+        == 0
+    {
+        AlchemyFlags::AUTO_CALCULATE
+    } else {
+        AlchemyFlags::empty()
+    };
     TES3Object::Alchemy(Alchemy {
-        flags: ObjectFlags::default(),
+        flags: object_flags(entity_props),
         id: ref_id.to_owned(),
         name: get_prop("Name", entity_props),
         script: get_prop("Script", entity_props),
@@ -420,12 +438,7 @@ pub fn potion(
             value: get_prop("Value", entity_props)
                 .parse::<u32>()
                 .unwrap_or_default(),
-            flags: AlchemyFlags::from_bits(
-                get_prop("PotionFlags", entity_props)
-                    .parse::<u32>()
-                    .unwrap_or_default(),
-            )
-            .expect("Invalid Potion Flags!"),
+            flags: alchemy_flags,
         },
         effects: collect_effects(entity_props, 8),
     })
@@ -436,8 +449,9 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
 
     for count in 1..=effects_size {
         let effect_type = prop_map
-            .get(&format!("Effect_{count}_MagicType"))
-            .unwrap_or(&&String::default())
+            .get(&format!("ESM3_Effect_{count}_MagicType"))
+            .copied()
+            .map_or("", |value| value)
             .parse::<i16>()
             .unwrap_or(-1);
 
@@ -445,18 +459,18 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
             // Not 100% sure if this is valid but I'm fairly certain one
             // can't have a magic effect with no effect type.
             let magnitude = prop_map
-                .get(&format!("Effect_{count}_Magnitude"))
+                .get(&format!("ESM3_Effect_{count}_Magnitude"))
                 .map(|s| s.parse::<u32>().unwrap_or_default());
 
             let (min_magnitude, max_magnitude) = match magnitude {
                 Some(mag) => (mag, mag),
                 None => (
                     prop_map
-                        .get(&format!("Effect_{count}_MagnitudeMin"))
+                        .get(&format!("ESM3_Effect_{count}_MagnitudeMin"))
                         .map(|s| s.parse::<u32>().unwrap_or_default())
                         .unwrap_or_default(),
                     prop_map
-                        .get(&format!("Effect_{count}_MagnitudeMax"))
+                        .get(&format!("ESM3_Effect_{count}_MagnitudeMax"))
                         .map(|s| s.parse::<u32>().unwrap_or_default())
                         .unwrap_or_default(),
                 ),
@@ -468,8 +482,9 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
                     21 | 26 | 78 | 83 | 89 => {
                         // These are the skill effects
                         prop_map
-                            .get(&format!("Effect_{count}_Skill"))
-                            .unwrap_or(&&String::default())
+                            .get(&format!("ESM3_Effect_{count}_Skill"))
+                            .copied()
+                            .map_or("", |value| value)
                             .parse::<i8>()
                             .unwrap_or_default()
                     }
@@ -480,8 +495,9 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
                     17 | 22 | 74 | 79 | 85 => {
                         // These are the attribute effects
                         prop_map
-                            .get(&format!("Effect_{count}_Attribute"))
-                            .unwrap_or(&&String::default())
+                            .get(&format!("ESM3_Effect_{count}_Attribute"))
+                            .copied()
+                            .map_or("", |value| value)
                             .parse::<i8>()
                             .unwrap_or_default()
                     }
@@ -490,20 +506,23 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
                 .expect("Invalid Attribute ID!"),
                 range: EffectRange::try_from(
                     prop_map
-                        .get(&format!("Effect_{count}_Range"))
-                        .unwrap_or(&&String::default())
+                        .get(&format!("ESM3_Effect_{count}_Range"))
+                        .copied()
+                        .map_or("", |value| value)
                         .parse::<u32>()
                         .unwrap_or_default(),
                 )
                 .expect("Invalid Effect Range!"),
                 area: prop_map
-                    .get(&format!("Effect_{count}_Area"))
-                    .unwrap_or(&&String::default())
+                    .get(&format!("ESM3_Effect_{count}_Area"))
+                    .copied()
+                    .map_or("", |value| value)
                     .parse::<u32>()
                     .unwrap_or_default(),
                 duration: prop_map
-                    .get(&format!("Effect_{count}_Duration"))
-                    .unwrap_or(&&String::default())
+                    .get(&format!("ESM3_Effect_{count}_Duration"))
+                    .copied()
+                    .map_or("", |value| value)
                     .parse::<u32>()
                     .unwrap_or_default(),
                 min_magnitude,
@@ -517,22 +536,24 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
 fn collect_biped_objects(prop_map: &HashMap<&String, &String>) -> Vec<BipedObject> {
     let mut biped_objects = Vec::new();
 
-    for count in 1..7 {
-        if let Some(biped_object) = prop_map.get(&format!("SlotType{count}")) {
+    for count in 1..9 {
+        if let Some(biped_object) = prop_map.get(&format!("ESM3_SlotType{count}")) {
             biped_objects.push(BipedObject {
                 biped_object_type: biped_object
                     .parse::<u8>()
                     .unwrap_or_default()
                     .try_into()
                     .expect("Invalid Biped Object Type!"),
-                male_bodypart: (*prop_map
-                    .get(&format!("male_part{count}"))
-                    .unwrap_or(&&String::default()))
-                .clone(),
-                female_bodypart: (*prop_map
-                    .get(&format!("female_part{count}"))
-                    .unwrap_or(&&String::default()))
-                .clone(),
+                male_bodypart: prop_map
+                    .get(&format!("ESM3_male_part{count}"))
+                    .copied()
+                    .map_or("", |value| value)
+                    .to_owned(),
+                female_bodypart: prop_map
+                    .get(&format!("ESM3_female_part{count}"))
+                    .copied()
+                    .map_or("", |value| value)
+                    .to_owned(),
             });
         }
     }
@@ -546,10 +567,11 @@ fn collect_contained_objects(
     let mut contained_objects = Vec::new();
 
     for count in 1..7 {
-        if let Some(contained_id) = prop_map.get(&format!("Item{count}_Id")) {
+        if let Some(contained_id) = prop_map.get(&format!("ESM3_Item{count}_Id")) {
             let item_count: i32 = prop_map
-                .get(&format!("Item{count}_Count"))
-                .map_or("1", |v| v)
+                .get(&format!("ESM3_Item{count}_Count"))
+                .copied()
+                .map_or("1", |value| value)
                 .parse()
                 .expect("Cannot fail parsing a default-initialized integer");
             let object_id = crate::esp::FixedString::<32>((*contained_id).clone());
@@ -564,10 +586,11 @@ fn collect_list_creatures(prop_map: &HashMap<&String, &String>) -> Vec<(String, 
     let mut contained_objects = Vec::new();
 
     for count in 1..25 {
-        if let Some(contained_id) = prop_map.get(&format!("Creature_{count}_Id")) {
+        if let Some(contained_id) = prop_map.get(&format!("ESM3_Creature_{count}_Id")) {
             let level_required: u16 = prop_map
-                .get(&format!("Creature_{count}_PlayerLevel"))
-                .map_or("1", |v| v)
+                .get(&format!("ESM3_Creature_{count}_PlayerLevel"))
+                .copied()
+                .map_or("1", |value| value)
                 .parse()
                 .expect("Cannot fail parsing a default-initialized integer");
             contained_objects.push(((*contained_id).clone(), level_required));
@@ -581,10 +604,11 @@ fn collect_list_items(prop_map: &HashMap<&String, &String>) -> Vec<(String, u16)
     let mut contained_objects = Vec::new();
 
     for count in 1..25 {
-        if let Some(contained_id) = prop_map.get(&format!("Item_{count}_Id")) {
+        if let Some(contained_id) = prop_map.get(&format!("ESM3_Item_{count}_Id")) {
             let level_required: u16 = prop_map
-                .get(&format!("Item_{count}_PlayerLevel"))
-                .map_or("1", |v| v)
+                .get(&format!("ESM3_Item_{count}_PlayerLevel"))
+                .copied()
+                .map_or("1", |value| value)
                 .parse()
                 .expect("Cannot fail parsing a default-initialized integer");
             contained_objects.push(((*contained_id).clone(), level_required));
@@ -606,8 +630,72 @@ fn get_color(color_str: &str) -> [u8; 4] {
 }
 
 fn get_prop(prop_name: &str, prop_map: &HashMap<&String, &String>) -> String {
-    (*prop_map
-        .get(&prop_name.to_string())
-        .unwrap_or(&&String::default()))
-    .clone()
+    let prop_name = format!("ESM3_{prop_name}");
+    prop_map
+        .get(&prop_name)
+        .copied()
+        .cloned()
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn game_object_reads_esm3_properties_only() {
+        let owned = [
+            ("ESM3_Name".to_owned(), "Schema Name".to_owned()),
+            ("ESM3_Script".to_owned(), "schema_script".to_owned()),
+            ("Name".to_owned(), "Legacy Name".to_owned()),
+            ("Script".to_owned(), "legacy_script".to_owned()),
+        ];
+        let properties: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
+        let object = activator(&properties, "fixture_ref", "meshes/fixture.nif");
+        let TES3Object::Activator(activator) = object else {
+            panic!("activator factory must produce an Activator record");
+        };
+        assert_eq!(activator.name, "Schema Name");
+        assert_eq!(activator.script, "schema_script");
+    }
+
+    #[test]
+    fn light_and_container_flags_read_numeric_masks_only() {
+        let light_owned = [("ESM3_LightFlags".to_owned(), "17".to_owned())];
+        let light_properties: HashMap<_, _> = light_owned
+            .iter()
+            .map(|(key, value)| (key, value))
+            .collect();
+        let TES3Object::Light(light) = point_light(&light_properties, 1.0, 64, "fixture_light")
+        else {
+            panic!("point light factory must produce a Light record");
+        };
+        assert!(light.data.flags.contains(LightFlags::DYNAMIC));
+        assert!(light.data.flags.contains(LightFlags::FIRE));
+        assert!(!light.data.flags.contains(LightFlags::NEGATIVE));
+
+        let named_light_owned = [("ESM3_LightFlags".to_owned(), "DYNAMIC | FIRE".to_owned())];
+        let named_light_properties: HashMap<_, _> = named_light_owned
+            .iter()
+            .map(|(key, value)| (key, value))
+            .collect();
+        let TES3Object::Light(named_light) =
+            point_light(&named_light_properties, 1.0, 64, "legacy_light")
+        else {
+            panic!("point light factory must produce a Light record");
+        };
+        assert!(named_light.data.flags.is_empty());
+
+        let container_owned = [("ESM3_ContainerFlags".to_owned(), "3".to_owned())];
+        let container_properties: HashMap<_, _> = container_owned
+            .iter()
+            .map(|(key, value)| (key, value))
+            .collect();
+        let TES3Object::Container(container) = container(&container_properties, "fixture", "")
+        else {
+            panic!("container factory must produce a Container record");
+        };
+        assert!(container.container_flags.contains(ContainerFlags::RESPAWNS));
+        assert!(container.container_flags.contains(ContainerFlags::ORGANIC));
+    }
 }

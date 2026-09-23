@@ -246,10 +246,10 @@ pub enum BroomCommand {
         #[arg(long = "types", short = 't', value_delimiter = ';')]
         object_types: Option<Vec<TES3ObjectType>>,
 
-        /// Name of the FGD file to save.
-        /// If not present, defaults to Morrowind.fgd
-        #[arg(long = "output", short = 'o', default_value = "Morrowind.fgd")]
-        output_path: PathBuf,
+        /// Output path for the generated object catalog. Defaults to the installed
+        /// `TrenchBroom` Morrowind game directory.
+        #[arg(long = "output", short = 'o')]
+        output_path: Option<PathBuf>,
 
         /// Relative or absolute path to the openmw.cfg file from which to derive the FGD file.
         #[arg(long = "config", short = 'c', value_parser = validate_openmw_config_path)]
@@ -570,10 +570,28 @@ mod tests {
             assert!((object_scale - 3.5).abs() < f32::EPSILON);
             assert_eq!(types.len(), 18);
             assert!(openmw_config.is_none());
-            assert!(output_path.eq(&PathBuf::from("Morrowind.fgd")));
+            assert!(output_path.is_none());
         } else {
             panic!("expected FGD subcommand");
         }
+    }
+
+    #[test]
+    fn fgd_output_path_can_be_overridden() {
+        let args = MorrobroomArgs::parse_from([
+            "morrobroom",
+            "fgd",
+            "--output",
+            "portable/MorrowindObjects.fgd",
+        ]);
+
+        let BroomCommand::FGD { output_path, .. } = args.command else {
+            panic!("expected FGD subcommand");
+        };
+        assert_eq!(
+            output_path,
+            Some(PathBuf::from("portable/MorrowindObjects.fgd"))
+        );
     }
 
     fn temp_map_file() -> PathBuf {

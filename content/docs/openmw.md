@@ -23,20 +23,23 @@ directory.
 
 ## Regenerate the FGD
 
-The FGD is for TrenchBroom. It is not an OpenMW data file. Generate one from
-the active OpenMW configuration when the included definitions do not match your
-installed game and mods:
+The handwritten `Morrowind.fgd` is the compact schema for normal TrenchBroom
+editing. Generate a loadout-specific object catalog when you want the entity
+browser to include records from your installed game and mods:
 
 ```bash
 morrobroom FGD \
-  --config /path/to/openmw.cfg \
-  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+  --config /path/to/openmw.cfg
 ```
 
-The destination is the custom TrenchBroom `Morrowind` directory from
+By default, Morrobroom writes the catalog to the standard TrenchBroom per-user
+`Morrowind` directory from
 [Start Here](@/docs/start-here.md#install-the-trenchbroom-game-files). On
-Windows, macOS, and Linux, the generated file belongs beside `GameConfig.cfg`,
-not in `Data Files/`.
+Windows, macOS, and Linux, keep `MorrowindObjects.fgd` beside `Morrowind.fgd`
+and `GameConfig.cfg`, not in `Data Files/`. The generated catalog includes the
+handwritten schema. Generation reports an error if the Morrobroom game
+resources are not installed there. Use `--output <path>` for development or
+TrenchBroom portable mode.
 
 To generate only selected placeable record types, use the TES3 four-letter
 tags:
@@ -44,8 +47,7 @@ tags:
 ```bash
 morrobroom FGD \
   --config /path/to/openmw.cfg \
-  --types "STAT;DOOR;LIGH;ACTI" \
-  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+  --types "STAT;DOOR;LIGH;ACTI"
 ```
 
 Regenerate after changing the OpenMW configuration if new records need to

@@ -135,21 +135,22 @@ normal **Launch** command.
 `.map` file directly; it does not create a temporary export through
 TrenchBroom's Export Map task. The on-disk map is the source of truth.
 
-If the supplied FGD does not match the user's installed data, regenerate it
-from the active OpenMW configuration and write it into the custom game
-directory:
+`resources/Morrowind.fgd` is the small, handwritten schema used for normal
+editing. To browse records from the active OpenMW configuration, generate the
+large object catalog beside it:
 
 ```bash
 morrobroom FGD \
-  --config /path/to/openmw.cfg \
-  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+  --config /path/to/openmw.cfg
 ```
 
-The destination is:
+By default, the catalog is written to TrenchBroom's per-user Morrowind game
+directory. It includes `Morrowind.fgd`; keep the catalog beside the schema and
+other game resources. The destination is:
 
-- Windows: `%APPDATA%\TrenchBroom\games\Morrowind\Morrowind.fgd`
-- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind/Morrowind.fgd`
-- Linux: `~/.TrenchBroom/games/Morrowind/Morrowind.fgd`
+- Windows: `%APPDATA%\TrenchBroom\games\Morrowind\`
+- macOS: `~/Library/Application Support/TrenchBroom/games/Morrowind/`
+- Linux: `~/.TrenchBroom/games/Morrowind/`
 
 The generated file is a TrenchBroom resource, not an OpenMW data file.
 
@@ -194,8 +195,7 @@ Supported plugin outputs:
 
 ```bash
 morrobroom FGD \
-  --config /path/to/openmw.cfg \
-  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+  --config /path/to/openmw.cfg
 ```
 
 You can restrict generation to selected TES3 record types:
@@ -203,9 +203,11 @@ You can restrict generation to selected TES3 record types:
 ```bash
 morrobroom FGD \
   --config /path/to/openmw.cfg \
-  --types STAT;DOOR;LIGH;ACTI \
-  --output /path/to/TrenchBroom/games/Morrowind/Morrowind.fgd
+  --types "STAT;DOOR;LIGH;ACTI"
 ```
+
+Use `--output <path>` to write elsewhere, such as when using TrenchBroom's
+portable mode.
 
 ## Why TrenchBroom?
 

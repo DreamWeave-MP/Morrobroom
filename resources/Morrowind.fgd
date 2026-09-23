@@ -13,6 +13,8 @@
 [
     ESM3_RefId(string) : "TES3 record ID. Leave empty to generate a unique ID."
     ESM3_Name(string) : "Optional in-game display name."
+    ESM3_Plugin(string) : "Source plugin for the indexed TES3 record."
+    ESM3_ObjectFlags(string) : "TES3 record flags."
     mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
 ]
 
@@ -72,6 +74,25 @@
 [
     ESM3_Enchantment(string): "Enchantment attached to the item. Requires a separate definition for the enchantment itself, which cannot be made in Trenchbroom." : "sc_icarianflight_en"
     ESM3_EnchantmentPoints(integer): "Strength of possible enchantments applied to this particular item." : 60
+]
+
+@BaseClass = WeaponData : "Weapon record data"
+[
+    ESM3_ChopMin(integer) : "Minimum chop damage"
+    ESM3_ChopMax(integer) : "Maximum chop damage"
+    ESM3_ThrustMin(integer) : "Minimum thrust damage"
+    ESM3_ThrustMax(integer) : "Maximum thrust damage"
+    ESM3_SlashMin(integer) : "Minimum slash damage"
+    ESM3_SlashMax(integer) : "Maximum slash damage"
+    ESM3_Health(integer) : "Weapon condition"
+    ESM3_Reach(float) : "Weapon reach"
+    ESM3_Speed(float) : "Weapon speed"
+]
+
+@BaseClass base(Referenceable) = DoorData : "Door record data"
+[
+    ESM3_SoundOpen(string) : "Sound played when the door opens"
+    ESM3_SoundClose(string) : "Sound played when the door closes"
 ]
 
 // Used by both clothing and armor. Awkward hack.
@@ -2077,7 +2098,7 @@
 
 // Since lights can be carryable or not, we use this
 // So that it can be a brush or point class
-@BaseClass base(GameObject) = PointLightData : "Light Data"
+@BaseClass base(baseObject) = PointLightData : "Light Data"
 [
     ESM3_Sound(string) : "Internal SoundID played by this light. Can only be determined through a Morrowind Construction set."
     ESM3_Script(string) : "Internal MWScript attached to this light. Can only be determined through a Morrowind Construction set."
@@ -2106,7 +2127,7 @@
 
 @PointClass size(-512 -512 -512, 512 512 512) iconsprite("Textures/light1024.webp") base(PointLightData) = Light_Point1024: "1024 Unit Light" [ ESM3_Radius(integer): "Light Radius" : 1024 ]
 
-@SolidClass base(baseObject, NifGeometry) = world_Container : "Container type" [
+@BaseClass base(baseObject) = ContainerData : "Container data" [
     ESM3_Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this ESM3_RefId will share the script." : "fallingScript"
     ESM3_Encumbrance(float) : "Total carrying capacity of the container. Optional. 0 means unlimited capacity.": "0.0"
 
@@ -2140,6 +2161,8 @@
     ESM3_Item8_Id(string) : "Ref Id of contained object"
     ESM3_Item8_Count(integer): "Number of contained instances" : 1
 ]
+
+@SolidClass base(ContainerData, NifGeometry) = world_Container : "Container type" []
 
 
 @PointClass = world_CreatureList : "Leveled Creature List" [
@@ -2188,7 +2211,12 @@
 
     ESM3_RefId(string) : "Ref Id for the object" : "agronian guy"
     ESM3_Chance_None(integer) : "Chance nothing will spawn" : 0
-	ESM3_Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
+    ESM3_Calculate_For_Each_Item(choices) : "Calculate each item chance separately" : 0 =
+    [
+        0 : "False"
+        1 : "True"
+    ]
+    ESM3_Spawn_From_All_Levels(choices) : "Use alpha blending for this brush" : 0 =
     [
         0 : "False"
         1 : "True"

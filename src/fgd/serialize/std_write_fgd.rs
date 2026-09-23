@@ -11,6 +11,14 @@ pub trait STDWriteFGD {
     ) -> Result<(), io::Error>;
 }
 
+fn esm3_property(name: &str) -> String {
+    if name.starts_with("ESM3_") {
+        name.to_owned()
+    } else {
+        format!("ESM3_{name}")
+    }
+}
+
 impl STDWriteFGD for &str {
     fn write_fgd<S: AsRef<str>, W: Write>(
         &self,
@@ -18,10 +26,11 @@ impl STDWriteFGD for &str {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(self);
         writeln!(
             target,
             "    {}(string): \"{}\": \"{}\"",
-            self,
+            property,
             description.as_ref(),
             default.as_ref()
         )
@@ -35,10 +44,11 @@ impl STDWriteFGD for &String {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(self);
         writeln!(
             target,
             "    {}(string): \"{}\": \"{}\"",
-            self,
+            property,
             description.as_ref(),
             default.as_ref()
         )
@@ -52,10 +62,11 @@ impl STDWriteFGD for String {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(self);
         writeln!(
             target,
             "    {}(string): \"{}\": \"{}\"",
-            self,
+            property,
             description.as_ref(),
             default.as_ref()
         )
@@ -76,19 +87,21 @@ mod test_str_fgd {
     #[test]
     fn test_str_fgd_basic() {
         let out = serialize_to_string("Name", "An entity name", "default_name");
-        assert!(out.contains("    Name(string): \"An entity name\": \"default_name\""));
+        assert!(out.contains("    ESM3_Name(string): \"An entity name\": \"default_name\""));
     }
 
     #[test]
     fn test_str_fgd_empty_default() {
         let out = serialize_to_string("Tag", "Optional label", "");
-        assert!(out.contains("    Tag(string): \"Optional label\": \"\""));
+        assert!(out.contains("    ESM3_Tag(string): \"Optional label\": \"\""));
     }
 
     #[test]
     fn test_str_fgd_special_characters() {
         let out = serialize_to_string("Label", "This \"desc\" has quotes", "new\nline");
-        assert!(out.contains("    Label(string): \"This \"desc\" has quotes\": \"new\nline\""));
+        assert!(
+            out.contains("    ESM3_Label(string): \"This \"desc\" has quotes\": \"new\nline\"")
+        );
         // We're not escaping quotes/newlines here; just verifying they pass through
     }
 }
@@ -100,10 +113,11 @@ impl STDWriteFGD for f32 {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         writeln!(
             target,
             "    {}(float): \"{}\": \"{}\"",
-            key.as_ref(),
+            property,
             description.as_ref(),
             self,
         )
@@ -117,10 +131,11 @@ impl STDWriteFGD for i32 {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         writeln!(
             target,
             "    {}(integer): \"{}\": {}",
-            key.as_ref(),
+            property,
             description.as_ref(),
             self,
         )
@@ -134,10 +149,11 @@ impl STDWriteFGD for u32 {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         writeln!(
             target,
             "    {}(integer): \"{}\": {}",
-            key.as_ref(),
+            property,
             description.as_ref(),
             self,
         )
@@ -151,10 +167,11 @@ impl STDWriteFGD for u16 {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         writeln!(
             target,
             "    {}(integer): \"{}\": {}",
-            key.as_ref(),
+            property,
             description.as_ref(),
             self,
         )
@@ -168,10 +185,11 @@ impl STDWriteFGD for u8 {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         writeln!(
             target,
             "    {}(integer): \"{}\": {}",
-            key.as_ref(),
+            property,
             description.as_ref(),
             self,
         )
@@ -197,35 +215,35 @@ mod test_numeric_fgd {
     fn test_f32_write_fgd() {
         let val: f32 = 3.14;
         let out = serialize_to_string(&val, "FloatVal", "Pi-ish");
-        assert!(out.contains("FloatVal(float): \"Pi-ish\": \"3.14\""));
+        assert!(out.contains("ESM3_FloatVal(float): \"Pi-ish\": \"3.14\""));
     }
 
     #[test]
     fn test_i32_write_fgd() {
         let val: i32 = -42;
         let out = serialize_to_string(&val, "IntVal", "Negative life");
-        assert!(out.contains("IntVal(integer): \"Negative life\": -42"));
+        assert!(out.contains("ESM3_IntVal(integer): \"Negative life\": -42"));
     }
 
     #[test]
     fn test_u32_write_fgd() {
         let val: u32 = 123_456;
         let out = serialize_to_string(&val, "U32Val", "Big number");
-        assert!(out.contains("U32Val(integer): \"Big number\": 123456"));
+        assert!(out.contains("ESM3_U32Val(integer): \"Big number\": 123456"));
     }
 
     #[test]
     fn test_u16_write_fgd() {
         let val: u16 = 65535;
         let out = serialize_to_string(&val, "U16Val", "Max u16");
-        assert!(out.contains("U16Val(integer): \"Max u16\": 65535"));
+        assert!(out.contains("ESM3_U16Val(integer): \"Max u16\": 65535"));
     }
 
     #[test]
     fn test_u8_write_fgd() {
         let val: u8 = 255;
         let out = serialize_to_string(&val, "U8Val", "Max byte");
-        assert!(out.contains("U8Val(integer): \"Max byte\": 255"));
+        assert!(out.contains("ESM3_U8Val(integer): \"Max byte\": 255"));
     }
 }
 
@@ -236,6 +254,7 @@ impl STDWriteFGD for [u8; 4] {
         key: S,
         description: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(key.as_ref());
         let (r, g, b) = (
             f32::from(self[0]) / 255.,
             f32::from(self[1]) / 255.,
@@ -245,7 +264,7 @@ impl STDWriteFGD for [u8; 4] {
         writeln!(
             target,
             "    {}(color): \"{}\": \"{:.3} {:.3} {:.3}\"",
-            key.as_ref(),
+            property,
             description.as_ref(),
             r,
             g,
@@ -325,10 +344,11 @@ impl STDWriteFGD for HashMap<u32, String> {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(description.as_ref());
         writeln!(
             target,
             "    {}(Flags): \"{}\": \"\" =\n    [",
-            description.as_ref(),
+            property,
             default.as_ref()
         )?;
 
@@ -361,7 +381,7 @@ mod test_hashmap_u32_string_fgd {
 
         let output = serialize_flags_map(&flags, "SomeFlags", "none");
 
-        assert!(output.contains("    SomeFlags(Flags): \"none\": \"\" ="));
+        assert!(output.contains("    ESM3_SomeFlags(Flags): \"none\": \"\" ="));
         assert!(output.contains("        \"1\": \"FlagOne\""));
         assert!(output.contains("        \"2\": \"FlagTwo\""));
         assert!(output.contains("    ]"));
@@ -372,7 +392,7 @@ mod test_hashmap_u32_string_fgd {
         let flags: HashMap<u32, String> = HashMap::new();
         let output = serialize_flags_map(&flags, "EmptyFlags", "default");
 
-        assert!(output.contains("    EmptyFlags(Flags): \"default\": \"\" ="));
+        assert!(output.contains("    ESM3_EmptyFlags(Flags): \"default\": \"\" ="));
         assert!(output.contains("    ]"));
     }
 
@@ -394,10 +414,11 @@ impl STDWriteFGD for Vec<(String, u16)> {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(description.as_ref());
         writeln!(
             target,
             "    {}(choices): \"{}\": \"\" =\n    [",
-            description.as_ref(),
+            property,
             default.as_ref()
         )?;
 
@@ -418,10 +439,11 @@ impl<D: std::fmt::Display> STDWriteFGD for Vec<(D, D)> {
         description: S,
         default: S,
     ) -> Result<(), io::Error> {
+        let property = esm3_property(description.as_ref());
         writeln!(
             target,
             "    {}(choices): \"{}\": \"\" =\n    [",
-            description.as_ref(),
+            property,
             default.as_ref()
         )?;
 
@@ -449,7 +471,7 @@ mod test_vec_choices_fgd {
 
         let output = String::from_utf8(buffer).unwrap();
 
-        assert!(output.contains("MyVecChoices(choices): \"Pick one\": \"\" ="));
+        assert!(output.contains("ESM3_MyVecChoices(choices): \"Pick one\": \"\" ="));
         assert!(output.contains("        \"Option1\": \"First choice\""));
         assert!(output.contains("        \"Option2\": \"Second choice\""));
         assert!(output.contains("    ]"));
@@ -464,7 +486,7 @@ mod test_vec_choices_fgd {
             .unwrap();
 
         let output = String::from_utf8(buffer).unwrap();
-        assert!(output.contains("EmptyVec(choices): \"Nothing to show\": \"\" ="));
+        assert!(output.contains("ESM3_EmptyVec(choices): \"Nothing to show\": \"\" ="));
         assert!(output.contains("    ["));
         assert!(output.contains("    ]"));
     }
@@ -479,7 +501,7 @@ mod test_vec_choices_fgd {
 
         let output = String::from_utf8(buffer).unwrap();
 
-        assert!(output.contains("SpecialChars(choices): \"Watch out\": \"\" ="));
+        assert!(output.contains("ESM3_SpecialChars(choices): \"Watch out\": \"\" ="));
         assert!(output.contains("        \"Key \"1\"\": \"Value"));
         assert!(output.contains("        \"Esc\\Key\": \"Quote\"Inside\""));
     }

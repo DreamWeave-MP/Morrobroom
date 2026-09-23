@@ -44,12 +44,12 @@ created when necessary.
 
 ```bash
 morrobroom FGD \
-  --config /path/to/openmw.cfg \
-  --output /path/to/Morrowind.fgd
+  --config /path/to/openmw.cfg
 ```
 
-See [OpenMW integration](@/docs/openmw.md#regenerate-the-fgd) for where the
-file belongs and how to select record types.
+The catalog is written to TrenchBroom's standard per-user Morrowind directory
+and includes `Morrowind.fgd`. Use `--output <path>` to override the location.
+See [OpenMW integration](@/docs/openmw.md#regenerate-the-fgd) for details.
 
 ## Import NIF geometry
 

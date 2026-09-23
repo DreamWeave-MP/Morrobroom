@@ -86,6 +86,9 @@ fn main() -> io::Result<()> {
                 .iter()
                 .map(broom_args::TES3ObjectType::as_str)
                 .collect();
+            let output_path = output_path
+                .map_or_else(morrobroom::fgd::default_catalog_output_path, Ok)
+                .map_err(|error| io::Error::other(error.to_string()))?;
             morrobroom::fgd::generate_fgd(
                 openmw_config.as_deref(),
                 &object_type_tags,
@@ -215,11 +218,11 @@ fn process_brush_entity(
     let mut mesh = Mesh::from_map(brushes, state.map_data, state.object_scale, entity_id);
     attach_group_nodes(&mut mesh, &prop_map, state.map_data);
 
-    let ref_id = prop_map.get(&"RefId".to_string()).map_or_else(
+    let ref_id = prop_map.get(&"ESM3_RefId".to_string()).map_or_else(
         || format!("{}-scene-{entity_id}", state.map_dir),
         |id| id[..min(id.len(), 32)].to_string(),
     );
-    let mesh_name = prop_map.get(&"Model".to_string()).map_or_else(
+    let mesh_name = prop_map.get(&"ESM3_Model".to_string()).map_or_else(
         || format!("{}/{ref_id}.nif", state.map_dir),
         |name| (*name).clone(),
     );
@@ -265,7 +268,7 @@ fn attach_group_nodes(mesh: &mut Mesh, prop_map: &HashMap<&String, &String>, map
         {
             continue;
         }
-        if let Some(ref_id) = properties.get(&"RefId".to_string()) {
+        if let Some(ref_id) = properties.get(&"ESM3_RefId".to_string()) {
             ref_instances += 1;
             if !processed_group_objects.insert((*ref_id).clone()) {
                 println!(
@@ -314,7 +317,7 @@ fn assign_game_object(
             mesh.game_object = Static {
                 id: ref_id.to_string(),
                 mesh: mesh_name.to_string(),
-                flags: esp::ObjectFlags::default(),
+                flags: game_object::object_flags(props),
             }
             .into();
         }
@@ -323,7 +326,7 @@ fn assign_game_object(
             mesh.game_object = Static {
                 id: ref_id.to_string(),
                 mesh: mesh_name.to_string(),
-                ..Default::default()
+                flags: game_object::object_flags(props),
             }
             .into();
         }
@@ -398,7 +401,7 @@ fn required_ref_id(
     kind: &str,
 ) -> String {
     props
-        .get(&"RefId".to_string())
+        .get(&"ESM3_RefId".to_string())
         .map_or_else(
             || panic!("RefIds are mandatory for all point entities, failed on {kind}, entity ID: {entity_id}"),
             |ref_id| ref_id[..min(ref_id.len(), 32)].to_string(),

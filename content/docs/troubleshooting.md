@@ -19,9 +19,10 @@ Then check the game directory setting. It must point to the folder containing
 ## Objects are missing from the entity browser
 
 The FGD is a TrenchBroom definition file. If an object from an installed mod
-does not appear, regenerate `Morrowind.fgd` from the active `openmw.cfg` and
-place it in the custom TrenchBroom `Morrowind` directory. Restart or reload the
-game configuration after replacing it.
+does not appear, generate `MorrowindObjects.fgd` from the active `openmw.cfg`
+with `morrobroom FGD`. It is written to the standard TrenchBroom user-game
+directory and includes the handwritten `Morrowind.fgd`. Restart or reload the
+game configuration after generation. Use `--output <path>` for portable mode.
 
 ## OpenMW launches the old map
 

@@ -51,6 +51,7 @@ impl From<ConfigError> for ConfigManagerError {
 pub enum FgdGenerationError {
     NonUtf8ConfigPath(PathBuf),
     ConfigManager(ConfigManagerError),
+    MissingTrenchBroomResources(PathBuf),
     Io(io::Error),
 }
 
@@ -65,6 +66,11 @@ impl std::fmt::Display for FgdGenerationError {
                 )
             }
             Self::ConfigManager(err) => write!(f, "{err}"),
+            Self::MissingTrenchBroomResources(path) => write!(
+                f,
+                "Cannot generate {GENERATED_FGD_NAME} because the Morrobroom TrenchBroom game configuration is not installed at:\n\n    {}\n\nExpected:\n    Morrowind.fgd\n    Nif.fgd\n    GameConfig.cfg\n\nInstall Morrobroom's TrenchBroom resources first, or use --output <path>.",
+                path.display()
+            ),
             Self::Io(err) => write!(f, "{err}"),
         }
     }
@@ -88,6 +94,30 @@ use std::collections::HashMap;
 
 use crate::fgd::serialize::tag_to_tag_str;
 type BoundsMap = HashMap<String, [i32; 6]>;
+pub const GENERATED_FGD_NAME: &str = "MorrowindObjects.fgd";
+
+/// Resolve the default location for the generated object catalog.
+///
+/// # Errors
+///
+/// Returns an error if the `TrenchBroom` user directory cannot be located or if
+/// the Morrobroom game resources are not installed there.
+pub fn default_catalog_output_path() -> Result<PathBuf, FgdGenerationError> {
+    let game_dir = crate::platform::trenchbroom_morrowind_dir()?;
+    catalog_output_path_in(game_dir)
+}
+
+fn catalog_output_path_in(game_dir: PathBuf) -> Result<PathBuf, FgdGenerationError> {
+    let required_files = ["Morrowind.fgd", "Nif.fgd", "GameConfig.cfg"];
+    if required_files
+        .iter()
+        .any(|file_name| !game_dir.join(file_name).is_file())
+    {
+        return Err(FgdGenerationError::MissingTrenchBroomResources(game_dir));
+    }
+
+    Ok(game_dir.join(GENERATED_FGD_NAME))
+}
 
 #[allow(
     clippy::cast_possible_truncation,
@@ -329,6 +359,14 @@ impl ConfigurationManager {
 
         let openmw_config = OpenMWConfiguration::new(Some(config_path))?;
 
+        Self::from_openmw_config(openmw_config, object_types, object_scale)
+    }
+
+    fn from_openmw_config(
+        openmw_config: OpenMWConfiguration,
+        object_types: &[&'static str],
+        object_scale: f32,
+    ) -> Result<Self, ConfigManagerError> {
         let vfs = VFS::from_directories(
             openmw_config
                 .data_directories_iter()
@@ -360,157 +398,31 @@ impl ConfigurationManager {
 
 #[cfg(test)]
 mod cfgmgr_test {
-    use std::{
-        fs::{self, File},
-        io::BufWriter,
-        path::PathBuf,
-        sync::OnceLock,
-    };
+    use openmw_config::OpenMWConfiguration;
 
-    use crate::fgd::{ConfigurationManager, generate_fgd, serialize};
+    use crate::fgd::{ConfigurationManager, serialize};
 
-    fn test_output_path(file_name: &str) -> PathBuf {
-        let output_dir = PathBuf::from("fgd_out");
-        fs::create_dir_all(&output_dir).expect("create FGD test output directory");
-        output_dir.join(file_name)
-    }
-
-    fn test_config_path() -> PathBuf {
-        static CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
-        CONFIG_PATH
-            .get_or_init(|| {
-                let path = test_output_path("openmw.cfg");
-                fs::write(&path, "").expect("create empty OpenMW test configuration");
-                path
-            })
-            .clone()
+    fn empty_config_manager(object_types: &[&'static str]) -> ConfigurationManager {
+        let openmw_config = OpenMWConfiguration::new_empty("empty-test-config")
+            .expect("construct in-memory empty OpenMW configuration");
+        ConfigurationManager::from_openmw_config(openmw_config, object_types, 1.0)
+            .expect("construct manager from empty OpenMW configuration")
     }
 
     #[test]
-    fn test_default_path() {
-        let path = test_config_path();
-        let object_types: &[&'static str] = &["NONE"];
-        assert!(ConfigurationManager::try_from((path.to_str().unwrap(), object_types)).is_ok(),);
+    fn empty_openmw_config_does_not_require_a_config_file() {
+        let manager = empty_config_manager(&["NONE"]);
+        assert!(manager.merged_objects.is_empty());
     }
 
     #[test]
     fn test_serialize_all() {
-        let output_path = test_output_path("FGDOut_ALL.fgd");
-        assert!(
-            generate_fgd(
-                Some(&test_config_path()),
-                &serialize::SERIALIZABLE_TYPES,
-                1.0,
-                &output_path,
-            )
-            .is_ok()
-        );
-    }
-
-    fn serialize_by_type(object_type: &'static str, config_path: Option<std::path::PathBuf>) {
-        let path = config_path.unwrap_or_else(test_config_path);
-
-        let types_slice: &[&'static str] = &[object_type];
-
-        let config = ConfigurationManager::try_from((path.to_str().unwrap(), types_slice)).unwrap();
-
-        let path = test_output_path(&format!("FGDOut_{object_type}.fgd"));
-        let mut file = File::create(path).unwrap();
-        let mut writer = BufWriter::new(&mut file);
-
-        assert!(
-            serialize::serialize_typed_objects_as_fgd(&config, &mut writer, object_type,).is_ok()
-        );
-    }
-
-    #[test]
-    fn test_serialize_static() {
-        serialize_by_type(tes3::esp::Static::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_activator() {
-        serialize_by_type(tes3::esp::Activator::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_script() {
-        serialize_by_type(tes3::esp::Script::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_ingredient() {
-        serialize_by_type(tes3::esp::Ingredient::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_light() {
-        serialize_by_type(tes3::esp::Light::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_armor() {
-        serialize_by_type(tes3::esp::Armor::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_weapon() {
-        serialize_by_type(tes3::esp::Weapon::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_clothing() {
-        serialize_by_type(tes3::esp::Armor::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_apparatus() {
-        serialize_by_type(tes3::esp::Apparatus::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_potion() {
-        serialize_by_type(tes3::esp::Alchemy::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_lockpick() {
-        serialize_by_type(tes3::esp::Lockpick::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_probe() {
-        serialize_by_type(tes3::esp::Probe::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_misc() {
-        serialize_by_type(tes3::esp::MiscItem::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_repair() {
-        serialize_by_type(tes3::esp::RepairItem::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_leveled_creature() {
-        serialize_by_type(tes3::esp::LeveledCreature::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_leveled_item() {
-        serialize_by_type(tes3::esp::LeveledItem::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_book() {
-        serialize_by_type(tes3::esp::Book::TAG_STR, None);
-    }
-
-    #[test]
-    fn test_serialize_door() {
-        serialize_by_type(tes3::esp::Door::TAG_STR, None);
+        let manager = empty_config_manager(&serialize::SERIALIZABLE_TYPES);
+        let mut generated = Vec::new();
+        serialize::serialize_objects_as_fgd(&manager, &mut generated)
+            .expect("serialize empty generated catalog");
+        let generated = String::from_utf8(generated).expect("FGD output is valid UTF-8");
+        assert!(generated.starts_with("@include \"Morrowind.fgd\"\n\n"));
     }
 }
 
@@ -524,15 +436,61 @@ mod bundled_fgd_test {
             .filter(|line| !line.trim_start().starts_with("//"));
 
         assert!(active_lines.all(|line| !line.contains("(int)")));
+        assert!(fgd.contains("@BaseClass = WeaponData"));
+        assert!(fgd.contains("@BaseClass base(Referenceable) = DoorData"));
+        for property in [
+            "ESM3_ChopMin(integer)",
+            "ESM3_ChopMax(integer)",
+            "ESM3_ThrustMin(integer)",
+            "ESM3_ThrustMax(integer)",
+            "ESM3_SlashMin(integer)",
+            "ESM3_SlashMax(integer)",
+            "ESM3_Health(integer)",
+            "ESM3_Reach(float)",
+            "ESM3_Speed(float)",
+        ] {
+            assert!(
+                fgd.contains(property),
+                "missing weapon schema property {property}"
+            );
+        }
+        assert!(fgd.contains("ESM3_LightFlags(Flags)"));
+        assert!(fgd.contains("ESM3_ContainerFlags(Flags)"));
+        assert!(!fgd.contains("ESM3_LightFlags(string)"));
+        assert!(!fgd.contains("ESM3_ContainerFlags(string)"));
         assert_eq!(
-            fgd.matches("Effect_7_Duration(integer)").count(),
+            fgd.matches("ESM3_Effect_7_Duration(integer)").count(),
             1,
             "Effect_7_Duration must be defined once"
         );
         assert_eq!(
-            fgd.matches("Effect_8_Duration(integer)").count(),
+            fgd.matches("ESM3_Effect_8_Duration(integer)").count(),
             1,
             "Effect_8_Duration must be defined once"
         );
+    }
+}
+
+#[cfg(test)]
+mod default_catalog_path_test {
+    use super::{FgdGenerationError, GENERATED_FGD_NAME, catalog_output_path_in};
+    use std::process;
+
+    #[test]
+    fn default_catalog_path_requires_the_installed_game_resources() {
+        let game_dir =
+            std::env::temp_dir().join(format!("morrobroom-missing-tb-resources-{}", process::id()));
+        let error = catalog_output_path_in(game_dir.clone()).unwrap_err();
+
+        let FgdGenerationError::MissingTrenchBroomResources(path) = error else {
+            panic!("expected missing-resource error");
+        };
+        assert_eq!(path, game_dir);
+        let message = FgdGenerationError::MissingTrenchBroomResources(path).to_string();
+        assert!(message.contains("Morrowind.fgd"));
+        assert!(message.contains("Nif.fgd"));
+        assert!(message.contains("GameConfig.cfg"));
+        assert!(message.contains("use --output <path>"));
+        assert_eq!(GENERATED_FGD_NAME, "MorrowindObjects.fgd");
     }
 }

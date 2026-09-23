@@ -8,6 +8,7 @@ use std::{
 pub mod fgd;
 pub mod lightmap_bake;
 pub mod nif2map;
+pub mod platform;
 pub mod render_mesh;
 pub mod slipgate;
 
