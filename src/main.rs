@@ -340,7 +340,7 @@ fn nif_markers_for_entity(
     } else {
         global_markers.as_slice()
     };
-    if let Some(target) = entity.get(&"Nif_Target".to_string()).copied() {
+    if let Some(target) = nonempty_property(entity, "Nif_Target") {
         let target_chain = nif_markers_for_target(Some(target), target_scope)?;
         let mut present_names: HashSet<String> = markers
             .iter()
@@ -443,6 +443,17 @@ fn validate_unique_link_names(markers: &[NifStructuralMarker]) -> Result<(), Str
     Ok(())
 }
 
+/// `TrenchBroom` writes unset FGD properties as empty strings; treat those as absent.
+fn nonempty_property<'a>(
+    properties: &HashMap<&String, &'a String>,
+    key: &str,
+) -> Option<&'a String> {
+    properties
+        .get(&key.to_string())
+        .copied()
+        .filter(|value| !value.is_empty())
+}
+
 fn structural_marker(properties: &HashMap<&String, &String>) -> Option<NifStructuralMarker> {
     let classname = properties.get(&"classname".to_string()).copied()?;
     let kind = match classname.as_str() {
@@ -463,12 +474,8 @@ fn structural_marker(properties: &HashMap<&String, &String>) -> Option<NifStruct
     };
     Some(NifStructuralMarker {
         kind,
-        link_name: properties
-            .get(&"Nif_LinkName".to_string())
-            .map(|value| (*value).clone()),
-        target: properties
-            .get(&"Nif_Target".to_string())
-            .map(|value| (*value).clone()),
+        link_name: nonempty_property(properties, "Nif_LinkName").cloned(),
+        target: nonempty_property(properties, "Nif_Target").cloned(),
         origin: point_entity_position(1.0, properties),
     })
 }
