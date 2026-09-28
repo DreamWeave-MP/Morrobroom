@@ -1,12 +1,16 @@
-![Morrobroom](header.png)
+![Morrobroom](static/img/header.png)
 
 # Morrobroom
 
 **An OpenMW brush compiler, lightmapper, and NIF-to-TrenchBroom importer.**
 
-Morrobroom lets you build Morrowind/OpenMW spaces in [TrenchBroom](https://trenchbroom.github.io/), compile brush geometry into native Morrowind assets, bake static lighting into BC7 lightmaps, place real game objects through generated FGD data, and pull compatible NIF geometry back into editable `.map` form.
+Morrobroom lets you build Morrowind/OpenMW spaces in [TrenchBroom](https://trenchbroom.github.io/), compile brush geometry into native Morrowind assets, bake static lighting into BC7 lightmaps, build game objects out of brushes, and pull compatible NIF geometry back into editable `.map` form.
 
 In other words: use a Quake editor to build Morrowind.
+
+**[Download it](https://dreamweave-mp.github.io/Morrobroom/)** for Windows, macOS or Linux, and read
+**[the manual](https://dreamweave-mp.github.io/Morrobroom/docs/)**, which starts from nothing
+installed and ends in your first room.
 
 > this largely exists because people smarter than me said it could not.
 
@@ -82,15 +86,19 @@ TrenchBroom does not understand Morrowind NIFs. Morrobroom can reconstruct compa
 
 This is reconstruction, not magic. NIF is a general scene format and `.map` is a brush format, so animated, skinned, highly irregular, or otherwise exotic assets may not have a useful brush representation.
 
-### Generate FGD data from your OpenMW setup
+### Build game objects from brushes
 
-Morrobroom can read an OpenMW configuration and generate an FGD from the active game data.
+Brush entities compile into real TES3 records with generated meshes: statics, activators,
+containers, lights, books, potions, ingredients, apparatus and miscellaneous items, each placed in
+the cell. Point lights and leveled lists come along too. The
+[Entities](https://dreamweave-mp.github.io/Morrobroom/docs/entities/) page lists them all.
 
-That means real Morrowind records from your installed game and mods can appear as placeable entities in TrenchBroom even though TrenchBroom cannot render their NIF models directly.
+### Browse your load order in TrenchBroom
 
-Supported placeable records include things such as statics, doors, lights, activators, weapons, armor, books, ingredients, miscellaneous items, and more.
-
-Morrobroom compiles those authored entities back into actual TES3/OpenMW records and references.
+Morrobroom can read an OpenMW configuration and generate an entity catalog from the active game
+data, so the records from your installed game and mods show up in TrenchBroom's entity browser.
+The catalog is for browsing and judging scale: placing its entries does not compile into references
+yet.
 
 ## Quick Start
 
@@ -140,7 +148,7 @@ editing. To browse records from the active OpenMW configuration, generate the
 large object catalog beside it:
 
 ```bash
-morrobroom FGD \
+morrobroom fgd \
   --config /path/to/openmw.cfg
 ```
 
@@ -198,16 +206,16 @@ Supported plugin outputs:
 ### Generate an FGD
 
 ```bash
-morrobroom FGD \
+morrobroom fgd \
   --config /path/to/openmw.cfg
 ```
 
 You can restrict generation to selected TES3 record types:
 
 ```bash
-morrobroom FGD \
+morrobroom fgd \
   --config /path/to/openmw.cfg \
-  --types "STAT;DOOR;LIGH;ACTI"
+  --types "stat;door;ligh;acti"
 ```
 
 Use `--output <path>` to write elsewhere, such as when using TrenchBroom's
