@@ -2,30 +2,14 @@
 
 Found on 2026-09-28 while rewriting the manual against the source. The manual describes what the
 code does today; these are the places where that differs from what the FGDs, comments or older docs
-promised. Nothing below has been changed.
+promised.
 
 ## Bugs
 
-- **The lightmap bake ignores the colors and radii set in TrenchBroom.** The FGD writes
-  `ESM3_light_color` on point lights and `ESM3_Ambient_color` on worldspawn, and the light and cell
-  *records* read those (`game_object.rs`, via `get_prop`, which adds the `ESM3_` prefix). The bake
-  reads the bare keys instead: `light_color` in `collect_point_lights` (`map_data.rs:253`) and
-  `Ambient_color` in `collect_ambient_color` (`map_data.rs:274`). So a light placed in TrenchBroom
-  has the right color in game but bakes white, and the baked ambient is always 15 15 15. The bake
-  also takes a light's radius from its class name only; the record honors an `ESM3_Radius`
-  override. The lightmap test fixtures pass because they were written by hand with the bare keys.
-- **`clip` faces are built like any other face.** `GameConfig.cfg` tags `clip` transparent and the
-  old manual called it collision-only, but only the lightmap's render mesh drops it
-  (`render_mesh.rs:87`); NIF generation drops `skip` alone (`brush_ni_node.rs:459`), so a `clip`
-  face is drawn, with a texture called `clip`, and collides.
-- **An apostrophe in a property value breaks the map.** The parser stops at it, and `compile_map`
-  panics with "No brushes found in map! You probably used an apostrophe in worldspawn properties"
-  (`main.rs:131`). Verified with `"ESM3_Name" "Caius Cosades' House"`. `Morrowind.fgd`'s own
-  default for worldspawn `ESM3_Name` is `"Balmora, Caius Cosades' House"`, and `GameConfig.cfg`
-  sets `setDefaultProperties`.
-- **`ESM3_Model` does the opposite of what the FGD says.** `Morrowind.fgd` describes it as the
-  model the object uses, with brush geometry only when it is empty. `process_brush_entity`
-  (`main.rs:239`) uses it as the path the *generated* mesh is written to, relative to `Meshes/`.
+All four fixed on 2026-09-28: the bake reads `ESM3_light_color`, `ESM3_Ambient_color` and
+`ESM3_Radius`; `parse_string` lets `'` appear inside `"..."`; the FGD now describes `ESM3_Model` as
+the generated mesh's output path. `clip` needed nothing: visible geometry comes from the render mesh,
+which drops it, so a `clip` face only collides.
 
 ## Declared in the FGDs, not compiled
 
