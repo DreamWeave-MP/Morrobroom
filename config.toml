@@ -48,9 +48,10 @@ menu_items = [
     { name = "Manual", url = "@/docs/_index.md" },
 ]
 
-# Mystic Cards, the lettering on Morrobroom's own logo.
+# Mystic Cards, the lettering on Morrobroom's own logo, for titles. The manual is read, so its text
+# stays in the system font.
 font_override = "mystic-cards"
-font_override_titles_only = false
+font_override_titles_only = true
 
 # DreamWeave's own page-view counter: this is DreamWeave's site.
 goatcounter = "dreamweave-mp"
