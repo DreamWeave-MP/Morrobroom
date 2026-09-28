@@ -59,7 +59,7 @@
 
 @BaseClass base(GameObject) = baseObject
 [
-    ESM3_Model(string) : "Model used by the GameObject. Optional. Uses authored brush geometry if empty."
+    ESM3_Model(string) : "Path the generated mesh is written to, relative to Meshes/. Optional. Defaults to <map name>/<ESM3_RefId>.nif."
 ]
 
 @BaseClass base(baseObject) = Referenceable : "Base Entity"
