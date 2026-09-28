@@ -25,6 +25,10 @@
 {%- set id = m.id | default(value="") -%}
 {%- set slug = m.slug | default(value="") -%}
 {%- set game = m.game | default(value="morrowind") -%}
+{%- set format = m.package.format | default(value="flat") -%}
+{#- A crate is released to crates.io under plain version tags; it has no archives and no mod.lock. -#}
+{%- set is_crate = format == "crate" -%}
+{%- if is_crate %}{% set crate_name = m.package.crate | default(value="") %}{% set crate_url = "https://crates.io/crates/" ~ crate_name %}{% set tag_prefix = "" %}{% else %}{% set tag_prefix = slug ~ "-" %}{% endif -%}
 
 {#- The published releases: mod.lock, which CI writes when a release tag is pushed. Offline
     documentation never reads it, so an archive's bytes depend only on what its tag holds. -#}
@@ -40,6 +44,17 @@
 {%- set declared_versions = declared | map(attribute="version") -%}
 {%- set unverified = [] -%}
 {%- if ci and ci.unverified is defined %}{% set unverified = ci.unverified %}{% endif -%}
+{%- set planned = [] -%}
+{%- if ci and ci.planned is defined %}{% set planned = ci.planned %}{% endif -%}
+{#- A crate's newest stable release: without records, every declared release counts as published
+    unless CI saw no tag for it. -#}
+{%- set_global crate_release = false -%}
+{%- if is_crate -%}
+{%- for release in declared -%}
+{%- set channel = release.channel | default(value="stable") -%}
+{%- if not crate_release and channel == "stable" and release.yanked is not defined and release.deprecated is not defined and release.version not in planned %}{% set_global crate_release = release %}{% endif -%}
+{%- endfor -%}
+{%- endif -%}
 {%- set mirrors = m.mirrors | default(value=[]) -%}
 {%- set sigstore = m.provenance.sigstore | default(value=false) -%}
 
@@ -59,8 +74,13 @@
  "license": {% if m.license is defined %}{{ m.license | json_encode | safe }}{% else %}null{% endif %},
  "page_path": {{ path | json_encode | safe }},
  "manifest_url": {{ get_url(path="dreamweave/projects/" ~ id ~ ".json", trailing_slash=false) | json_encode | safe }},
- "format": {{ m.package.format | default(value="flat") | json_encode | safe }},
- {%- if m.package.format is defined and m.package.format == "binary" %}
+ "format": {{ format | json_encode | safe }},
+ "tag_prefix": {{ tag_prefix | json_encode | safe }},
+ {%- if is_crate %}
+ "documentation_packaged": false,
+ "crate": {{ crate_name | json_encode | safe }},
+ "crate_release": {% if crate_release %}{% set crate_release_url = crate_url ~ "/" ~ crate_release.version %}{"version": {{ crate_release.version | json_encode | safe }}, "date": {{ crate_release.date | json_encode | safe }}, "url": {{ crate_release_url | json_encode | safe }}}{% else %}false{% endif %},
+ {%- elif format == "binary" %}
  "documentation_packaged": false,
  "binary": {{ m.package.binary | default(value="") | json_encode | safe }},
  "include": {{ m.package.include | default(value=[]) | json_encode | safe }},
@@ -81,6 +101,7 @@
   "source": {% if m.links.source is defined %}{{ m.links.source | json_encode | safe }}{% else %}{{ repository | json_encode | safe }}{% endif %},
   {%- set issues = repository ~ "/issues" %}
   "issues": {% if m.links.issues is defined %}{{ m.links.issues | json_encode | safe }}{% else %}{{ issues | json_encode | safe }}{% endif %}
+  {%- if is_crate %}, "crate": {{ crate_url | json_encode | safe }}{% endif -%}
   {%- if m.links.documentation is defined -%}
     {%- if m.links.documentation is starting_with("@/") %}{% set documentation = get_url(path=m.links.documentation) %}{% else %}{% set documentation = m.links.documentation %}{% endif -%}
     , "documentation": {{ documentation | json_encode | safe }}
@@ -156,7 +177,7 @@
    {%- if release.deprecated is defined %}, "deprecated": {{ release.deprecated | json_encode | safe }}{% endif -%}
    {%- if release.replacement is defined %}, "replacement": {{ release.replacement | json_encode | safe }}{% endif -%}
    {%- if not offline -%}
-   , "state": {% if release.version in recorded_versions %}"published"{% elif release.version in unverified %}"unverified"{% else %}"planned"{% endif %}
+   , "state": {% if is_crate %}{% if release.version in planned %}"planned"{% else %}"published"{% endif %}{% elif release.version in recorded_versions %}"published"{% elif release.version in unverified %}"unverified"{% else %}"planned"{% endif %}
    {%- endif %}}
   {%- endif -%}
   {%- endfor -%}

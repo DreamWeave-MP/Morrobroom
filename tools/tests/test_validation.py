@@ -148,6 +148,21 @@ class ProjectRules(unittest.TestCase):
         self.assertError(MINIMAL + '[package]\ninclude = ["README.md"]\n', "only format = \"binary\" packages include extra files")
         self.assertError(binary + '[[platforms]]\nos = "linux"\narch = "x86_64"\n', "listed twice")
 
+    def test_crate_packages(self):
+        crate = MINIMAL + 'type = "library"\n[package]\nformat = "crate"\ncrate = "lantern-light"\n[build]\ndependents = ["someone/lamp-post"]\nbenchmarks = true\n'
+        self.assertEqual(self.errors_for(crate), [])
+        self.assertError(MINIMAL + '[package]\nformat = "crate"\n', "names its crates.io package")
+        self.assertError(MINIMAL + '[package]\ncrate = "lantern-light"\n', 'only format = "crate" packages have a crate')
+        self.assertError(crate.replace('crate = "lantern-light"', 'crate = "lantern light"'), "is not a crates.io package name")
+        self.assertError(crate.replace('crate = "lantern-light"', 'crate = "lantern-light"\ndevelopment = true'), "has no development build")
+        self.assertError(crate.replace('crate = "lantern-light"', 'crate = "lantern-light"\ndocumentation = true'), "the site is its documentation")
+        self.assertError(crate + '[[components]]\nid = "core"\nname = "Core"\npath = "00 Core"\n', "it is one library")
+        self.assertError(crate + '[openmw]\ncontent_files = ["Lantern.omwscripts"]\n', "not data OpenMW loads")
+        self.assertError(crate + '[[mirrors]]\nurl = "https://cache.example.org/sha256/{sha256}"\n', "no [[mirrors]]")
+        self.assertError(crate + '[[platforms]]\nos = "linux"\narch = "x86_64"\n', "no [[platforms]]")
+        self.assertError(crate.replace('someone/lamp-post', 'lamp-post'), "is not a GitHub repository")
+        self.assertError(MINIMAL + '[build]\nbenchmarks = true\n', "only projects StroggForge builds")
+
     def test_media_needs_alt_text(self):
         self.assertError(MINIMAL + '[[media]]\nfile = "media/a.webp"\n', "alt")
 
@@ -214,6 +229,12 @@ class RepositoryRules(unittest.TestCase):
         errors = self.errors()
         self.assertTrue(any("id 0b8f1c2d-3e4a-4b5c-8d6e-7f8091a2b3c4 is already used by content/" in error for error in errors), errors)
         self.assertTrue(any("slug 'lantern' is already used by content/" in error for error in errors), errors)
+
+    def test_a_repository_publishes_one_crate(self):
+        crate = 'type = "library"\n[package]\nformat = "crate"\ncrate = "{name}"\n'
+        self.scratch.add_project("alpha", 'id = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"\nslug = "alpha"\n' + crate.format(name="alpha"), title="Alpha")
+        self.scratch.add_project("beta", 'id = "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"\nslug = "beta"\n' + crate.format(name="beta"), title="Beta")
+        self.assertError("a repository publishes one crate, tagged with plain versions; content/alpha already is it")
 
     def test_a_v4_changelog_file_is_refused(self):
         self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "changelog.md": "+++\ntitle = \"Changelog\"\n+++\n"})

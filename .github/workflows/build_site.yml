@@ -4,17 +4,20 @@ name: Build, release and publish
 #
 # Pull requests and pushes to other branches: validate, test, build the site. Nothing is published.
 # Pushes to the default branch (whatever it is called): all of that, then a fresh development
-# release (`development`; `dev-build` in the template's own repository) and the site. Release tags (<slug>-<version>): build that release from the tag, record it
-# in the project's mod.lock on the default branch (the only commit this workflow ever makes),
-# publish its archive, then start a default-branch run so the site lists it.
+# release (`development`; `dev-build` in the template's own repository) and the site. Release
+# tags (<slug>-<version>): build that release from the tag, record it in the project's mod.lock on
+# the default branch (the only commit this workflow ever makes), publish its archive, then start a
+# default-branch run so the site lists it. A crate's tags are plain versions: StroggForge publishes
+# it to crates.io, and the default-branch run shows the new version.
 #
 # The file name matters: Sigstore signatures name this workflow as the identity that signed.
 
 on:
   push:
     branches: ['**']
-    # Release tags only: a version always starts with a digit, and slugs cannot contain '-'.
-    tags: ['*-[0-9]*']
+    # Release tags only: a version always starts with a digit, and slugs cannot contain '-'. A
+    # crate's tags are the bare version.
+    tags: ['*-[0-9]*', '[0-9]*']
   pull_request:
   workflow_dispatch:
 
@@ -33,8 +36,11 @@ jobs:
     name: Validate and test
     runs-on: ubuntu-24.04
     outputs:
-      binary_names: ${{ steps.binaries.outputs.binary_names }}
-      include_files: ${{ steps.binaries.outputs.include_files }}
+      binary_names: ${{ steps.stroggforge.outputs.binary_names }}
+      include_files: ${{ steps.stroggforge.outputs.include_files }}
+      crate_names: ${{ steps.stroggforge.outputs.crate_names }}
+      dependents: ${{ steps.stroggforge.outputs.dependents }}
+      benchmarks: ${{ steps.stroggforge.outputs.benchmarks }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,9 +64,9 @@ jobs:
       - name: Validate every project
         run: ./buildSite check
 
-      - name: Find the programs to build
-        id: binaries
-        run: ./buildSite binaries >> "$GITHUB_OUTPUT"
+      - name: Find the programs to build and the crate to publish
+        id: stroggforge
+        run: ./buildSite stroggforge >> "$GITHUB_OUTPUT"
 
       # A page still carrying V4 frontmatter fails the check, which suggests a mod.toml for it.
       - uses: actions/upload-artifact@v7
@@ -91,21 +97,46 @@ jobs:
     with:
       binary_names: ${{ needs.check.outputs.binary_names }}
       include_files: ${{ needs.check.outputs.include_files }}
+      dependent_repo_names: ${{ needs.check.outputs.dependents }}
+      generate_benchmarks: ${{ needs.check.outputs.benchmarks == 'true' }}
       # The site, its changelog and its publishing are this workflow's.
       publish_docs: false
       generate_changelog: false
       cargo_publish: false
 
+  # A project with [package] format = "crate" is a Rust library. StroggForge's library workflow
+  # tests it on every platform, and on a tag publishes it to crates.io, attaches benchmarks to the
+  # tag's GitHub release and tells the repositories in [build] dependents. The site is this
+  # workflow's: its documentation replaces docs.rs, and its changelog comes from mod.toml.
+  crates:
+    name: Test and publish the crate
+    needs: check
+    if: needs.check.outputs.crate_names != '[]'
+    permissions:
+      contents: write
+      id-token: write
+      pages: write
+    uses: DreamWeave-MP/StroggForge/.github/workflows/libGlobalBuild.yml@v48
+    secrets: inherit
+    with:
+      crate_names: ${{ needs.check.outputs.crate_names }}
+      dependent_repo_names: ${{ needs.check.outputs.dependents }}
+      generate_benchmarks: ${{ needs.check.outputs.benchmarks == 'true' }}
+      publish_docs: false
+      generate_changelog: false
+
   release:
     name: Build and record the tagged release
-    needs: [check, binaries]
-    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' }}
+    needs: [check, binaries, crates]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' && needs.crates.result != 'failure' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write # the mod.lock commit on the default branch
       id-token: write # Sigstore
     outputs:
-      nexus: ${{ steps.nexus.outputs.uploads }}
+      # false for a crate's tag: crates.io has it, and there is nothing to record or upload.
+      recorded: ${{ steps.build.outputs.recorded }}
+      nexus: ${{ steps.nexus.outputs.uploads || '[]' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -135,12 +166,16 @@ jobs:
           merge-multiple: true
 
       - name: Build the release from the tag
+        id: build
         env:
           TAG: ${{ github.ref_name }}
-        run: ./buildSite release "$TAG"
+        run: |
+          ./buildSite release "$TAG"
+          if [ -f dist/release.json ]; then echo "recorded=true" >> "$GITHUB_OUTPUT"; else echo "recorded=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Check whether anything asks to be signed
         id: signing
+        if: steps.build.outputs.recorded == 'true'
         run: |
           if [ -s dist/sign.txt ]; then echo "needed=true" >> "$GITHUB_OUTPUT"; else echo "needed=false" >> "$GITHUB_OUTPUT"; fi
 
@@ -159,6 +194,7 @@ jobs:
       # moved tag cannot replace a published archive. Another tag's run may push first; each
       # attempt starts again from the branch's newest commit.
       - name: Record the release in mod.lock on the default branch
+        if: steps.build.outputs.recorded == 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -184,15 +220,18 @@ jobs:
 
       - name: Read the Nexus Mods uploads
         id: nexus
+        if: steps.build.outputs.recorded == 'true'
         run: echo "uploads=$(cat dist/nexus.json)" >> "$GITHUB_OUTPUT"
 
       - name: Keep the Rust workflow's VirusTotal reports for the release notes
+        if: steps.build.outputs.recorded == 'true'
         run: |
           shopt -s nullglob
           reports=(dist/binaries/*.vt.md)
           if [ ${#reports[@]} -gt 0 ]; then cat "${reports[@]}" > dist/virustotal.md; fi
 
       - uses: actions/upload-artifact@v7
+        if: steps.build.outputs.recorded == 'true'
         with:
           name: release
           path: |
@@ -323,8 +362,8 @@ jobs:
   # replaced on every build, which an immutable release forbids.
   upload-release:
     name: Publish the GitHub release
-    needs: [release, site]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' && needs.release.result == 'success' || github.ref_name == github.event.repository.default_branch && needs.site.result == 'success') }}
+    needs: [check, release, site]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' && needs.release.result == 'success' && needs.release.outputs.recorded == 'true' || github.ref_name == github.event.repository.default_branch && needs.site.result == 'success') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -339,6 +378,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CRATE_NAMES: ${{ needs.check.outputs.crate_names }}
         run: |
           release=$(cat dist/github-release)
           shopt -s nullglob
@@ -367,6 +407,13 @@ jobs:
               gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
               gh release edit "$release" --draft=false --repo "$REPOSITORY"
             fi
+            exit 0
+          fi
+
+          # StroggForge's crate workflow keeps its own development release, with benchmarks. With
+          # no archives of this workflow's to add, leave it alone.
+          if [ ${#files[@]} -eq 0 ] && [ "$CRATE_NAMES" != '[]' ]; then
+            echo "No project publishes a development build; the development release is StroggForge's."
             exit 0
           fi
 
@@ -405,8 +452,8 @@ jobs:
   # waits its turn rather than racing them.
   refresh-site:
     name: Rebuild the site with the new release
-    needs: upload-release
-    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.upload-release.result == 'success' }}
+    needs: [release, upload-release]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.release.result == 'success' && (needs.upload-release.result == 'success' || needs.release.outputs.recorded == 'false') }}
     runs-on: ubuntu-24.04
     permissions:
       actions: write

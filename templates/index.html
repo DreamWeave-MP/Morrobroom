@@ -33,7 +33,7 @@
             <div class="dw-catalog__facts">
                 {%- if project %}
                 <span class="dw-badge">{{ dw_macros::type_label(type=project.type) }}</span>
-                {%- if project.heads.stable is defined %}<span class="dw-badge dw-badge--ok">{{ project.heads.stable.version }}</span>{% elif project.heads.development is defined %}<span class="dw-badge dw-badge--info">dev</span>{% endif %}
+                {%- if project.heads.stable is defined %}<span class="dw-badge dw-badge--ok">{{ project.heads.stable.version }}</span>{% elif project.crate_release is defined and project.crate_release %}<span class="dw-badge dw-badge--ok">{{ project.crate_release.version }}</span>{% elif project.heads.development is defined %}<span class="dw-badge dw-badge--info">dev</span>{% endif %}
                 {%- if project.status != "active" %}<span class="dw-badge dw-badge--warn">{{ project.status }}</span>{% endif %}
                 {%- endif %}
             </div>

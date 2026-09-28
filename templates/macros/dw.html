@@ -7,7 +7,7 @@
 {%- endmacro type_label %}
 
 {% macro format_label(format) -%}
-{%- if format == "fomod" %}FOMOD + BAIN{% elif format == "bain" %}BAIN{% elif format == "binary" %}Program{% else %}Single directory{% endif -%}
+{%- if format == "fomod" %}FOMOD + BAIN{% elif format == "bain" %}BAIN{% elif format == "binary" %}Program{% elif format == "crate" %}Rust crate{% else %}Single directory{% endif -%}
 {%- endmacro format_label %}
 
 {#- What a person calls a platform, not what a compiler does. -#}
@@ -94,6 +94,20 @@
 </div>
 {%- endmacro artifact %}
 
+{#- A crate's release: crates.io serves and hashes it, so this names it and links there. -#}
+{% macro crate_version(project, version) -%}
+<div class="dw-artifact">
+    <div class="dw-artifact__head">
+        <span class="dw-artifact__name">{{ project.crate }} {{ version }}</span>
+        <span class="dw-artifact__meta">crates.io</span>
+    </div>
+    <div class="dw-artifact__actions">
+        <a class="dw-button dw-button--small" href="{{ project.links.crate | safe }}/{{ version }}">View on crates.io</a>
+        <button class="dw-copy" type="button" data-copy='{{ project.crate }} = "{{ version }}"'>Copy Cargo.toml line</button>
+    </div>
+</div>
+{%- endmacro crate_version %}
+
 {% macro release_entry(declared, published, project, heading_level=3) -%}
 {%- set state_class = "" -%}
 {%- if declared.yanked is defined %}{% set state_class = "dw-release--yanked" %}{% elif declared.deprecated is defined %}{% set state_class = "dw-release--deprecated" %}{% endif -%}
@@ -104,7 +118,7 @@
         {%- if declared.state is defined and declared.state == "unverified" %}
         <span class="dw-badge dw-badge--warn" title="Tagged before this site recorded releases: no hash is on record, so the manifest leaves it out">unverified</span>
         {%- elif declared.state is defined and declared.state == "planned" %}
-        <span class="dw-badge dw-badge--info" title="Declared in mod.toml. Pushing its tag, {{ project.slug }}-{{ declared.version }}, publishes it">unreleased</span>
+        <span class="dw-badge dw-badge--info" title="Declared in mod.toml. Pushing its tag, {{ project.tag_prefix }}{{ declared.version }}, publishes it">unreleased</span>
         {%- endif %}
         <span class="dw-release__meta">{{ declared.date }}</span>
     </h{{ heading_level }}>
@@ -117,6 +131,8 @@
     {{ dw_macros::notes(notes=declared.notes) }}
     {%- if published %}
     {%- for artifact in published.artifacts %}{{ dw_macros::artifact(artifact=artifact, release=published, project=project) }}{% endfor %}
+    {%- elif project.format == "crate" and declared.state is defined and declared.state == "published" %}
+    {{ dw_macros::crate_version(project=project, version=declared.version) }}
     {%- endif %}
 </li>
 {%- endmacro release_entry %}

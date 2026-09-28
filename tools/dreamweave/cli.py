@@ -23,7 +23,7 @@ def command_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--skip-archives", action="store_true", help="skip packaging (faster; development hashes are omitted)")
 
     release_parser = commands.add_parser("release", help="with a tag checked out: build that release into dist/, with its record for mod.lock")
-    release_parser.add_argument("tag", help="<slug>-<version>")
+    release_parser.add_argument("tag", help="<slug>-<version>, or a crate's <version>")
 
     record_parser = commands.add_parser("record", help="on the default branch: add the record `release` wrote to its project's mod.lock")
     record_parser.add_argument("--from", dest="source", default=str(build.RELEASE_RECORD), help=f"the record to add (default: {build.RELEASE_RECORD})")
@@ -33,8 +33,7 @@ def command_parser() -> argparse.ArgumentParser:
     links_parser.add_argument("--base-url", help="the URL it was built for (default: DREAMWEAVE_BASE_URL or config.toml)")
 
     commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
-    commands.add_parser("binaries", help="print the Rust workflow's inputs for binary projects, as GITHUB_OUTPUT lines")
-
+    commands.add_parser("stroggforge", help="print what StroggForge's Rust workflows need to build binaries and publish crates, as GITHUB_OUTPUT lines")
 
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
     return parser
@@ -93,10 +92,10 @@ def main(arguments: list[str]) -> int:
                 print(f"{len(errors)} broken local link(s).", file=sys.stderr)
                 return 1
             print(f"Checked {checked} local links, assets and anchors.")
-        elif options.command == "binaries":
+        elif options.command == "stroggforge":
             repository = build.load_repository(root, check_payloads=False)
             repository.problems.raise_if_any()
-            print(build.binary_build_outputs(repository))
+            print(build.stroggforge_inputs(repository))
         elif options.command == "schemas":
             checked, errors = sitecheck.check_protocol_documents(root)
             if errors:

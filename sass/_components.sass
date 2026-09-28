@@ -150,6 +150,34 @@
 .dw-platforms
   margin-bottom: .6rem
 
+// A command to copy, like a crate's `cargo add`: one terminal line with its own copy button.
+.dw-command
+  display: inline-flex
+  align-items: center
+  gap: .75em
+  max-width: 100%
+  margin-bottom: .75rem
+  border: 1px solid var(--dw-accent-line)
+  border-radius: var(--dw-radius)
+  padding: .5em .55em .5em .9em
+  background: var(--dw-bg-0)
+  font-family: var(--dw-font-mono)
+  font-size: .95rem
+
+  &::before
+    content: "$"
+    color: var(--dw-accent)
+    user-select: none
+
+  code
+    overflow-x: auto
+    border: 0
+    padding: 0
+    background: none
+    color: var(--dw-text)
+    font-size: inherit
+    white-space: nowrap
+
 // The visitor's own platform, as the script guesses it.
 .dw-button.is-yours
   @extend .dw-button--primary

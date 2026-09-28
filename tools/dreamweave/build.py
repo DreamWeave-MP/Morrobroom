@@ -15,6 +15,7 @@ from .model import (
     EXAMPLE_PROJECT_IDS,
     MEDIA_IMAGE_SUFFIXES,
     MOD_LOCK,
+    RUST_FORMATS,
     TEMPLATE_REPOSITORY,
     Project,
     SiteConfig,
@@ -117,6 +118,10 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
             if item.thumbnail:
                 check_media_file(root, project, item.thumbnail, problems)
 
+    crates = [project.directory for project in projects if project.package_format == "crate"]
+    if len(crates) > 1:
+        problems.error(crates[1], f"a repository publishes one crate, tagged with plain versions; {crates[0]} already is it")
+
     legacy_pages = check_legacy_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
     locks = {project.id: records.read_lock(project, root, problems) for project in projects}
@@ -204,23 +209,28 @@ class ReleaseState:
     published: list[records.PublishedRelease]
     unverified: list[str]
     planned: list[str]
+    on_registry: list[str]
 
 
 def release_state(repository: Repository, project: Project) -> ReleaseState:
     """Published: recorded in mod.lock, which CI only does for a pushed tag. Unverified: tagged,
-    but never recorded, like tags from before this template. Planned: declared, not tagged yet."""
+    but never recorded, like tags from before this template. Planned: declared, not tagged yet.
+    On registry: a crate's tagged versions, which StroggForge published to crates.io; the
+    manifest lists none of them, because crates.io, not this site, distributes a crate."""
     locked = {release.version: release for release in repository.locks[project.id]}
-    published, unverified, planned = [], [], []
+    published, unverified, planned, on_registry = [], [], [], []
     for declared in project.releases:
         tag = project.release_tag(declared.version)
         record = locked.get(declared.version)
-        if record:
+        if project.package_format == "crate":
+            (on_registry if gitrepo.tag_revision(tag) else planned).append(str(declared.version))
+        elif record:
             published.append(records.PublishedRelease(declared=declared, locked=record, tag=tag, revision=record.locked_from or None, channel=declared.channel, date=declared.date))
         elif gitrepo.tag_revision(tag):
             unverified.append(str(declared.version))
         else:
             planned.append(str(declared.version))
-    return ReleaseState(published=published, unverified=unverified, planned=planned)
+    return ReleaseState(published=published, unverified=unverified, planned=planned, on_registry=on_registry)
 
 
 def development_version(repository: Repository, project: Project, state: ReleaseState) -> Version:
@@ -316,13 +326,25 @@ def collect_binaries(repository: Repository, project: Project) -> tuple[list[dic
     return artifacts, missing
 
 
-def binary_build_outputs(repository: Repository) -> str:
-    """What StroggForge's Rust workflow needs to build every binary project: binary_names, a JSON
-    list, and include_files, comma-separated as it expects. Empty lists when there is nothing to build."""
-    binaries = [project for project in repository.projects if project.package_format == "binary"]
+def stroggforge_inputs(repository: Repository) -> str:
+    """What StroggForge's Rust workflows need, as GITHUB_OUTPUT lines. binary_names (a JSON list)
+    and include_files (comma-separated, as it expects) build every binary project; crate_names (a
+    JSON list) publishes the crate. dependents and benchmarks apply to both. Empty when there is
+    nothing to build."""
+    rust = [project for project in repository.projects if project.package_format in RUST_FORMATS]
+    binaries = [project for project in rust if project.package_format == "binary"]
     names = sorted({project.package_binary for project in binaries})
     include = sorted({path for project in binaries for path in project.package_include})
-    return f"binary_names={json.dumps(names)}\ninclude_files={','.join(include)}"
+    crates = sorted({project.package_crate for project in rust if project.package_format == "crate"})
+    dependents = sorted({repository_name for project in rust for repository_name in project.build_dependents})
+    benchmarks = any(project.build_benchmarks for project in rust)
+    return "\n".join((
+        f"binary_names={json.dumps(names)}",
+        f"include_files={','.join(include)}",
+        f"crate_names={json.dumps(crates)}",
+        f"dependents={json.dumps(dependents)}",
+        f"benchmarks={json.dumps(benchmarks)}",
+    ))
 
 
 def render_documentation(repository: Repository, projects: list[Project], packaged_versions: dict[str, Version]) -> dict[str, dict[str, bytes]]:
@@ -336,25 +358,37 @@ def render_documentation(repository: Repository, projects: list[Project], packag
 
 
 def parse_release_tag(repository: Repository, tag: str) -> tuple[Project, Version]:
-    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them."""
+    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them. A crate's tags
+    are plain versions, and a repository has at most one crate."""
+    crate = next((project for project in repository.projects if project.package_format == "crate"), None)
+    if crate and tag[:1].isdigit():
+        try:
+            return crate, Version.parse(tag, crate.versioning)
+        except VersionError as error:
+            raise SystemExit(f"Tag {tag!r}: {error}") from error
     slug, separator, version_text = tag.partition("-")
     project = next((project for project in repository.projects if project.slug == slug), None) if separator else None
     if project is None:
-        known = ", ".join(f"{project.slug}-<version>" for project in sorted(repository.projects, key=lambda project: project.slug)) or "none"
+        known = ", ".join("<version>" if project.package_format == "crate" else f"{project.slug}-<version>" for project in sorted(repository.projects, key=lambda project: project.slug)) or "none"
         raise SystemExit(f"Tag {tag!r} does not name a project. Release tags are <slug>-<version>; this commit's projects take {known}.")
+    if project.package_format == "crate":
+        raise SystemExit(f"Tag {tag!r}: a crate's tags are plain versions: {version_text}. StroggForge publishes those to crates.io.")
     try:
         return project, Version.parse(version_text, project.versioning)
     except VersionError as error:
         raise SystemExit(f"Tag {tag!r}: {error}") from error
 
 
-def build_release(repository: Repository, tag: str) -> Path:
+def build_release(repository: Repository, tag: str) -> Path | None:
     """CI, on a tag: build the tagged release, and write dist/release.json, its record for mod.lock.
 
     Runs with the tag checked out, so the archive holds exactly what the tag does. Recording it on
     the default branch is record_release, run from a checkout of that branch.
     """
     project, version = parse_release_tag(repository, tag)
+    if project.package_format == "crate":
+        print(f"{tag} is {project.package_crate} {version}: StroggForge publishes it to crates.io, and there is nothing to record here.")
+        return None
     revision = gitrepo.resolve_revision(f"refs/tags/{tag}")
     if revision != repository.head:
         raise SystemExit(f"Check out {tag} before building it; HEAD is {repository.head[:12]}, the tag is {revision[:12]}.")
@@ -536,6 +570,12 @@ def site_base_url(repository: Repository) -> str:
     return (os.environ.get("DREAMWEAVE_BASE_URL") or repository.site.base_url).rstrip("/")
 
 
+def registry_date(project: Project, state: ReleaseState) -> str | None:
+    """A crate's newest release date: the manifest lists none of its releases to take one from."""
+    dates = [release.date for release in project.releases if str(release.version) in state.on_registry and release.date]
+    return max(dates, default=None)
+
+
 def write_site(repository: Repository, development_artifacts: dict[str, list[dict]], archives_built: bool) -> None:
     """Write the public protocol documents and the data the templates render from."""
     root = repository.root
@@ -572,7 +612,7 @@ def write_site(repository: Repository, development_artifacts: dict[str, list[dic
             "page": f"{base_url}/{project.page_path}",
             "manifest": f"{base_url}/dreamweave/projects/{project.id}.json",
             "manifest_sha256": hashlib.sha256(manifest_text.encode("utf-8")).hexdigest(),
-            "updated": max((release["date"] for release in releases if "date" in release), default=None),
+            "updated": max((release["date"] for release in releases if "date" in release), default=registry_date(project, state)),
             "channels": {channel: head["version"] for channel, head in manifest["channels"].items()},
         })
 

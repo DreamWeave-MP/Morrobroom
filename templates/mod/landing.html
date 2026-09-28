@@ -29,7 +29,8 @@
                 {%- if dw_offline %}
                 <div><dt>This archive</dt><dd>{% if ci and ci.packaged_version %}{{ ci.packaged_version }}{% else %}unversioned{% endif %}</dd></div>
                 {%- else %}
-                <div><dt>Stable</dt><dd>{% if stable %}<a href="#v{{ stable.version | slugify }}">{{ stable.version }}</a> <small>{{ stable.date }}</small>{% else %}not released{% endif %}</dd></div>
+                {%- if project.format == "crate" %}{% set stable_shown = project.crate_release %}{% else %}{% set stable_shown = stable %}{% endif %}
+                <div><dt>Stable</dt><dd>{% if stable_shown %}<a href="#v{{ stable_shown.version | slugify }}">{{ stable_shown.version }}</a> <small>{{ stable_shown.date }}</small>{% else %}not released{% endif %}</dd></div>
                 {%- if development %}
                 <div><dt>Development</dt><dd>{{ development.version }}</dd></div>
                 {%- endif %}
@@ -48,6 +49,10 @@
                 {%- endif %}
             </dl>
 
+            {%- if project.format == "crate" and not dw_offline %}
+            {#- A library: the command that adds it is the download. -#}
+            <div class="dw-command" aria-label="Add it with Cargo"><code>cargo add {{ project.crate }}</code><button class="dw-copy" type="button" data-copy="cargo add {{ project.crate }}">Copy</button></div>
+            {%- endif %}
             {%- if primary and not dw_offline and project.format == "binary" %}
             {#- A program: one button per platform, on a row of their own. The script marks the
                 visitor's own; without it they are all equal. -#}
@@ -70,7 +75,8 @@
                 {%- endif %}
                 <a class="dw-button" href="modl://{{ project.game }}/?url={{ primary_source.url | safe }}" title="Hand the archive to umo or ModdingLinked MO2">Mod manager</a>
                 {%- endif %}
-                {%- if "install" in sections %}<a class="dw-button" href="#install">Install guide</a>{% endif %}
+                {%- if project.format == "crate" and not dw_offline %}<a class="dw-button" href="{% if project.crate_release %}{{ project.crate_release.url | safe }}{% else %}{{ project.links.crate | safe }}{% endif %}">crates.io{% if project.crate_release %} <span class="dw-button__meta">{{ project.crate_release.version }}</span>{% endif %}</a>{% endif %}
+                {%- if "install" in sections %}<a class="dw-button" href="#install">{% if project.format == "crate" %}Add it{% else %}Install guide{% endif %}</a>{% endif %}
                 {%- if project.links.documentation is defined %}<a class="dw-button" href="{{ project.links.documentation | safe }}">Documentation</a>{% endif %}
                 <a class="dw-button dw-button--ghost" href="{{ project.links.source | safe }}">Source</a>
                 <a class="dw-button dw-button--ghost" href="{{ project.links.issues | safe }}">Report a problem</a>

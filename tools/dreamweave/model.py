@@ -30,7 +30,9 @@ DEVELOPMENT_CHANNEL = "development"
 
 PROJECT_TYPES = ("mod", "library", "framework", "tool", "assets", "total-conversion", "documentation")
 PROJECT_STATUSES = ("active", "maintenance", "experimental", "deprecated", "archived")
-PACKAGE_FORMATS = ("flat", "bain", "fomod", "binary")
+PACKAGE_FORMATS = ("flat", "bain", "fomod", "binary", "crate")
+# Built by StroggForge's Rust workflows rather than zipped from the project directory.
+RUST_FORMATS = ("binary", "crate")
 GROUP_SELECTIONS = ("exactly-one", "at-most-one", "at-least-one", "any")
 LINK_KEYS = ("source", "issues", "documentation", "support", "donate", "nexusmods", "homepage")
 RELATIONSHIP_KINDS = ("requires", "recommends", "conflicts", "compatible", "replaces")
@@ -42,6 +44,8 @@ PLATFORM_ARCHITECTURES = ("x86_64", "aarch64")
 BINARY_SYSTEM_NAMES = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
 BINARY_ARCHITECTURE_NAMES = {"x86_64": "X64", "aarch64": "ARM64"}
 BINARY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+CRATE_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+GITHUB_REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 
 # Extension namespaces this template defines. Anything else must be dotted (org.tes3mp).
 KNOWN_EXTENSION_NAMESPACES = ("openmw",)
@@ -221,6 +225,9 @@ class Project:
     package_development: bool
     package_binary: str | None
     package_include: list[str]
+    package_crate: str | None
+    build_dependents: list[str]
+    build_benchmarks: bool
     install_notes: dict[str, str]
     media: list[Media]
     credits: list[Credit]
@@ -240,6 +247,9 @@ class Project:
         return f"{self.package_binary}-{BINARY_SYSTEM_NAMES[platform.system]}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}.zip"
 
     def release_tag(self, version: Version) -> str:
+        # A crate keeps the plain version tags crates are released under; there is one per repository.
+        if self.package_format == "crate":
+            return str(version)
         return f"{self.slug}-{version}"
 
     def declared_release(self, version: Version) -> DeclaredRelease | None:
@@ -484,7 +494,26 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
     package_development = package_table.boolean("development", True)
     package_binary = package_table.string("binary", None, pattern=BINARY_NAME_PATTERN, describe="a Cargo binary name")
     package_include = package_table.string_list("include")
+    package_crate = package_table.string("crate", None, pattern=CRATE_NAME_PATTERN, describe="a crates.io package name")
     package_table.finish()
+    if package_format == "crate":
+        if not package_crate:
+            problems.error(package_table.child_where("crate"), 'a crate package names its crates.io package, like crate = "openmw-config"')
+        if documentation_declared and package_documentation:
+            problems.error(package_table.child_where("documentation"), "a crate has no archive to put documentation in; the site is its documentation")
+        if package_table.has("development") and package_development:
+            problems.error(package_table.child_where("development"), "a crate has no development build: its users depend on a published version, or on the repository itself")
+        package_documentation = False
+        package_development = False
+    elif package_crate:
+        problems.error(package_table.child_where("crate"), 'only format = "crate" packages have a crate')
+
+    build_table = table.table("build")
+    build_dependents = build_table.string_list("dependents", pattern=GITHUB_REPOSITORY_NAME_PATTERN, describe="a GitHub repository, owner/name")
+    build_benchmarks = build_table.boolean("benchmarks", False)
+    build_table.finish()
+    if (build_dependents or build_benchmarks) and package_format not in RUST_FORMATS:
+        problems.error(build_table.where, 'only projects StroggForge builds (format = "binary" or "crate") take [build] settings')
     if package_format == "binary":
         if not package_binary:
             problems.error(package_table.child_where("binary"), 'a binary package names the Cargo binary its archives hold, like binary = "morrobroom"')
@@ -589,6 +618,9 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
         package_development=package_development,
         package_binary=package_binary,
         package_include=package_include,
+        package_crate=package_crate,
+        build_dependents=build_dependents,
+        build_benchmarks=build_benchmarks,
         install_notes=install_notes,
         media=media,
         credits=credits,
@@ -836,6 +868,8 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
 
     if project.package_format == "binary":
         check_binary_package(project, where, problems)
+    if project.package_format == "crate":
+        check_crate_package(project, where, problems)
 
     if len([item for item in project.media if item.featured]) > 1:
         problems.error(where, "at most one [[media]] entry can be featured")
@@ -859,6 +893,21 @@ def check_binary_package(project: Project, where: str, problems: Problems) -> No
         problems.error(where, "a binary package is a program, not data OpenMW loads; it has no [openmw] install data")
     if project.nexusmods_file_group_id is not None:
         problems.error(where, "a binary package has one archive per platform; Nexus Mods uploads for programs are StroggForge's (its NEXUS_GROUP_IDS secret), not [nexusmods] file_group_id")
+
+
+def check_crate_package(project: Project, where: str, problems: Problems) -> None:
+    """A Rust library, published to crates.io: no archive, nothing installed into a game."""
+    if not project.implicit_component or project.groups:
+        problems.error(where, "a crate package has no [[components]] or [[groups]]: it is one library")
+    openmw = project.components[0].openmw if project.components else None
+    if openmw and (openmw.content_files or openmw.groundcover_files or openmw.fallback_archives or openmw.fallback_entries or openmw.config or openmw.data_directories != ["."]):
+        problems.error(where, "a crate package is a library, not data OpenMW loads; it has no [openmw] install data")
+    if project.nexusmods_file_group_id is not None:
+        problems.error(where, "a crate package is published to crates.io, not uploaded to Nexus Mods")
+    if project.mirrors:
+        problems.error(where, "a crate package is downloaded from crates.io; it has no [[mirrors]]")
+    if project.platforms:
+        problems.error(where, "a crate package is built by whoever depends on it; it has no [[platforms]]")
 
 
 def check_openmw_files(component: Component, where: str, problems: Problems) -> None:

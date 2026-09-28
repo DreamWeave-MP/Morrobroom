@@ -349,6 +349,8 @@ def project_links(project: Project, site: SiteConfig, base_url: str) -> dict:
     links = {"page": f"{base_url}/{project.page_path}"}
     links["source"] = project.links.get("source", site.repository_url)
     links["issues"] = project.links.get("issues", f"{site.repository_url}/issues")
+    if project.package_crate:
+        links["crate"] = f"https://crates.io/crates/{project.package_crate}"
     for key, value in project.links.items():
         if key == "documentation" and value.startswith("@/"):
             links[key] = f"{base_url}/{value.removeprefix('@/').removesuffix('_index.md').removesuffix('index.md')}"

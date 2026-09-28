@@ -95,6 +95,31 @@ version = "1.0.0"
 date = 2026-01-02
 summary = "First."
 """
+LEDGER_ID = "9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b"
+# A Rust library: released to crates.io by StroggForge under plain version tags.
+LEDGER = """
+id = "9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b"
+slug = "ledger"
+type = "library"
+
+[package]
+format = "crate"
+crate = "ledger-rs"
+
+[build]
+dependents = ["someone/abacus"]
+benchmarks = true
+
+[[releases]]
+version = "1.0.0"
+date = 2026-01-02
+summary = "First."
+
+[[releases]]
+version = "1.1.0"
+date = 2026-02-03
+summary = "Second."
+"""
 HEARTH_FILES = {"00 Core/Hearth.omwscripts": "PLAYER: x.lua\n", "10 Light/a.txt": "a", "11 Heavy/b.txt": "b", "20 Embers/c.txt": "c"}
 
 
@@ -285,10 +310,62 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn("broom-&lt;platform&gt;.zip", (self.root / "public/broom/index.html").read_text())
         self.assertIn("<dt>Package</dt><dd>Program <small>2 platforms</small>", page)
 
-    def test_the_rust_workflow_is_told_what_to_build(self):
-        self.assertEqual(build_site(self.root, "binaries").stdout, "binary_names=[]\ninclude_files=\n")
+    def test_stroggforge_is_told_what_to_build_and_publish(self):
+        self.assertEqual(
+            build_site(self.root, "stroggforge").stdout,
+            "binary_names=[]\ninclude_files=\ncrate_names=[]\ndependents=[]\nbenchmarks=false\n",
+        )
         self.add_broom()
-        self.assertEqual(build_site(self.root, "binaries").stdout, 'binary_names=["broom"]\ninclude_files=README.md\n')
+        self.add_ledger()
+        self.assertEqual(
+            build_site(self.root, "stroggforge").stdout,
+            'binary_names=["broom"]\ninclude_files=README.md\ncrate_names=["ledger-rs"]\ndependents=["someone/abacus"]\nbenchmarks=true\n',
+        )
+
+    def add_ledger(self) -> None:
+        self.scratch.add_project("ledger", LEDGER, title="Ledger", description="Counts things.")
+        self.scratch.commit("Add Ledger")
+
+    def test_a_crate_is_released_by_its_plain_version_tag(self):
+        self.add_ledger()
+        git(self.root, "tag", "1.0.0")
+        git(self.root, "checkout", "-q", "1.0.0")
+        output = build_site(self.root, "release", "1.0.0").stdout
+        self.assertIn("StroggForge publishes it to crates.io", output)
+        self.assertFalse((self.root / "dist/release.json").exists(), "a crate has nothing for mod.lock")
+        git(self.root, "checkout", "-q", "main")
+        self.assertIn("a crate's tags are plain versions: 1.0.0", build_site(self.root, "release", "ledger-1.0.0", check=False).stderr)
+
+        build_site(self.root, "build")
+        self.assertFalse((self.root / "content/ledger/mod.lock").exists())
+        manifest = load(self.root, f"static/dreamweave/projects/{LEDGER_ID}.json")
+        self.assertEqual(manifest["releases"], [], "crates.io distributes a crate, not this site")
+        self.assertEqual(manifest["project"]["links"]["crate"], "https://crates.io/crates/ledger-rs")
+        entry = next(entry for entry in load(self.root, "static/dreamweave.json")["projects"] if entry["id"] == LEDGER_ID)
+        self.assertEqual(entry["updated"], "2026-01-02")
+        facts = load(self.root, "static/dreamweave/view.json")["projects"]["ledger/"]
+        self.assertEqual(facts["planned"], ["1.1.0"])
+        checks = {check["id"]: check for check in facts["checks"]}
+        self.assertEqual(checks["releases"]["state"], "pass")
+        self.assertIn("push the tag 1.1.0", checks["planned"]["detail"])
+        if jsonschema:
+            self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
+
+    def test_a_crates_page_says_how_to_add_it(self):
+        self.add_ledger()
+        git(self.root, "tag", "1.0.0")
+        build_site(self.root, "build")
+        subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
+        page = html.unescape((self.root / "public/ledger/index.html").read_text())
+        self.assertIn('<div class="dw-command" aria-label="Add it with Cargo"><code>cargo add ledger-rs</code>', page)
+        self.assertIn('ledger-rs = "1.0.0"', page)
+        self.assertIn('href="https://crates.io/crates/ledger-rs/1.0.0"', page)
+        self.assertIn("<dt>Package</dt><dd>Rust crate</dd>", page)
+        self.assertIn('Pushing its tag, 1.1.0, publishes it">unreleased', page)
+        self.assertIn('<a href="#v1-0-0">1.0.0</a>', page, "the newest tagged stable release, not the planned one")
+        self.assertNotIn("What is in the archive", page)
+        self.assertNotIn("DreamWeave clients", page)
+        self.assertNotIn("Mod manager", page)
 
     def test_a_binary_project_without_its_build_has_no_development_channel(self):
         self.add_broom()

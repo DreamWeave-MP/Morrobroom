@@ -9,6 +9,10 @@
                 <dt>Type</dt><dd>{{ dw_macros::type_label(type=project.type) }}</dd>
                 <dt>Status</dt><dd>{{ dw_macros::status(state=project.status) }}</dd>
                 <dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}</dd>
+                {%- if project.format == "crate" %}
+                <dt>Crate</dt><dd><code>{{ project.crate }}</code></dd>
+                {%- if project.crate_release and not dw_offline %}<dt>Stable</dt><dd>{{ project.crate_release.version }}</dd>{% endif %}
+                {%- endif %}
                 {%- if not dw_offline %}
                 {%- for channel in project.channel_order %}
                 <dt>{{ channel | capitalize }}</dt><dd>{{ project.heads[channel].version }}</dd>
@@ -37,6 +41,7 @@
         <h2 class="dw-panel__title">Links</h2>
         <div class="dw-panel__body">
             <ul class="dw-linklist">
+                {%- if project.links.crate is defined %}<li><a href="{{ project.links.crate | safe }}"><span>crates.io</span><small>{{ project.crate }}</small></a></li>{% endif %}
                 {%- if project.links.documentation is defined %}<li><a href="{{ project.links.documentation | safe }}"><span>Documentation</span></a></li>{% endif %}
                 {%- if changelog_page and project.declared_releases | length > 0 %}<li><a href="{{ changelog_url | safe }}"><span>Changelog</span><small>{{ project.declared_releases | length }}</small></a></li>{% endif %}
                 <li><a href="{{ project.links.source | safe }}"><span>Source</span></a></li>
