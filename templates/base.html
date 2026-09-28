@@ -1,0 +1,119 @@
+{#- The document shell every page extends. Blocks keep their V4 names: extra_head, header,
+    content, footer, extra_body. `dw` is what only CI knows (static/dreamweave/view.json), and is
+    false under a plain `zola serve`: everything else comes from the site's own files. -#}
+{%- set_global dw = load_data(path="static/dreamweave/view.json", required=false) -%}
+{%- set_global dw_offline = config.extra.dreamweave_offline | default(value=false) -%}
+{#- A view written for the other mode is left over from an interrupted build: ignore it. -#}
+{%- if dw and dw.offline != dw_offline %}{% set_global dw = false %}{% endif -%}
+{#- Pages that describe a project set `project` (and `ci`, its CI facts) here, before anything
+    renders. See templates/macros/project.html. -#}
+{%- block model %}{% endblock model -%}
+{%- if lang is defined and lang -%}{%- set document_language = lang -%}{%- else -%}{%- set document_language = config.default_language -%}{%- endif -%}
+{%- set palette = config.extra.palette | default(value="purple") -%}
+{%- if page -%}
+  {%- set document_title = page.title ~ " · " ~ config.title -%}
+  {%- if page.description %}{% set document_description = page.description %}{% else %}{% set document_description = config.description %}{% endif -%}
+  {%- set document_url = page.permalink -%}
+{%- elif section -%}
+  {%- if section.relative_path == "_index.md" -%}{%- set document_title = config.title -%}{%- else -%}{%- set document_title = section.title ~ " · " ~ config.title -%}{%- endif -%}
+  {%- if section.description %}{% set document_description = section.description %}{% else %}{% set document_description = config.description %}{% endif -%}
+  {%- set document_url = section.permalink -%}
+{%- else -%}
+  {%- set document_title = config.title -%}
+  {%- set document_description = config.description -%}
+  {%- set document_url = config.base_url -%}
+{%- endif -%}
+<!DOCTYPE html>
+<html lang="{{ document_language }}" data-palette="{{ palette }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>{% block title %}{{ document_title }}{% endblock title %}</title>
+    <meta name="description" content="{{ document_description }}">
+    <meta property="og:title" content="{{ document_title }}">
+    <meta property="og:description" content="{{ document_description }}">
+    <meta property="og:type" content="{% if page %}article{% else %}website{% endif %}">
+    <meta property="og:url" content="{{ document_url | safe }}">
+    {%- block og_image %}{% endblock og_image %}
+    <link rel="stylesheet" href="{{ get_url(path='site.css', trailing_slash=false) | safe }}">
+    {%- block extra_head %}{% endblock extra_head %}
+    <link rel="stylesheet" href="{{ get_url(path='brand.css', trailing_slash=false) | safe }}">
+    {%- if config.extra.accent is defined and config.extra.accent is matching("^#[0-9a-fA-F]{6}$") %}
+    <style>:root{--dw-accent:{{ config.extra.accent }}}</style>
+    {%- endif %}
+    {%- if config.extra.font_override is defined and config.extra.font_override is matching("^[a-z-]+$") %}
+    <link rel="stylesheet" href="{{ get_url(path='fonts.css', trailing_slash=false) | safe }}">
+    <style>:root{--dw-font-display:"{{ config.extra.font_override }}",var(--dw-font-mono)}{% if not config.extra.font_override_titles_only | default(value=false) %}body{font-family:"{{ config.extra.font_override }}",var(--dw-font-body)}{% endif %}</style>
+    {%- endif %}
+    {%- if config.extra.favicon %}
+    <link rel="icon" href="{{ get_url(path=config.extra.favicon, trailing_slash=false) | safe }}"{% if config.extra.favicon is ending_with(".svg") %} type="image/svg+xml"{% endif %}>
+    {%- else %}
+    {#- The DreamWeave mark in the site's palette. The palette is validated, so the file exists. -#}
+    {%- if palette == "purple" %}{% set mark_path = "img/mark.svg" %}{% else %}{% set mark_path = "img/mark-" ~ palette ~ ".svg" %}{% endif %}
+    <link rel="icon" href="{{ get_url(path=mark_path, trailing_slash=false) | safe }}" type="image/svg+xml">
+    {%- endif %}
+    {%- if not dw_offline %}
+    <link rel="alternate" type="application/vnd.dreamweave.index+json" title="DreamWeave index" href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">
+    {%- block discovery %}{% endblock discovery %}
+    {%- if config.generate_feeds %}
+    <link rel="alternate" type="application/atom+xml" title="{{ config.title }}" href="{{ get_url(path='atom.xml', trailing_slash=false) | safe }}">
+    {%- endif %}
+    {%- endif %}
+</head>
+<body class="{% block body_class %}{% endblock body_class %}">
+<a class="dw-skip-link" href="#main">Skip to content</a>
+{%- block header %}
+<header class="dw-header">
+    <div class="dw-shell dw-header__inner">
+        <a class="dw-brand" href="{{ config.extra.logo_home_link | default(value=config.base_url ~ '/') | safe }}">
+            <span class="dw-brand__mark" aria-hidden="true"></span>{% if config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}
+        </a>
+        <nav class="dw-nav" aria-label="Site">
+            {%- for item in config.extra.menu_items | default(value=[]) %}
+            {%- if item.url is starting_with("@/") %}{% set item_url = get_url(path=item.url) %}{% else %}{% set item_url = item.url %}{% endif %}
+            <a href="{{ item_url | safe }}"{% if current_url and item_url == current_url %} aria-current="page"{% endif %}>{{ item.name }}</a>
+            {%- endfor %}
+        </nav>
+        {%- if config.build_search_index and not dw_offline %}
+        {%- block search %}
+        <div class="dw-search" role="search">
+            <label class="dw-visually-hidden" for="dw-search-input">Search this site</label>
+            <input id="dw-search-input" type="search" placeholder="Search…  /" autocomplete="off" aria-controls="dw-search-results" data-scope="{% block search_scope %}{{ config.base_url | safe }}/{% endblock search_scope %}">
+            <div class="dw-search__results" id="dw-search-results" hidden>
+                <p class="dw-search__status" role="status" aria-live="polite"></p>
+                <ul class="dw-search__list"></ul>
+            </div>
+        </div>
+        {%- endblock search %}
+        {%- endif %}
+    </div>
+</header>
+{%- endblock header %}
+{%- block offline_banner %}{% endblock offline_banner %}
+<main class="dw-main" id="main" tabindex="-1">
+{%- block content %}{% endblock content %}
+</main>
+{%- block footer %}
+<footer class="dw-footer">
+    <div class="dw-shell dw-footer__inner">
+        <span>{% if config.extra.footer_text %}{{ config.extra.footer_text }}{% else %}{{ config.title }}{% endif %}</span>
+        <nav class="dw-footer__links" aria-label="Footer">
+            {%- if not dw_offline %}
+            <a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">dreamweave.json</a>
+            {%- endif %}
+            <a href="https://github.com/{{ config.extra.github_username }}/{{ config.extra.github_project }}">Source</a>
+            <a href="https://github.com/DreamWeave-MP/DreamWeave-Mod-Template">Built with the DreamWeave Mod Template</a>
+            <a href="http://www.catb.org/hacker-emblem/" title="Hacker emblem"><img class="dw-footer__emblem" src="{{ get_url(path='img/glider.svg', trailing_slash=false) | safe }}" alt="Hacker emblem"></a>
+        </nav>
+    </div>
+</footer>
+{%- endblock footer %}
+{%- block extra_body %}
+<script src="{{ get_url(path='js/dreamweave.js', trailing_slash=false) | safe }}"{% if config.build_search_index and not dw_offline %} data-search-index="{{ get_url(path='search_index.' ~ config.default_language ~ '.json', trailing_slash=false) | safe }}"{% endif %} defer></script>
+{%- endblock extra_body %}
+{%- if config.extra.goatcounter is defined and config.extra.goatcounter is matching("^[a-z0-9-]+$") and not dw_offline %}
+<script data-goatcounter="https://{{ config.extra.goatcounter }}.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+{%- endif %}
+</body>
+</html>

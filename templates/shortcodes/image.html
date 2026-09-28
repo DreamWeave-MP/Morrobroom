@@ -1,0 +1,7 @@
+{#- {{ image(src="/img/shot.png", alt="...", position="left|center|right", style="...") }}
+    Kept from V4 with the same arguments. A src starting with / is relative to the site root, so it
+    still works when the site lives in a subdirectory. -#}
+{%- if src -%}
+{%- if src is starting_with("http") %}{% set image_url = src %}{% else %}{% set image_url = config.base_url ~ src %}{% endif -%}
+<img class="dw-image dw-image--{{ position | default(value='center') }}" src="{{ image_url | safe }}"{% if alt %} alt="{{ alt }}"{% else %} alt=""{% endif %}{% if style %} style="{{ style | safe }}"{% endif %} decoding="async" loading="lazy">
+{%- endif -%}

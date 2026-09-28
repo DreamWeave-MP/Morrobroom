@@ -1,7 +1,7 @@
 +++
+title = "Morrobroom"
+description = "Build Morrowind levels in TrenchBroom: a brush compiler, lightmapper and NIF-to-TrenchBroom importer for OpenMW."
 
-# For multi-page sites, simply delete or comment out this config option
+# One project: the site opens on it.
 redirect_to = "home"
-sort_by = "title"
-
 +++

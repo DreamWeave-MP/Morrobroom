@@ -1,0 +1,18 @@
+{
+  "id": "workflow",
+  "title": "Three programs, one job each",
+  "description": "TrenchBroom is the editor. Morrobroom is the compiler. OpenMW is where you play the result.",
+  "mode": "flow",
+  "direction": "horizontal",
+  "nodes": [
+    { "id": "trenchbroom", "kind": "source", "title": "TrenchBroom", "detail": "Build rooms from brushes, place lights and objects, and save the .map." },
+    { "id": "morrobroom", "kind": "tool", "title": "Morrobroom", "detail": "Compile the saved map into NIF meshes, baked lightmaps and a TES3 plugin." },
+    { "id": "openmw", "kind": "result", "title": "OpenMW", "detail": "Load the build folder as data and walk around what you made." },
+    { "id": "nifs", "kind": "source", "role": "support", "title": "Existing NIFs", "detail": "nif2map reverse-compiles their visual geometry into maps you can edit." }
+  ],
+  "edges": [
+    { "from": "trenchbroom", "to": "morrobroom", "label": "Map-to-Engine" },
+    { "from": "morrobroom", "to": "openmw", "label": "build/<map>/" },
+    { "from": "nifs", "to": "trenchbroom", "kind": "support", "label": "nif2map" }
+  ]
+}

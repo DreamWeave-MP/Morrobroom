@@ -1,4 +1,5 @@
-<aside class="docs-usage" aria-label="{{ title | escape }}">
-  <p class="docs-usage__title"><strong>{{ title | escape }}</strong></p>
+{#- Kept from V4. Prefer {% callout() %}. -#}
+<aside class="dw-callout" aria-label="{{ title | escape }}">
+  <p class="dw-callout__title">{{ title | escape }}</p>
   {{ body | markdown | safe }}
 </aside>

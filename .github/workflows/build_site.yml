@@ -1,53 +1,444 @@
+name: Build, release and publish
+
+# Authors never run ./buildSite; this workflow does, on every push.
+#
+# Pull requests and pushes to other branches: validate, test, build the site. Nothing is published.
+# Pushes to the default branch (whatever it is called): all of that, then a fresh development
+# release (`development`; `dev-build` in the template's own repository) and the site. Release tags (<slug>-<version>): build that release from the tag, record it
+# in the project's mod.lock on the default branch (the only commit this workflow ever makes),
+# publish its archive, then start a default-branch run so the site lists it.
+#
+# The file name matters: Sigstore signatures name this workflow as the identity that signed.
+
 on:
-  workflow_dispatch:
   push:
-    tags: '*'
-    branches:
-      - main
+    branches: ['**']
+    # Release tags only: a version always starts with a digit, and slugs cannot contain '-'.
+    tags: ['*-[0-9]*']
+  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  group: dreamweave-${{ github.ref }}
+  cancel-in-progress: ${{ !(github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)) }}
 
-name: Build and deploy GH Pages
+env:
+  PYTHON_VERSION: '3.12'
+
 jobs:
-  build-site:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+  check:
+    name: Validate and test
+    runs-on: ubuntu-24.04
+    outputs:
+      binary_names: ${{ steps.binaries.outputs.binary_names }}
+      include_files: ${{ steps.binaries.outputs.include_files }}
     steps:
-      - name: checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Write Changelogs
-        run: |
-          ./buildSite --repository ${{ github.repository }} --changelog
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Build Zola
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            ghcr.io/getzola/zola:v0.22.1 build
+      - name: Install Python requirements
+        run: python -m pip install -r tools/requirements.txt
 
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - name: Read the Zola version archives are rendered with
+        id: zola
+        run: echo "version=$(./buildSite zola-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${{ steps.zola.outputs.version }}
+
+      - name: Validate every project
+        run: ./buildSite check
+
+      - name: Find the programs to build
+        id: binaries
+        run: ./buildSite binaries >> "$GITHUB_OUTPUT"
+
+      # A page still carrying V4 frontmatter fails the check, which suggests a mod.toml for it.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: mod-toml-suggestions
+          path: dist/migration/
+          if-no-files-found: ignore
+
+      - name: Run the template's tests
+        run: python -m unittest discover -s tools/tests -v
+
+  # Projects with [package] format = "binary" are programs. StroggForge's Rust workflow tests,
+  # builds, signs and scans them per platform, and leaves each platform's archive as a
+  # github-release-* artifact of this run: the jobs below hash and publish those exact files.
+  # It publishes them to the GitHub release itself too; the publish job below replaces that with
+  # the full release, archives and notes together.
+  binaries:
+    name: Build programs
+    needs: check
+    if: needs.check.outputs.binary_names != '[]'
+    permissions:
+      contents: write
+      id-token: write
+      pages: write
+    uses: DreamWeave-MP/StroggForge/.github/workflows/rustGlobalBuild.yml@v48
+    secrets: inherit
+    with:
+      binary_names: ${{ needs.check.outputs.binary_names }}
+      include_files: ${{ needs.check.outputs.include_files }}
+      # The site, its changelog and its publishing are this workflow's.
+      publish_docs: false
+      generate_changelog: false
+      cargo_publish: false
+
+  release:
+    name: Build and record the tagged release
+    needs: [check, binaries]
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # the mod.lock commit on the default branch
+      id-token: write # Sigstore
+    outputs:
+      nexus: ${{ steps.nexus.outputs.uploads }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python requirements
+        run: python -m pip install -r tools/requirements.txt
+
+      - name: Read the Zola version archives are rendered with
+        id: zola
+        run: echo "version=$(./buildSite zola-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${{ steps.zola.outputs.version }}
+
+      - name: Collect the programs the Rust workflow built
+        if: needs.binaries.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: github-release-*
+          path: dist/binaries/
+          merge-multiple: true
+
+      - name: Build the release from the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: ./buildSite release "$TAG"
+
+      - name: Check whether anything asks to be signed
+        id: signing
+        run: |
+          if [ -s dist/sign.txt ]; then echo "needed=true" >> "$GITHUB_OUTPUT"; else echo "needed=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: sigstore/cosign-installer@v3
+        if: steps.signing.outputs.needed == 'true'
+
+      - name: Sign archives with Sigstore (keyless)
+        if: steps.signing.outputs.needed == 'true'
+        working-directory: dist
+        run: |
+          while IFS= read -r archive; do
+            cosign sign-blob --yes --bundle "$archive.sigstore.json" "$archive"
+          done < sign.txt
+
+      # A release already recorded must match its record, so re-running this job is harmless and a
+      # moved tag cannot replace a published archive. Another tag's run may push first; each
+      # attempt starts again from the branch's newest commit.
+      - name: Record the release in mod.lock on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          message=$(jq -r '"RELEASE: \(.name) \(.release.version)"' dist/release.json)
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+            git checkout --quiet --force --detach "origin/$DEFAULT_BRANCH"
+            ./buildSite record
+            git add --all -- '*mod.lock'
+            if git diff --cached --quiet; then
+              exit 0
+            fi
+            git commit --quiet -m "$message"
+            if git push --quiet origin "HEAD:refs/heads/$DEFAULT_BRANCH"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push the release record to $DEFAULT_BRANCH. If the branch is protected, allow GitHub Actions to push to it."
+          exit 1
+
+      - name: Read the Nexus Mods uploads
+        id: nexus
+        run: echo "uploads=$(cat dist/nexus.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the Rust workflow's VirusTotal reports for the release notes
+        run: |
+          shopt -s nullglob
+          reports=(dist/binaries/*.vt.md)
+          if [ ${#reports[@]} -gt 0 ]; then cat "${reports[@]}" > dist/virustotal.md; fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: |
+            dist/
+            !dist/binaries/
+          if-no-files-found: error
+
+  # Tag runs skip this: they finish by starting a default-branch run, which builds the site and
+  # the development archives from a commit that includes the new record.
+  site:
+    name: Build the site
+    needs: [check, binaries]
+    if: ${{ !cancelled() && github.ref_type != 'tag' && needs.check.result == 'success' && needs.binaries.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python requirements
+        run: python -m pip install -r tools/requirements.txt
+
+      - name: Read the Zola version archives are rendered with
+        id: zola
+        run: echo "version=$(./buildSite zola-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${{ steps.zola.outputs.version }}
+
+      - name: Find the published site's URL
+        id: pages
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        uses: actions/configure-pages@v6
+
+      - name: Choose the base URL
+        id: base
+        env:
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          if [ -n "$PAGES_URL" ]; then
+            echo "url=$PAGES_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$(python -c 'import tomllib; print(tomllib.load(open("config.toml", "rb"))["base_url"])')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect the programs the Rust workflow built
+        if: needs.binaries.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: github-release-*
+          path: dist/binaries/
+          merge-multiple: true
+
+      - name: Package development builds and write the protocol files
+        env:
+          DREAMWEAVE_BASE_URL: ${{ steps.base.outputs.url }}
+          DREAMWEAVE_DEVELOPMENT_REF: refs/heads/${{ github.event.repository.default_branch }}
+        run: ./buildSite build
+
+      - name: Check the protocol documents against their schemas
+        run: ./buildSite schemas
+
+      - name: Build the site
+        env:
+          BASE_URL: ${{ steps.base.outputs.url }}
+        run: zola build --base-url "$BASE_URL"
+
+      - name: Check local links and anchors
+        env:
+          BASE_URL: ${{ steps.base.outputs.url }}
+        run: ./buildSite links --base-url "$BASE_URL"
+
+      - name: Check whether anything asks to be signed
+        id: signing
+        env:
+          PUBLISHING: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          if [ -s dist/sign.txt ] && [ "$PUBLISHING" = true ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: sigstore/cosign-installer@v3
+        if: steps.signing.outputs.needed == 'true'
+
+      - name: Sign development archives with Sigstore (keyless)
+        if: steps.signing.outputs.needed == 'true'
+        working-directory: dist
+        run: |
+          while IFS= read -r archive; do
+            cosign sign-blob --yes --bundle "$archive.sigstore.json" "$archive"
+          done < sign.txt
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         with:
           path: public/
 
+      - name: Keep the Rust workflow's VirusTotal reports for the release notes
+        run: |
+          shopt -s nullglob
+          reports=(dist/binaries/*.vt.md)
+          if [ ${#reports[@]} -gt 0 ]; then cat "${reports[@]}" > dist/virustotal.md; fi
+
+      - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        with:
+          name: development
+          path: |
+            dist/
+            !dist/binaries/
+          if-no-files-found: ignore
+
+  # dist/github-release names the GitHub release: the tag, or the development release, which
+  # ./buildSite names (`development`, or `dev-build` in the template's own repository). Releases
+  # are created as drafts and published once their files are attached, so a release is never
+  # seen without its archives. Immutable releases work for tags; the development release is
+  # replaced on every build, which an immutable release forbids.
+  upload-release:
+    name: Publish the GitHub release
+    needs: [release, site]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_type == 'tag' && needs.release.result == 'success' || github.ref_name == github.event.repository.default_branch && needs.site.result == 'success') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ github.ref_type == 'tag' && 'release' || 'development' }}
+          path: dist/
+
+      - name: Publish archives and signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          release=$(cat dist/github-release)
+          shopt -s nullglob
+          files=(dist/*.zip dist/*.sigstore.json)
+          # A program's VirusTotal reports follow its notes.
+          if [ -s dist/virustotal.md ]; then
+            if [ -s dist/release-notes.md ]; then
+              printf '\n' >> dist/release-notes.md
+              cat dist/virustotal.md >> dist/release-notes.md
+            fi
+            development_notes="The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken.
+
+          $(cat dist/virustotal.md)"
+          else
+            development_notes="The default branch at $GITHUB_SHA, built by $RUN_URL. It may be ahead of the last release, and it may be broken."
+          fi
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # Created once. A re-run's archives match the record, so replacing them changes nothing.
+            if gh release view "$release" --repo "$REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$release" "${files[@]}" --clobber --repo "$REPOSITORY"
+              gh release edit "$release" --notes-file dist/release-notes.md --repo "$REPOSITORY"
+            else
+              title=$(jq -r '"\(.name) \(.release.version)"' dist/release.json)
+              gh release create "$release" --verify-tag --draft --title "$title" --notes-file dist/release-notes.md --repo "$REPOSITORY"
+              gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
+              gh release edit "$release" --draft=false --repo "$REPOSITORY"
+            fi
+            exit 0
+          fi
+
+          # The development release follows the default branch: replace it, and move its tag.
+          if gh release view "$release" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$release" --yes --repo "$REPOSITORY"
+          fi
+          gh api -X DELETE "repos/$REPOSITORY/git/refs/tags/$release" >/dev/null 2>&1 || true
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No project publishes a development build."
+            exit 0
+          fi
+          gh release create "$release" --prerelease --draft --target "$GITHUB_SHA" --title "Development build" \
+            --notes "$development_notes" --repo "$REPOSITORY"
+          gh release upload "$release" "${files[@]}" --repo "$REPOSITORY"
+          gh release edit "$release" --draft=false --repo "$REPOSITORY"
+
   deploy:
-    runs-on: ubuntu-latest
-    needs: build-site
+    name: Deploy to GitHub Pages
+    needs: [site, upload-release]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch && needs.site.result == 'success' && needs.upload-release.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # GITHUB_TOKEN's pushes start no runs, so the record commit alone would never reach the site.
+  # A dispatched run on the default branch shares its concurrency group with pushes there, so it
+  # waits its turn rather than racing them.
+  refresh-site:
+    name: Rebuild the site with the new release
+    needs: upload-release
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.upload-release.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Start a default-branch run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh workflow run build_site.yml --ref "$DEFAULT_BRANCH" --repo "$REPOSITORY"
+
+  nexus-upload:
+    name: Upload to Nexus Mods
+    needs: [release, upload-release]
+    if: ${{ github.ref_type == 'tag' && needs.upload-release.result == 'success' && needs.release.outputs.nexus != '[]' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        upload: ${{ fromJson(needs.release.outputs.nexus) }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: dist/
+
+      - uses: Nexus-Mods/upload-action@main
+        with:
+          api_key: ${{ secrets.NEXUS_API_KEY }}
+          file_id: ${{ matrix.upload.file_group_id }}
+          filename: dist/${{ matrix.upload.filename }}
+          version: ${{ matrix.upload.version }}
+          display_name: ${{ matrix.upload.name }}
+          archive_existing_version: true
+          primary_mod_manager_download: true
+          update_mod_version: true

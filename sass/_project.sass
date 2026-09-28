@@ -1,0 +1,525 @@
+// A project's landing page, changelog and install/compatibility panels.
+
+.dw-hero
+  position: relative
+  border-bottom: 1px solid var(--dw-line)
+  padding: 1.6rem 0 1.2rem
+  background: linear-gradient(180deg, var(--dw-bg-1), var(--dw-bg-0))
+
+.dw-hero__grid
+  display: grid
+  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem)
+  gap: 1.5rem 2.25rem
+  align-items: start
+
+.dw-hero__title
+  margin: 0 0 .35rem
+  font-size: clamp(2rem, 4.2vw, 3.1rem)
+  letter-spacing: -.03em
+  line-height: 1.05
+
+.dw-hero__summary
+  max-width: 62ch
+  margin: 0 0 1rem
+  color: var(--dw-text-muted)
+  font-size: 1.08rem
+
+.dw-hero__figure
+  position: relative
+  margin: 0
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  overflow: hidden
+  background: var(--dw-bg-2)
+  aspect-ratio: 16 / 9
+
+  img
+    display: block
+    width: 100%
+    height: 100%
+    object-fit: cover
+
+  figcaption
+    position: absolute
+    right: 0
+    bottom: 0
+    left: 0
+    padding: 1.2em .75em .45em
+    background: linear-gradient(transparent, rgb(0 0 0 / 70%))
+    color: #ece4f4
+    font-size: .78rem
+
+@media (max-width: 1000px)
+  .dw-hero__grid
+    grid-template-columns: minmax(0, 1fr)
+
+// Media gallery ---------------------------------------------------------------------------
+
+.dw-gallery
+  display: grid
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr))
+  gap: .75rem
+  margin: 0
+  padding: 0
+  list-style: none
+
+.dw-gallery__item
+  margin: 0
+
+  a
+    display: block
+    border: 1px solid var(--dw-line)
+    border-radius: var(--dw-radius)
+    overflow: hidden
+    background: var(--dw-bg-2)
+    aspect-ratio: 16 / 9
+
+    &:hover, &:focus-visible
+      border-color: var(--dw-accent)
+
+  img
+    display: block
+    width: 100%
+    height: 100%
+    object-fit: cover
+    transition: transform .25s
+
+  a:hover img
+    transform: scale(1.03)
+
+  figcaption
+    margin-top: .35em
+    color: var(--dw-text-muted)
+    font-size: .8rem
+
+.dw-gallery__category
+  display: block
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .68rem
+  letter-spacing: .1em
+  text-transform: uppercase
+
+.dw-video
+  position: relative
+  display: grid
+  place-items: center
+  color: #fff !important
+  text-decoration: none
+
+  &::after
+    content: "▶ Watch (opens external site)"
+    position: absolute
+    inset: auto .5em .5em auto
+    border-radius: var(--dw-radius)
+    padding: .2em .6em
+    background: rgb(0 0 0 / 70%)
+    font-family: var(--dw-font-mono)
+    font-size: .72rem
+
+.dw-gallery__placeholder
+  display: grid
+  width: 100%
+  height: 100%
+  place-items: center
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .8rem
+
+// Lightbox (a native <dialog>; the gallery works as plain links without it)
+
+.dw-lightbox
+  width: min(96vw, 1400px)
+  max-width: none
+  max-height: 96vh
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: 0
+  background: var(--dw-bg-0)
+  color: var(--dw-text)
+
+  &::backdrop
+    background: rgb(6 3 10 / 88%)
+
+.dw-lightbox__frame
+  display: grid
+  grid-template-rows: auto minmax(0, 1fr) auto
+  max-height: 96vh
+
+.dw-lightbox__bar
+  display: flex
+  gap: .5rem
+  align-items: center
+  justify-content: space-between
+  border-bottom: 1px solid var(--dw-line)
+  padding: .4rem .6rem
+  font-family: var(--dw-font-mono)
+  font-size: .78rem
+
+.dw-lightbox__image
+  display: block
+  max-width: 100%
+  max-height: calc(96vh - 7rem)
+  margin: 0 auto
+  object-fit: contain
+
+.dw-lightbox__caption
+  border-top: 1px solid var(--dw-line)
+  padding: .5rem .8rem
+  color: var(--dw-text-muted)
+  font-size: .85rem
+
+// Install ---------------------------------------------------------------------------------
+
+.dw-methods
+  display: grid
+  gap: .6rem
+
+.dw-method
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  background: var(--dw-bg-1)
+
+  > summary
+    display: flex
+    flex-wrap: wrap
+    gap: .3em .8em
+    align-items: baseline
+    padding: .7em .9em
+    list-style: none
+
+    &::-webkit-details-marker
+      display: none
+
+    &::before
+      content: "▸"
+      color: var(--dw-accent-line)
+
+  &[open] > summary
+    border-bottom: 1px solid var(--dw-line)
+
+    &::before
+      content: "▾"
+
+.dw-method__name
+  font-family: var(--dw-font-mono)
+  font-weight: 700
+
+.dw-method__hint
+  color: var(--dw-text-faint)
+  font-size: .82rem
+
+.dw-method__body
+  padding: .9em 1em
+
+  > :last-child
+    margin-bottom: 0
+
+.dw-steps
+  margin: 0 0 1em
+  padding: 0
+  list-style: none
+  counter-reset: dw-step
+
+  > li
+    position: relative
+    margin: 0 0 .7em
+    padding-left: 2.4em
+    counter-increment: dw-step
+
+    &::before
+      content: counter(dw-step, decimal-leading-zero)
+      position: absolute
+      top: .05em
+      left: 0
+      color: var(--dw-accent)
+      font-family: var(--dw-font-mono)
+      font-size: .8rem
+      font-weight: 700
+
+.dw-configurator
+  display: grid
+  gap: .7rem
+
+.dw-configurator__row
+  display: flex
+  flex-wrap: wrap
+  gap: .5rem
+  align-items: center
+
+  label
+    color: var(--dw-text-muted)
+    font-family: var(--dw-font-mono)
+    font-size: .78rem
+
+  input[type="text"]
+    flex: 1 1 18rem
+    min-width: 0
+    border: 1px solid var(--dw-line-strong)
+    border-radius: var(--dw-radius)
+    padding: .45em .7em
+    background: var(--dw-bg-0)
+    font-family: var(--dw-font-mono)
+    font-size: .82rem
+
+.dw-choices
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr))
+  gap: .4rem
+  margin: 0
+  border: 0
+  padding: 0
+
+  legend
+    margin-bottom: .3rem
+    color: var(--dw-text-muted)
+    font-family: var(--dw-font-mono)
+    font-size: .78rem
+
+  label
+    display: flex
+    gap: .5em
+    align-items: flex-start
+    border: 1px solid var(--dw-line)
+    border-radius: var(--dw-radius)
+    padding: .4em .6em
+    background: var(--dw-bg-0)
+    font-size: .85rem
+    cursor: pointer
+
+    &:has(input:checked)
+      border-color: var(--dw-accent-line)
+      background: var(--dw-accent-soft)
+
+  input
+    margin-top: .25em
+    accent-color: var(--dw-accent)
+
+// Compatibility ---------------------------------------------------------------------------
+
+.dw-matrix
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr))
+  gap: .75rem
+
+.dw-matrix__cell
+  border: 1px solid var(--dw-line)
+  border-top: 3px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: .7em .85em
+  background: var(--dw-bg-1)
+
+  h3
+    margin: 0 0 .5em
+    color: var(--dw-text-muted)
+    font-size: .72rem
+    letter-spacing: .12em
+    text-transform: uppercase
+
+  ul
+    margin: 0
+    padding: 0
+    list-style: none
+
+  li
+    padding: .3em 0
+    font-size: .9rem
+
+    + li
+      border-top: 1px dashed var(--dw-line)
+
+  p
+    margin: .2em 0 0
+    color: var(--dw-text-faint)
+    font-size: .82rem
+
+.dw-matrix__cell--requires
+  border-top-color: var(--dw-accent)
+
+.dw-matrix__cell--recommends
+  border-top-color: var(--dw-info)
+
+.dw-matrix__cell--conflicts
+  border-top-color: var(--dw-danger)
+
+.dw-matrix__cell--compatible
+  border-top-color: var(--dw-ok)
+
+.dw-constraint
+  margin-left: .4em
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .82em
+
+// Releases --------------------------------------------------------------------------------
+
+.dw-releases
+  display: grid
+  gap: 1rem
+  margin: 0
+  padding: 0
+  list-style: none
+
+.dw-release
+  border: 1px solid var(--dw-line)
+  border-left: 3px solid var(--dw-accent-strong)
+  border-radius: var(--dw-radius)
+  padding: .85em 1.05em
+  background: var(--dw-bg-1)
+
+  h3
+    display: flex
+    flex-wrap: wrap
+    gap: .3em .7em
+    align-items: baseline
+    margin: 0 0 .35em
+    font-size: 1.15rem
+
+  h4
+    margin: .9em 0 .3em
+    color: var(--dw-text-muted)
+    font-size: .72rem
+    letter-spacing: .12em
+    text-transform: uppercase
+
+  ul
+    margin: 0 0 .5em
+    padding-left: 1.2em
+
+  > :last-child
+    margin-bottom: 0
+
+.dw-release--yanked
+  border-left-color: var(--dw-danger)
+  opacity: .85
+
+.dw-release--deprecated
+  border-left-color: var(--dw-warn)
+
+.dw-release--development
+  border-left-style: dashed
+  border-left-color: var(--dw-info)
+
+.dw-release__meta
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .78rem
+
+.dw-release__summary
+  margin: 0 0 .4em
+  color: var(--dw-text-muted)
+
+.dw-release__notice
+  margin: .4em 0
+  border-radius: var(--dw-radius)
+  padding: .4em .7em
+  background: color-mix(in oklab, var(--dw-danger) 8%, var(--dw-bg-1))
+  color: var(--dw-danger)
+  font-size: .88rem
+
+.dw-release__notice--deprecated
+  background: color-mix(in oklab, var(--dw-warn) 8%, var(--dw-bg-1))
+  color: var(--dw-warn)
+
+.dw-notes--breaking li::marker
+  color: var(--dw-danger)
+
+.dw-notes--fixed li::marker
+  color: var(--dw-ok)
+
+.dw-notes--added li::marker
+  color: var(--dw-accent)
+
+// Artifacts -------------------------------------------------------------------------------
+
+.dw-artifact
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  background: var(--dw-bg-1)
+
+  + .dw-artifact
+    margin-top: .6rem
+
+  // The next channel's label in the downloads rail.
+  + .dw-kicker
+    margin-top: 1.4rem
+
+.dw-artifact__head
+  display: flex
+  flex-wrap: wrap
+  gap: .3em .8em
+  align-items: baseline
+  justify-content: space-between
+  padding: .6em .8em
+
+.dw-artifact__name
+  font-family: var(--dw-font-mono)
+  font-size: .88rem
+  font-weight: 700
+  overflow-wrap: anywhere
+
+.dw-artifact__meta
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .75rem
+
+.dw-artifact__actions
+  display: flex
+  flex-wrap: wrap
+  gap: .4rem
+  padding: 0 .8em .6em
+
+.dw-artifact details
+  border-top: 1px solid var(--dw-line)
+
+  > summary
+    padding: .4em .8em
+    color: var(--dw-text-faint)
+    font-family: var(--dw-font-mono)
+    font-size: .72rem
+
+.dw-artifact__verify
+  padding: .2em .8em .7em
+
+  .dw-record
+    font-size: .8rem
+
+// Components table ------------------------------------------------------------------------
+
+.dw-components
+  min-width: 36rem
+
+  td:first-child
+    font-family: var(--dw-font-mono)
+    white-space: nowrap
+
+// Credits ---------------------------------------------------------------------------------
+
+.dw-credits
+  display: grid
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr))
+  gap: .5rem
+  margin: 0
+  padding: 0
+  list-style: none
+
+  li
+    border-left: 2px solid var(--dw-accent-line)
+    padding: .2em .7em
+
+  small
+    display: block
+    color: var(--dw-text-faint)
+    font-family: var(--dw-font-mono)
+    font-size: .72rem
+    letter-spacing: .06em
+    text-transform: uppercase
+
+// Offline documentation banner ------------------------------------------------------------
+
+.dw-offline
+  border-bottom: 1px solid var(--dw-line)
+  padding: .5em 0
+  background: var(--dw-accent-soft)
+  font-family: var(--dw-font-mono)
+  font-size: .78rem

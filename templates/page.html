@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+{% import "macros/project.html" as project_model %}
+
+{#- A page whose directory holds a mod.toml is a project page: its model comes from mod.toml and
+    mod.lock beside it. Every other page is an article. -#}
+{%- block model %}
+{%- set_global project = false %}
+{%- set_global ci = false %}
+{%- if page.colocated_path %}
+{%- set mod_toml = load_data(path="content/" ~ page.colocated_path ~ "mod.toml", required=false) %}
+{%- if mod_toml %}
+{%- if dw and page.colocated_path in dw.projects %}{% set_global ci = dw.projects[page.colocated_path] %}{% endif %}
+{%- set index_text = project_model::index() %}
+{%- set project_index = load_data(literal='{"": null' ~ index_text ~ '}', format="json") %}
+{%- set model_text = project_model::model(path=page.colocated_path, page=page, ci=ci, index=project_index) %}
+{%- set_global project = load_data(literal=model_text, format="json") %}
+{%- endif %}
+{%- endif %}
+{%- endblock model %}
+
+{%- block discovery %}
+{%- if project %}
+<link rel="alternate" type="application/vnd.dreamweave.project+json" title="{{ page.title }} manifest" href="{{ project.manifest_url | safe }}">
+{%- endif %}
+{%- endblock discovery %}
+
+{%- block og_image %}
+{%- if project %}
+{%- set og_items = project.media | filter(attribute="kind", value="image") %}
+{%- if og_items | length > 0 %}
+{%- set og_featured = og_items | filter(attribute="featured", value=true) %}{% if og_featured | length > 0 %}{% set og_item = og_featured | first %}{% else %}{% set og_item = og_items | first %}{% endif %}
+{%- set og = resize_image(path="content/" ~ page.colocated_path ~ og_item.file, width=1200, op="fit_width", format="jpg", quality=82) %}
+<meta property="og:image" content="{{ og.url | safe }}">
+<meta name="twitter:card" content="summary_large_image">
+{%- endif %}
+{%- endif %}
+{%- endblock og_image %}
+
+{%- block offline_banner %}
+{%- if dw_offline and project %}
+<div class="dw-offline"><div class="dw-shell">Offline documentation for {{ page.title }}{% if ci and ci.packaged_version %} {{ ci.packaged_version }}{% endif %}, shipped inside the archive. The live page is <a href="{{ page.permalink | safe }}" data-dw-online>{{ page.permalink }}</a>.</div></div>
+{%- endif %}
+{%- endblock offline_banner %}
+
+{%- block content %}
+{%- if project %}
+{%- include "mod/landing.html" %}
+{%- else %}
+<div class="dw-shell">
+    <article class="dw-article">
+        <header>
+            {%- if page.date %}<p class="dw-kicker"><span>{{ page.date | date(format="%Y-%m-%d") }}</span>{% if page.reading_time %}<span>{{ page.reading_time }} min read</span>{% endif %}</p>{% endif %}
+            <h1>{{ page.title }}</h1>
+            {%- if page.description %}<p class="dw-hero__summary">{{ page.description }}</p>{% endif %}
+        </header>
+        <div class="dw-prose">{{ page.content | safe }}</div>
+        {%- if page.taxonomies.tags is defined %}
+        <ul class="dw-tags">{% for tag in page.taxonomies.tags %}<li><a href="{{ get_taxonomy_url(kind='tags', name=tag) | safe }}">{{ tag }}</a></li>{% endfor %}</ul>
+        {%- endif %}
+        {%- if page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
+    </article>
+</div>
+{%- endif %}
+{%- endblock content %}

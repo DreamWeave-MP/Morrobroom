@@ -1,0 +1,603 @@
+// Reusable pieces. Each one works without JavaScript.
+
+// Labels and badges -----------------------------------------------------------------------
+
+.dw-kicker
+  display: flex
+  flex-wrap: wrap
+  gap: .2em .9em
+  margin: 0 0 .4rem
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .72rem
+  letter-spacing: .12em
+  text-transform: uppercase
+
+  > * + *::before
+    content: "·"
+    margin-right: .9em
+    color: var(--dw-line-strong)
+
+.dw-badge
+  display: inline-flex
+  gap: .35em
+  align-items: center
+  border: 1px solid var(--dw-line-strong)
+  border-radius: 999px
+  padding: .05em .6em
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .72rem
+  font-weight: 600
+  letter-spacing: .03em
+  line-height: 1.6
+  white-space: nowrap
+  vertical-align: middle
+
+.dw-badge--accent
+  border-color: var(--dw-accent-line)
+  color: var(--dw-accent)
+
+.dw-badge--ok
+  border-color: color-mix(in oklab, var(--dw-ok) 45%, var(--dw-line))
+  color: var(--dw-ok)
+
+.dw-badge--warn
+  border-color: color-mix(in oklab, var(--dw-warn) 45%, var(--dw-line))
+  color: var(--dw-warn)
+
+.dw-badge--danger
+  border-color: color-mix(in oklab, var(--dw-danger) 45%, var(--dw-line))
+  color: var(--dw-danger)
+
+.dw-badge--info
+  border-color: color-mix(in oklab, var(--dw-info) 45%, var(--dw-line))
+  color: var(--dw-info)
+
+.dw-status
+  display: inline-flex
+  gap: .45em
+  align-items: center
+  font-family: var(--dw-font-mono)
+
+  &::before
+    content: ""
+    width: .55em
+    height: .55em
+    border-radius: 50%
+    background: var(--dw-neutral)
+
+.dw-status--active::before, .dw-status--pass::before, .dw-status--ok::before
+  background: var(--dw-ok)
+  box-shadow: 0 0 .5em color-mix(in oklab, var(--dw-ok) 60%, transparent)
+
+.dw-status--maintenance::before, .dw-status--experimental::before, .dw-status--warn::before
+  background: var(--dw-warn)
+
+.dw-status--deprecated::before, .dw-status--archived::before, .dw-status--fail::before
+  background: var(--dw-danger)
+
+.dw-status--info::before
+  background: var(--dw-info)
+
+// Buttons ---------------------------------------------------------------------------------
+
+.dw-button
+  display: inline-flex
+  gap: .5em
+  align-items: center
+  justify-content: center
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: .5em .95em
+  background: var(--dw-bg-2)
+  color: var(--dw-text)
+  font-family: var(--dw-font-mono)
+  font-size: .85rem
+  font-weight: 600
+  line-height: 1.3
+  text-decoration: none
+  cursor: pointer
+  transition: background .15s, border-color .15s, color .15s
+
+  &:hover
+    border-color: var(--dw-accent-line)
+    background: var(--dw-bg-3)
+    color: var(--dw-text)
+
+.dw-button--primary
+  border-color: var(--dw-accent)
+  background: var(--dw-accent)
+  color: #150c20
+
+  &:hover
+    border-color: var(--dw-accent-hover)
+    background: var(--dw-accent-hover)
+    color: #150c20
+
+.dw-button--ghost
+  border-color: transparent
+  background: transparent
+  color: var(--dw-text-muted)
+
+  &:hover
+    background: var(--dw-bg-2)
+
+.dw-button--small
+  padding: .25em .6em
+  font-size: .75rem
+
+.dw-button__meta
+  color: inherit
+  font-weight: 400
+  opacity: .72
+
+.dw-actions
+  display: flex
+  flex-wrap: wrap
+  gap: .5rem
+
+.dw-actions__label
+  align-self: center
+  margin-right: .25rem
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .78rem
+  letter-spacing: .08em
+  text-transform: uppercase
+
+// A program's downloads, one per platform, above the page's other actions.
+.dw-platforms
+  margin-bottom: .6rem
+
+// The visitor's own platform, as the script guesses it.
+.dw-button.is-yours
+  @extend .dw-button--primary
+
+// Status strip: the at-a-glance row under a project title ----------------------------------
+
+.dw-strip
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(8.75rem, 1fr))
+  margin: 1.1rem 0
+  padding: 0 1px 1px 0
+
+  > div
+    min-width: 0
+    margin: 0 -1px -1px 0
+    border: 1px solid var(--dw-line)
+    border-left: 3px solid var(--dw-accent-strong)
+    padding: .55em .8em
+    background: var(--dw-bg-1)
+
+  // A project with one fact to show keeps it at its own width, not stretched across the row.
+  > div:only-child
+    justify-self: start
+    min-width: 12rem
+
+  dt
+    color: var(--dw-text-faint)
+    font-family: var(--dw-font-mono)
+    font-size: .66rem
+    letter-spacing: .12em
+    text-transform: uppercase
+
+  dd
+    margin-top: .1em
+    font-family: var(--dw-font-mono)
+    font-size: .9rem
+    overflow-wrap: anywhere
+
+  small
+    color: var(--dw-text-faint)
+    font-size: .78em
+
+// Panels and field records ----------------------------------------------------------------
+
+.dw-panel
+  min-width: 0
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  background: var(--dw-bg-1)
+
+.dw-panel__title
+  display: flex
+  gap: .6em
+  align-items: baseline
+  justify-content: space-between
+  margin: 0
+  border-bottom: 1px solid var(--dw-line)
+  padding: .5em .85em
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .7rem
+  font-weight: 600
+  letter-spacing: .12em
+  text-transform: uppercase
+
+.dw-panel__body
+  padding: .75em .85em
+
+  > :last-child
+    margin-bottom: 0
+
+.dw-record
+  display: grid
+  grid-template-columns: max-content minmax(0, 1fr)
+  gap: .3em .9em
+  font-size: .86rem
+
+  dt
+    color: var(--dw-text-faint)
+    font-family: var(--dw-font-mono)
+    font-size: .76rem
+    padding-top: .12em
+
+  dd
+    min-width: 0
+    overflow-wrap: anywhere
+
+.dw-linklist
+  display: grid
+  gap: .15em
+  margin: 0
+  padding: 0
+  list-style: none
+  font-size: .88rem
+
+  a
+    display: flex
+    gap: .5em
+    justify-content: space-between
+    padding: .2em 0
+    text-decoration: none
+
+    &:hover span:first-child
+      text-decoration: underline
+
+  small
+    color: var(--dw-text-faint)
+    font-family: var(--dw-font-mono)
+
+// Sections on long pages -------------------------------------------------------------------
+
+.dw-section
+  margin: 2.6rem 0 0
+  scroll-margin-top: 1rem
+
+.dw-section__head
+  display: flex
+  flex-wrap: wrap
+  gap: .3rem 1rem
+  align-items: baseline
+  justify-content: space-between
+  margin-bottom: 1rem
+  border-bottom: 1px solid var(--dw-line)
+  padding-bottom: .45rem
+
+  h2
+    margin: 0
+
+  p
+    margin: 0
+    color: var(--dw-text-faint)
+    font-size: .85rem
+
+.dw-section__index
+  color: var(--dw-accent-line)
+  font-family: var(--dw-font-mono)
+  font-size: .75em
+  margin-right: .6em
+
+// Callouts --------------------------------------------------------------------------------
+
+.dw-callout
+  max-width: var(--dw-width-prose)
+  margin: 1.4em 0
+  border: 1px solid var(--dw-line)
+  border-left: 3px solid var(--dw-info)
+  border-radius: var(--dw-radius)
+  padding: .75em 1em
+  background: color-mix(in oklab, var(--dw-info) 5%, var(--dw-bg-1))
+
+  > :last-child
+    margin-bottom: 0
+
+.dw-callout__title
+  margin: 0 0 .35em
+  color: var(--dw-info)
+  font-family: var(--dw-font-mono)
+  font-size: .8rem
+  font-weight: 700
+  letter-spacing: .06em
+  text-transform: uppercase
+
+.dw-callout--tip
+  border-left-color: var(--dw-ok)
+  background: color-mix(in oklab, var(--dw-ok) 5%, var(--dw-bg-1))
+
+  .dw-callout__title
+    color: var(--dw-ok)
+
+.dw-callout--warning
+  border-left-color: var(--dw-warn)
+  background: color-mix(in oklab, var(--dw-warn) 5%, var(--dw-bg-1))
+
+  .dw-callout__title
+    color: var(--dw-warn)
+
+.dw-callout--danger
+  border-left-color: var(--dw-danger)
+  background: color-mix(in oklab, var(--dw-danger) 6%, var(--dw-bg-1))
+
+  .dw-callout__title
+    color: var(--dw-danger)
+
+// Feature grid ----------------------------------------------------------------------------
+
+.dw-features
+  margin: 1.5em 0
+
+  > ul
+    display: grid
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr))
+    gap: 1px
+    margin: 0
+    padding: 0
+    border: 1px solid var(--dw-line)
+    background: var(--dw-line)
+    list-style: none
+
+  li
+    margin: 0
+    padding: .85em 1em
+    background: var(--dw-bg-1)
+    font-size: .92rem
+
+    strong:first-child
+      display: block
+      margin-bottom: .2em
+      color: var(--dw-accent)
+      font-family: var(--dw-font-mono)
+      font-size: .85rem
+
+// Directory trees -------------------------------------------------------------------------
+
+.dw-tree
+  margin: 1em 0
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  padding: .75em 1em
+  background: var(--dw-code-bg)
+  font-family: var(--dw-font-mono)
+  font-size: .84rem
+  line-height: 1.55
+  overflow-x: auto
+
+  ul
+    margin: 0
+    padding-left: 1.2em
+    list-style: none
+
+  > ul
+    padding-left: 0
+
+  li
+    position: relative
+    white-space: nowrap
+
+  ul ul li::before
+    content: "├─ "
+    color: var(--dw-line-strong)
+
+  ul ul li:last-child::before
+    content: "└─ "
+
+.dw-tree__dir
+  color: var(--dw-accent)
+
+.dw-tree__note
+  margin-left: 1em
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-body)
+  font-size: .9em
+
+.dw-tree__tag
+  margin-left: .6em
+
+// Copy button and hashes ------------------------------------------------------------------
+
+.dw-copy
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: .1em .5em
+  background: var(--dw-bg-1)
+  color: var(--dw-text-muted)
+  font-family: var(--dw-font-mono)
+  font-size: .72rem
+  cursor: pointer
+
+  &:hover
+    border-color: var(--dw-accent-line)
+    color: var(--dw-accent)
+
+pre > .dw-copy
+  position: absolute
+  top: .45em
+  right: .45em
+  opacity: 0
+  transition: opacity .15s
+
+pre:hover > .dw-copy, pre > .dw-copy:focus-visible
+  opacity: 1
+
+@media (hover: none)
+  pre > .dw-copy
+    opacity: 1
+
+.dw-digest
+  font-family: var(--dw-font-mono)
+  font-size: .8em
+  overflow-wrap: anywhere
+  word-break: break-all
+
+.dw-id
+  font-family: var(--dw-font-mono)
+  font-size: .82em
+
+// Search ----------------------------------------------------------------------------------
+
+.dw-search
+  position: relative
+  min-width: 0
+
+  input
+    width: 100%
+    border: 1px solid var(--dw-line-strong)
+    border-radius: var(--dw-radius)
+    padding: .45em .7em
+    background: var(--dw-bg-0)
+    font-family: var(--dw-font-mono)
+    font-size: .82rem
+
+    &::placeholder
+      color: var(--dw-text-faint)
+
+    &:focus
+      border-color: var(--dw-accent-line)
+      outline: none
+
+.dw-search__results
+  position: absolute
+  top: calc(100% + 4px)
+  right: 0
+  left: 0
+  z-index: 40
+  max-height: 70vh
+  overflow: auto
+  border: 1px solid var(--dw-accent-line)
+  border-radius: var(--dw-radius)
+  background: var(--dw-bg-1)
+  box-shadow: 0 .8em 2em rgb(0 0 0 / 45%)
+
+.dw-search__status
+  padding: .5em .8em
+  color: var(--dw-text-faint)
+  font-family: var(--dw-font-mono)
+  font-size: .75rem
+
+.dw-search__list
+  margin: 0
+  padding: 0
+  list-style: none
+
+  a
+    display: block
+    border-top: 1px solid var(--dw-line)
+    padding: .55em .8em
+    color: var(--dw-text)
+    text-decoration: none
+
+    &:hover, &:focus-visible, &[aria-selected="true"]
+      background: var(--dw-bg-3)
+      outline: none
+
+  strong
+    display: block
+    color: var(--dw-accent)
+    font-size: .9rem
+
+  span
+    display: block
+    color: var(--dw-text-muted)
+    font-size: .8rem
+
+  mark
+    background: none
+    color: var(--dw-text)
+    font-weight: 700
+
+// Pagination ------------------------------------------------------------------------------
+
+.dw-pagination
+  display: flex
+  flex-wrap: wrap
+  gap: .5rem
+  align-items: center
+  justify-content: space-between
+  margin-top: 1.5rem
+  font-family: var(--dw-font-mono)
+  font-size: .85rem
+
+.dw-pagination__pages
+  display: flex
+  flex-wrap: wrap
+  gap: .25rem
+
+  a, span
+    min-width: 2.2em
+    border: 1px solid var(--dw-line)
+    border-radius: var(--dw-radius)
+    padding: .25em .5em
+    text-align: center
+    text-decoration: none
+
+  [aria-current="page"]
+    border-color: var(--dw-accent)
+    color: var(--dw-accent)
+
+// Tag lists -------------------------------------------------------------------------------
+
+.dw-tags
+  display: flex
+  flex-wrap: wrap
+  gap: .35em
+  margin: 0
+  padding: 0
+  list-style: none
+
+  a
+    color: var(--dw-text-muted)
+    font-family: var(--dw-font-mono)
+    font-size: .76rem
+    text-decoration: none
+
+    &::before
+      content: "#"
+      color: var(--dw-accent-line)
+
+    &:hover
+      color: var(--dw-accent)
+
+// Wide tables scroll inside their own box instead of widening the page
+
+.dw-table-scroll
+  max-width: 100%
+  overflow-x: auto
+  margin: 0 0 1em
+
+  > table
+    margin: 0
+
+// Images placed with the image and figure shortcodes ---------------------------------------
+
+.dw-image, .dw-figure img
+  display: block
+  max-width: 100%
+  height: auto
+  margin: 1.2em auto
+  border-radius: var(--dw-radius)
+
+.dw-image--left
+  margin-left: 0
+
+.dw-image--right
+  margin-right: 0
+
+.dw-figure
+  margin: 1.2em 0
+
+  figcaption
+    color: var(--dw-text-muted)
+    font-size: .85rem
+    text-align: center

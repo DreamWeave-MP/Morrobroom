@@ -1,14 +1,13 @@
-{% set lines = body | default(value="") | trim | split(pat='\n') -%}
-<br><div id="credits-container"><h2 id="credits">Credits</h2>
-  {%- if default and config.extra.default_credits -%}
-    {%- set default_credit_lines = config.extra.default_credits | trim | split(pat='\n') -%}
-
-    {%- for line in default_credit_lines -%}
-      <p>{{ line }}</p>
-    {%- endfor -%}
-  {%- endif -%}
-
-  {%- for line in lines -%}
-    <p>{{- line -}}</p>
-  {%- endfor -%}
-</div>
+{#- {% credits(default=true) %}One credit per line{% end %}
+    default=true adds config.toml's `default_credits` lines first, as in V4. Projects with mod.toml
+    can list [[credits]] there instead; the landing page shows those. -#}
+{%- set lines = body | default(value="") | trim | split(pat="
+") -%}
+{%- if default is defined and default and config.extra.default_credits is defined %}{% set lines = config.extra.default_credits | trim | split(pat="
+") | concat(with=lines) %}{% endif -%}
+<section class="dw-section" aria-label="Credits">
+  <div class="dw-section__head"><h2 id="credits">Credits</h2></div>
+  <ul class="dw-credits">
+  {%- for line in lines %}{% if line | trim %}<li>{{ line | trim | markdown(inline=true) | safe }}</li>{% endif %}{% endfor %}
+  </ul>
+</section>

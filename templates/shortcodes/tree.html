@@ -1,0 +1,27 @@
+{#- {% tree() %}
+    00 Core/            required
+      scripts/
+      MyMod.omwscripts
+    10 Optional/        optional
+    {% end %}
+    Two spaces per level. A trailing / marks a directory. Text after two or more spaces is a note. -#}
+{%- set lines = body | trim_end | split(pat="
+") -%}
+<div class="dw-tree" role="group" aria-label="{{ label | default(value='Directory layout') }}"><ul>
+{%- set_global depth = 0 -%}
+{%- for raw in lines -%}
+  {%- set line = raw | trim_end -%}
+  {%- if line | trim == "" %}{% continue %}{% endif -%}
+  {%- set stripped = line | trim_start -%}
+  {%- set line_length = line | length -%}
+  {%- set stripped_length = stripped | length -%}
+  {%- set indent = line_length - stripped_length -%}
+  {%- set parts = stripped | split(pat="  ") -%}
+  {%- set name = parts | first | trim -%}
+  {%- set note = parts | slice(start=1) | join(sep=" ") | trim -%}
+  {%- if indent > depth %}{% for step in range(start=depth, end=indent, step_by=2) %}<ul>{% endfor %}{% elif indent < depth %}{% for step in range(start=indent, end=depth, step_by=2) %}</li></ul>{% endfor %}</li>{% elif not loop.first %}</li>{% endif -%}
+  {%- set_global depth = indent -%}
+  <li>{% if name is ending_with("/") %}<span class="dw-tree__dir">{{ name }}</span>{% else %}{{ name }}{% endif %}{% if note %}<span class="dw-tree__note">{{ note }}</span>{% endif %}
+{%- endfor -%}
+{%- for step in range(start=0, end=depth, step_by=2) %}</li></ul>{% endfor %}</li>
+</ul></div>

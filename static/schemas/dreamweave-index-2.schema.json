@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/schemas/dreamweave-index-2.schema.json",
+  "title": "DreamWeave site index (schema_version 2)",
+  "description": "The discovery document at <site>/dreamweave.json. Linked from every page with <link rel=\"alternate\" type=\"application/vnd.dreamweave.index+json\">. Lists each project's id, manifest and channel heads so an indexer can detect changes without fetching every manifest.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "document",
+    "site",
+    "projects"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2"
+    },
+    "document": {
+      "const": "index"
+    },
+    "generator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site": {
+      "type": "object",
+      "required": [
+        "name",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "status",
+          "page",
+          "manifest",
+          "manifest_sha256",
+          "updated",
+          "channels"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "page": {
+            "$ref": "#/$defs/url"
+          },
+          "manifest": {
+            "$ref": "#/$defs/url"
+          },
+          "manifest_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "updated": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channels": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/version"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "A project id: an RFC 9562 UUID in canonical lowercase form. Chosen once by the author; never derived from a name, host or URL.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "version": {
+      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. How release numbers compare depends on the project's versioning scheme (numeric or decimal); pre-releases follow SemVer 2.0.0; build metadata is ignored.",
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    }
+  }
+}

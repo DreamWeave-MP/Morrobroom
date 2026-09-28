@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+{% import "macros/project.html" as project_model %}
+
+{%- block content %}
+{%- set index_text = project_model::index() %}
+{%- set project_index = load_data(literal='{"": null' ~ index_text ~ '}', format="json") %}
+{#- The index is keyed by id; list the projects by name instead. -#}
+{%- set_global listing = "" %}
+{%- for project_id, entry in project_index %}{% if project_id %}
+{%- set name_json = entry.name | json_encode %}{% set path_json = entry.page_path | json_encode %}
+{%- set_global listing = listing ~ ',{"name":' ~ name_json ~ ',"page_path":' ~ path_json ~ '}' %}
+{%- endif %}{% endfor %}
+{%- set listing_text = '[{}' ~ listing ~ ']' %}
+{%- set listed = load_data(literal=listing_text, format="json") | filter(attribute="name") | sort(attribute="name") %}
+<header class="dw-hero">
+    <div class="dw-shell">
+        <p class="dw-kicker"><span>Distribution metadata</span><span>schema_version 2</span></p>
+        <h1 class="dw-hero__title">{{ page.title }}</h1>
+        {%- if page.description %}<p class="dw-hero__summary">{{ page.description }}</p>{% endif %}
+    </div>
+</header>
+<div class="dw-shell">
+    {%- if not dw or dw_offline %}
+    <div class="dw-callout dw-callout--note"><p class="dw-callout__title">Local preview</p><p>This page shows what mod.toml and mod.lock say. The checks, the development builds and the manifests themselves come from CI, and appear on the published site.</p></div>
+    {%- endif %}
+    <div class="dw-prose">{{ page.content | safe }}</div>
+
+    <div class="dw-endpoints">
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Discovery <span class="dw-status dw-status--pass">linked from every page</span></h2>
+            {%- set index_url = get_url(path="dreamweave.json", trailing_slash=false) %}
+            <div class="dw-panel__body"><a href="{{ index_url | safe }}">{{ index_url }}</a></div>
+        </section>
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Schemas</h2>
+            <div class="dw-panel__body">
+                <a href="{{ get_url(path='schemas/modManifest-2.schema.json', trailing_slash=false) | safe }}">modManifest-2.schema.json</a><br>
+                <a href="{{ get_url(path='schemas/dreamweave-index-2.schema.json', trailing_slash=false) | safe }}">dreamweave-index-2.schema.json</a><br>
+                <a href="{{ get_url(path='schemas/dreamweave-release-payload-2.schema.json', trailing_slash=false) | safe }}">dreamweave-release-payload-2.schema.json</a>
+            </div>
+        </section>
+        {%- if dw and not dw_offline and dw.comments is defined %}
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">Comments {% if dw.comments.state == "on" %}<span class="dw-status dw-status--pass">on</span>{% elif dw.comments.state == "off" %}<span class="dw-status dw-status--info">off</span>{% else %}<span class="dw-status dw-status--warn">{{ dw.comments.state }}</span>{% endif %}</h2>
+            <div class="dw-panel__body">
+                {%- if dw.comments.state == "on" %}GitHub Discussions on {{ dw.comments.repo }}, category {{ dw.comments.category }}
+                {%- elif dw.comments.state == "off" %}Not configured. See [extra.comments] in config.toml.
+                {%- else %}{{ dw.comments.message }}{% endif %}
+            </div>
+        </section>
+        {%- endif %}
+        {%- if dw and not dw_offline %}
+        <section class="dw-panel">
+            <h2 class="dw-panel__title">This build</h2>
+            <div class="dw-panel__body">
+                {{ dw.generator }}<br>
+                commit {{ dw.revision | truncate(length=12, end="") }}<br>
+                {% if dw.archives_built %}archives built and hashed{% else %}development archives not built{% endif %}
+            </div>
+        </section>
+        {%- endif %}
+    </div>
+
+    {%- for entry in listed %}
+    {%- set ci = false %}{% if dw and entry.page_path in dw.projects %}{% set ci = dw.projects[entry.page_path] %}{% endif %}
+    {%- set project_page = get_page(path=entry.page_path ~ "index.md") %}
+    {%- set model_text = project_model::model(path=entry.page_path, page=project_page, ci=ci, index=project_index) %}
+    {%- set project = load_data(literal=model_text, format="json") %}
+    <section class="dw-network-project" id="{{ project.slug }}" aria-labelledby="{{ project.slug }}-title">
+        <div class="dw-section__head">
+            <h2 id="{{ project.slug }}-title"><a href="{{ get_url(path=project.page_path) | safe }}">{{ project.name }}</a></h2>
+            <p class="dw-id">{{ project.id }}</p>
+        </div>
+
+        {%- if ci and ci.checks is defined %}
+        {%- set failures = ci.checks | filter(attribute="state", value="fail") %}
+        <p>{% if failures | length == 0 %}{{ dw_macros::status(state="pass", label="Ready for the network") }}{% else %}{{ dw_macros::status(state="fail", label="Not ready") }}{% endif %}</p>
+        <ul class="dw-checks">
+        {%- for check in ci.checks %}
+            <li>{{ dw_macros::status(state=check.state) }}<span class="dw-checks__label">{{ check.label }}</span><span class="dw-checks__detail">{{ check.detail }}</span></li>
+        {%- endfor %}
+        </ul>
+        {%- endif %}
+
+        <h3>Manifest</h3>
+        <dl class="dw-record">
+            <dt>URL</dt><dd><a href="{{ project.manifest_url | safe }}">{{ project.manifest_url }}</a></dd>
+            {%- if ci and ci.manifest_sha256 is defined %}<dt>SHA-256</dt><dd class="dw-digest">{{ ci.manifest_sha256 }}</dd>{% endif %}
+            <dt>Slug</dt><dd><code>{{ project.slug }}</code> · tags are <code>{{ project.slug }}-&lt;version&gt;</code></dd>
+            <dt>Runtimes</dt><dd>{% for runtime, requirement in project.runtimes %}{{ dw_macros::runtime_label(runtime=runtime) }} {{ requirement }}{% if not loop.last %}, {% endif %}{% else %}none declared{% endfor %}</dd>
+            <dt>Provides</dt><dd>{% for capability in project.provides %}<code>{{ capability }}</code> {% else %}nothing{% endfor %}</dd>
+        </dl>
+
+        {%- if project.releases | length > 0 %}
+        <h3>Releases and artifacts</h3>
+        <div class="dw-table-scroll"><table>
+            <thead><tr><th scope="col">Version</th><th scope="col">Channel</th><th scope="col">Status</th><th scope="col">Artifact</th><th scope="col">Size</th><th scope="col">SHA-256</th><th scope="col">Sources</th></tr></thead>
+            <tbody>
+            {%- for release in project.releases %}
+            {%- for artifact in release.artifacts %}
+                <tr>
+                    <td><code>{{ release.version }}</code></td>
+                    <td>{{ release.channel }}</td>
+                    <td>{{ release.status }}</td>
+                    <td><code>{{ artifact.filename }}</code></td>
+                    <td>{{ artifact.size }}</td>
+                    <td class="dw-digest">{{ artifact.digests.sha256 }}</td>
+                    <td>{% for source in artifact.sources %}<a href="{{ source.url | safe }}">{{ source.kind }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                </tr>
+            {%- endfor %}
+            {%- endfor %}
+            </tbody>
+        </table></div>
+        {%- endif %}
+
+        {%- set rels = project.relationships %}
+        {%- if rels.requires | length + rels.recommends | length + rels.conflicts | length + rels.compatible | length + rels.replaces | length > 0 %}
+        <h3>Relationships</h3>
+        <div class="dw-table-scroll"><table>
+            <thead><tr><th scope="col">Kind</th><th scope="col">Target</th><th scope="col">Id or capability</th><th scope="col">Version</th></tr></thead>
+            <tbody>
+            {%- for kind in ["requires", "recommends", "conflicts", "compatible", "replaces"] %}
+            {%- for item in rels[kind] %}
+                <tr><td>{{ kind }}</td><td>{{ item.display_name }}</td><td class="dw-digest">{% if item.project is defined %}{{ item.project }}{% elif item.capability is defined %}{{ item.capability }}{% else %}none{% endif %}</td><td>{{ item.version | default(value="any") }}</td></tr>
+            {%- endfor %}
+            {%- endfor %}
+            </tbody>
+        </table></div>
+        {%- endif %}
+    </section>
+    {%- endfor %}
+</div>
+{%- endblock content %}

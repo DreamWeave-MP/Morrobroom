@@ -1,4 +1,4 @@
-{% extends "index.html" %}
+{% extends "base.html" %}
 {% import "docs/breadcrumbs.html" as docs_breadcrumbs %}
 {% import "docs/sidebar.html" as docs_sidebar %}
 {% import "docs/toc.html" as docs_toc %}
@@ -61,30 +61,7 @@
     <link rel="stylesheet" href="{{ get_url(path='docs.css') }}">
 {% endblock extra_head %}
 
-{% block header %}
-<header class="docs-header">
-    <div class="docs-header__inner">
-        <a class="docs-brand" href="{{ docs_root_url | safe }}">
-            <strong>{{ docs_project_name }}</strong><span>Docs</span>
-        </a>
-        {% if config.build_search_index %}
-        <div class="search-container docs-search">
-            <label class="docs-search__label" for="search">Search documentation</label>
-            <input id="search" type="search" data-search-root="{{ docs_root_url | safe }}" data-search-root-local="{% if docs_root %}/{{ docs_root.relative_path | replace(from="_index.md", to="") | safe }}{% else %}/{% endif %}" placeholder="Search documentation…">
-            <div class="search-results">
-                <div class="search-results__header"></div>
-                <div class="search-results__items"></div>
-            </div>
-        </div>
-        {% endif %}
-        <nav class="docs-header__links" aria-label="Site links">
-            <a href="{{ docs_project_url | safe }}">{{ docs_project_name }}</a>
-            <a href="{{ get_url(path='@/_index.md') }}">{{ config.title }}</a>
-            {% if docs_repository_url %}<a href="{{ docs_repository_url | safe }}">Source</a>{% endif %}
-        </nav>
-    </div>
-</header>
-{% endblock header %}
+{% block search_scope %}{{ docs_root_url | safe }}{% endblock search_scope %}
 
 {% block content %}
     {% if page %}
@@ -92,9 +69,14 @@
     {% else %}
         {% set active_paths = section.ancestors %}
     {% endif %}
-    <div class="docs-shell{% if not docs_has_toc %} docs-shell--no-toc{% endif %}">
+    <div class="dw-shell docs-shell{% if not docs_has_toc %} docs-shell--no-toc{% endif %}">
         <aside class="docs-sidebar">
-            {{ docs_sidebar::render(nav_section=docs_root, current_url=current_url, active_paths=active_paths, root=true, root_label=docs_sidebar_label) }}
+            <details class="docs-sidebar__panel" open>
+                <summary>{{ docs_project_name }}</summary>
+                <nav aria-label="{{ docs_project_name }} documentation">
+                    {{ docs_sidebar::render(nav_section=docs_root, current_url=current_url, active_paths=active_paths, root=true, root_label=docs_sidebar_label) }}
+                </nav>
+            </details>
         </aside>
 
         {% if docs_has_toc %}
@@ -106,7 +88,7 @@
         </aside>
         {% endif %}
 
-        <main class="docs-main">
+        <div class="docs-main">
             {{ docs_breadcrumbs::render(root=docs_root, ancestors=active_paths, current_url=current_url, current_title=docs_current_title, project_name=docs_project_name, project_url=docs_project_url, sidebar_label=docs_sidebar_label) }}
             <header class="docs-page-header">
                 {% if page and page.extra.kind | default(value=false) %}<span class="docs-kind">{{ page.extra.kind }}</span>{% endif %}
@@ -117,12 +99,12 @@
             <article class="docs-article">
                 {% block docs_content %}{% endblock docs_content %}
             </article>
-        </main>
+            {#- V4 docs pages had no comments. A docs root turns them on with docs_comments = true. -#}
+            {%- if docs_root and docs_root.extra.docs_comments | default(value=false) and page and page.extra.comments | default(value=true) %}{% include "comments.html" %}{% endif %}
+        </div>
 
     </div>
 {% endblock content %}
-
-{% block page_feature_scripts %}{% endblock page_feature_scripts %}
 
 {% block extra_body %}
     {{ super() }}
@@ -130,10 +112,9 @@
 {% endblock extra_body %}
 
 {% block footer %}
-<footer class="docs-footer">
+<nav class="dw-shell docs-footer" aria-label="{{ docs_project_name }}">
     <a href="{{ docs_project_url | safe }}">{{ docs_project_name }}</a>
-    <span>·</span>
-    <a href="{{ get_url(path='@/_index.md') }}">{{ config.title }}</a>
     {% if docs_repository_url %}<span>·</span><a href="{{ docs_repository_url | safe }}">Source</a>{% endif %}
-</footer>
+</nav>
+{{ super() }}
 {% endblock footer %}

@@ -1,0 +1,137 @@
+// Design tokens. Override them in sass/brand.sass, or set `palette`/`accent` in config.toml.
+// Everything else in the template reads these; nothing hard-codes a color.
+
+:root
+  // Surfaces, darkest first
+  --dw-bg-0: #110d18
+  --dw-bg-1: #161120
+  --dw-bg-2: #1d1629
+  --dw-bg-3: #271d37
+
+  // Text
+  --dw-text: #e7dfef
+  --dw-text-muted: #b6a9c6
+  --dw-text-faint: #8d809f
+
+  // Lines
+  --dw-line: #33274a
+  --dw-line-strong: #4e3b6b
+
+  // Accent: one value, the rest is derived so a single override stays coherent
+  --dw-accent: #c6a0f6
+  --dw-accent-strong: color-mix(in oklab, var(--dw-accent) 62%, #3a1066)
+  --dw-accent-soft: color-mix(in oklab, var(--dw-accent) 16%, var(--dw-bg-1))
+  --dw-accent-line: color-mix(in oklab, var(--dw-accent) 45%, var(--dw-line))
+  --dw-accent-hover: color-mix(in oklab, var(--dw-accent) 70%, white)
+
+  // Status semantics
+  --dw-ok: #8fdcb0
+  --dw-warn: #ecd18f
+  --dw-danger: #ffaea2
+  --dw-info: #9cc7ff
+  --dw-neutral: #c2b7ce
+  --dw-focus: #b3ead7
+
+  // Type
+  --dw-font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif
+  --dw-font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace
+  --dw-font-display: var(--dw-font-mono)
+  --dw-size-base: 15.5px
+  --dw-leading: 1.62
+
+  // Space and shape
+  --dw-gap: 1rem
+  --dw-radius: 3px
+  --dw-width-page: 1600px
+  --dw-width-prose: 74ch
+  --dw-width-rail: 20rem
+
+  // Code
+  --dw-code-bg: #1a1424
+  --dw-code-inline-bg: #241b31
+
+  color-scheme: dark
+
+[data-palette="teal"]
+  --dw-accent: #7fded0
+  --dw-bg-0: #0c1214
+  --dw-bg-1: #10181b
+  --dw-bg-2: #152024
+  --dw-bg-3: #1c2b30
+  --dw-line: #22363b
+  --dw-line-strong: #325059
+  --dw-text: #dcecea
+  --dw-text-muted: #a3bcb9
+  --dw-text-faint: #7d9794
+  --dw-code-bg: #111c1f
+  --dw-code-inline-bg: #182a2e
+
+[data-palette="gold"]
+  --dw-accent: #ecc978
+  --dw-bg-0: #13100b
+  --dw-bg-1: #19150e
+  --dw-bg-2: #211b12
+  --dw-bg-3: #2c2418
+  --dw-line: #3a301f
+  --dw-line-strong: #574829
+  --dw-text: #efe6d6
+  --dw-text-muted: #c4b69c
+  --dw-text-faint: #998c74
+  --dw-code-bg: #1d1810
+  --dw-code-inline-bg: #282116
+
+[data-palette="ember"]
+  --dw-accent: #ff9d7a
+  --dw-bg-0: #140d0c
+  --dw-bg-1: #1b1110
+  --dw-bg-2: #231615
+  --dw-bg-3: #2e1d1b
+  --dw-line: #3d2723
+  --dw-line-strong: #5c3a33
+  --dw-text: #f1e1dd
+  --dw-text-muted: #c9aca5
+  --dw-text-faint: #9d837c
+  --dw-code-bg: #1f1413
+  --dw-code-inline-bg: #2b1c1a
+
+[data-palette="moss"]
+  --dw-accent: #b7d98c
+  --dw-bg-0: #0e110c
+  --dw-bg-1: #131710
+  --dw-bg-2: #191f15
+  --dw-bg-3: #222a1c
+  --dw-line: #2d3825
+  --dw-line-strong: #435436
+  --dw-text: #e3ebdc
+  --dw-text-muted: #b2c0a6
+  --dw-text-faint: #88967d
+  --dw-code-bg: #161c12
+  --dw-code-inline-bg: #1f271a
+
+// Umber: near-black browns, parchment and burnished copper, between Quake's rust and Morrowind's
+// bronze interface.
+[data-palette="umber"]
+  --dw-accent: #d99a5b
+  --dw-bg-0: #110d09
+  --dw-bg-1: #17120d
+  --dw-bg-2: #1f1811
+  --dw-bg-3: #292016
+  --dw-line: #3a2d1f
+  --dw-line-strong: #57432e
+  --dw-text: #ece2d0
+  --dw-text-muted: #c2b196
+  --dw-text-faint: #978670
+  --dw-code-bg: #1b150f
+  --dw-code-inline-bg: #261e15
+
+// Names the shared docs shell and the St4sh schematic styles were written against. Kept so
+// those files stay recognizable to the repositories that import them.
+:root, [data-palette]
+  --accent: var(--dw-accent)
+  --accent-alpha-70: var(--dw-accent-line)
+  --accent-alpha-20: var(--dw-accent-soft)
+  --border-color: var(--dw-line)
+  --color: var(--dw-text)
+  --background: var(--dw-bg-1)
+  --link-color: var(--dw-accent)
+  --link-hover-color: var(--dw-accent-hover)

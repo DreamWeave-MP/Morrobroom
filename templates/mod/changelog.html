@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
+{% import "macros/project.html" as project_model %}
+
+{#- CI writes content/<project>/_changelog.md for every project (it is gitignored), so each has a
+    changelog page. Under a plain `zola serve` there is none, and the project page lists every
+    release itself. -#}
+{%- block model %}
+{%- set_global project = false %}
+{%- set_global ci = false %}
+{%- set project_path = page.extra.project | default(value="") %}
+{%- if project_path %}
+{%- if dw and project_path in dw.projects %}{% set_global ci = dw.projects[project_path] %}{% endif %}
+{%- set project_page = get_page(path=project_path ~ "index.md") %}
+{%- set model_text = project_model::model(path=project_path, page=project_page, ci=ci) %}
+{%- set_global project = load_data(literal=model_text, format="json") %}
+{%- endif %}
+{%- endblock model %}
+
+{%- block content %}
+{%- if project %}
+{%- set project_url = get_url(path=project.page_path) %}
+<header class="dw-hero">
+    <div class="dw-shell">
+        <p class="dw-kicker"><span><a href="{{ project_url | safe }}">{{ project.name }}</a></span><span>Changelog</span></p>
+        <h1 class="dw-hero__title">Changelog</h1>
+        <p class="dw-hero__summary">Every release of {{ project.name }}, newest first.{% if not dw_offline %} A release marked <em>unreleased</em> is declared in mod.toml and published when its tag is pushed.{% endif %}</p>
+    </div>
+</header>
+<div class="dw-shell"><div class="dw-article">
+    {%- if not dw_offline and project.heads.development is defined %}
+    {%- set development = project.heads.development %}
+    <section class="dw-section" aria-labelledby="development-title">
+        <div class="dw-section__head"><h2 id="development-title">Development build</h2><p>rebuilt from the default branch</p></div>
+        <ol class="dw-releases">
+            <li class="dw-release dw-release--development">
+                <h3><span>{{ development.version }}</span><span class="dw-badge dw-badge--info">development</span><span class="dw-release__meta">{{ development.date }}</span></h3>
+                <p class="dw-release__summary">Whatever is on the default branch right now. It may be ahead of the last release, and it may be broken.</p>
+                {%- for artifact in development.artifacts %}{{ dw_macros::artifact(artifact=artifact, release=development, project=project) }}{% endfor %}
+            </li>
+        </ol>
+    </section>
+    {%- endif %}
+
+    <section class="dw-section" aria-labelledby="releases-title">
+        <div class="dw-section__head"><h2 id="releases-title">Releases</h2><p>{{ project.declared_releases | length }} declared</p></div>
+        {%- if project.declared_releases | length == 0 %}
+        <p>No releases yet.</p>
+        {%- else %}
+        <ol class="dw-releases">
+        {%- for declared in project.declared_releases %}
+            {%- set published = false %}
+            {%- if not dw_offline %}
+            {%- set matches = project.releases | filter(attribute="version", value=declared.version) %}
+            {%- if matches | length > 0 %}{% set published = matches | first %}{% endif %}
+            {%- endif %}
+            {{ dw_macros::release_entry(declared=declared, published=published, project=project) }}
+        {%- endfor %}
+        </ol>
+        {%- endif %}
+    </section>
+</div></div>
+{%- else %}
+<div class="dw-shell"><div class="dw-article">
+    <h1>{{ page.title }}</h1>
+    <p>This page's <code>extra.project</code> does not name a project directory.</p>
+</div></div>
+{%- endif %}
+{%- endblock content %}

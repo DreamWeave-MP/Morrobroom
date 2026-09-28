@@ -1,0 +1,209 @@
+// Element defaults. Mono carries structure (headings, labels, metadata); sans carries reading.
+
+*, *::before, *::after
+  box-sizing: border-box
+
+html
+  font-size: var(--dw-size-base)
+  scrollbar-color: var(--dw-accent-line) var(--dw-bg-0)
+  scrollbar-width: thin
+  -webkit-text-size-adjust: 100%
+
+body
+  margin: 0
+  min-height: 100vh
+  background: var(--dw-bg-0)
+  color: var(--dw-text)
+  font-family: var(--dw-font-body)
+  line-height: var(--dw-leading)
+  text-rendering: optimizeLegibility
+
+h1, h2, h3, h4, h5, h6
+  margin: 1.6em 0 .55em
+  font-family: var(--dw-font-display)
+  font-weight: 700
+  line-height: 1.25
+  letter-spacing: -.01em
+  text-wrap: balance
+
+h1
+  font-size: clamp(1.75rem, 3.2vw, 2.4rem)
+
+h2
+  font-size: 1.3rem
+
+h3
+  font-size: 1.08rem
+
+h4, h5, h6
+  font-size: 1rem
+
+p, ul, ol, dl, table, pre, blockquote, figure
+  margin: 0 0 1em
+
+a
+  color: var(--dw-accent)
+  text-decoration-thickness: 1px
+  text-underline-offset: .2em
+
+  &:hover
+    color: var(--dw-accent-hover)
+
+:focus-visible
+  outline: 2px solid var(--dw-focus)
+  outline-offset: 2px
+
+::selection
+  background: var(--dw-accent-strong)
+  color: #fff
+
+img, video
+  max-width: 100%
+  height: auto
+
+hr
+  border: 0
+  border-top: 1px solid var(--dw-line)
+  margin: 2em 0
+
+code, kbd, samp, pre
+  font-family: var(--dw-font-mono)
+  font-size: .88em
+
+code
+  background: var(--dw-code-inline-bg)
+  border-radius: var(--dw-radius)
+  padding: .1em .3em
+  overflow-wrap: anywhere
+
+kbd
+  border: 1px solid var(--dw-line-strong)
+  border-bottom-width: 2px
+  border-radius: var(--dw-radius)
+  padding: .05em .35em
+  background: var(--dw-bg-2)
+
+pre
+  position: relative
+  overflow-x: auto
+  border: 1px solid var(--dw-line)
+  border-left: 3px solid var(--dw-accent-line)
+  border-radius: var(--dw-radius)
+  padding: .9em 1em
+  background: var(--dw-code-bg) !important
+  line-height: 1.5
+  tab-size: 2
+
+  code
+    background: none
+    padding: 0
+    font-size: 1em
+    overflow-wrap: normal
+
+pre[data-lang]::before
+  content: attr(data-lang)
+  position: absolute
+  top: 0
+  right: 0
+  padding: .1em .6em
+  border-left: 1px solid var(--dw-line)
+  border-bottom: 1px solid var(--dw-line)
+  color: var(--dw-text-faint)
+  font-size: .72em
+  text-transform: lowercase
+
+blockquote
+  border-left: 3px solid var(--dw-accent-line)
+  padding: .2em 1em
+  color: var(--dw-text-muted)
+
+  > :last-child
+    margin-bottom: 0
+
+table
+  width: 100%
+  border-collapse: collapse
+  font-size: .9rem
+
+th, td
+  border: 1px solid var(--dw-line)
+  padding: .5em .75em
+  vertical-align: top
+  text-align: left
+  overflow-wrap: break-word
+
+  code
+    overflow-wrap: normal
+
+th
+  background: var(--dw-bg-2)
+  font-family: var(--dw-font-mono)
+  font-size: .82em
+  font-weight: 600
+  letter-spacing: .02em
+
+tbody tr:nth-child(even)
+  background: color-mix(in oklab, var(--dw-bg-1) 60%, var(--dw-bg-0))
+
+details > summary
+  cursor: pointer
+
+summary:focus-visible
+  outline-offset: 0
+
+dl
+  margin: 0
+
+dd
+  margin: 0
+
+button, input, select, textarea
+  font: inherit
+  color: inherit
+
+[hidden]
+  display: none !important
+
+.zola-anchor
+  margin-left: .35em
+  color: var(--dw-line-strong)
+  font-weight: 400
+  text-decoration: none
+  opacity: 0
+
+  &:focus-visible
+    opacity: 1
+
+:is(h2, h3, h4):hover .zola-anchor
+  opacity: 1
+  color: var(--dw-accent-line)
+
+@media (hover: none)
+  .zola-anchor
+    opacity: .6
+
+@media (prefers-reduced-motion: reduce)
+  *, *::before, *::after
+    animation-duration: 0s !important
+    transition-duration: 0s !important
+    scroll-behavior: auto !important
+
+.dw-visually-hidden
+  position: absolute !important
+  width: 1px
+  height: 1px
+  overflow: hidden
+  clip: rect(0 0 0 0)
+  white-space: nowrap
+
+.dw-skip-link
+  position: absolute
+  left: 1rem
+  top: -100px
+  z-index: 50
+  padding: .5em 1em
+  background: var(--dw-bg-3)
+  color: var(--dw-text)
+
+  &:focus
+    top: 1rem

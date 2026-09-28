@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{%- block content %}
+<div class="dw-shell"><div class="dw-article">
+    <p class="dw-kicker"><span><a href="{{ get_url(path=taxonomy.name) | safe }}">{{ taxonomy.name }}</a></span><span>{{ term.pages | length }} page{{ term.pages | length | pluralize }}</span></p>
+    <h1>#{{ term.name }}</h1>
+    <ol class="dw-catalog">
+    {%- for item in term.pages %}
+        <li class="dw-catalog__row">
+            <h2 class="dw-catalog__name"><a href="{{ item.permalink | safe }}">{{ item.title }}</a></h2>
+            <p class="dw-catalog__summary">{{ item.description | default(value="") }}</p>
+            <div class="dw-catalog__facts"></div>
+        </li>
+    {%- endfor %}
+    </ol>
+</div></div>
+{%- endblock content %}

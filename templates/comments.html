@@ -1,0 +1,37 @@
+{#- Comments are GitHub Discussions on this site's repository, loaded live in the reader's browser by
+    giscus. The build only supplies the repository's and category's ids (see tools/dreamweave/comments.py);
+    no comment text is ever part of the site. The repository name is safe to emit unescaped because
+    ./buildSite refuses github_username/github_project values that are not GitHub names. -#}
+{%- if dw and not dw_offline and dw.comments is defined and dw.comments.state == "on" %}
+{#- giscus's iframe is on a public origin, and browsers block it from fetching anything on your machine
+    (Private Network Access), so a local preview cannot show a custom theme. It gets GitHub's dark one. -#}
+{%- set comments_palette = config.extra.palette | default(value="purple") %}
+{%- if dw.comments.theme %}{% set comments_theme = dw.comments.theme %}
+{%- elif config.base_url is starting_with("https://") %}{% set comments_theme = get_url(path="giscus/" ~ comments_palette ~ ".css", trailing_slash=false) %}
+{%- else %}{% set comments_theme = "dark_dimmed" %}{% endif %}
+<section class="dw-section dw-comments" id="comments" aria-labelledby="comments-title">
+    <div class="dw-section__head">
+        <h2 id="comments-title">Discussion</h2>
+        <p><a href="https://github.com/{{ dw.comments.repo | safe }}/discussions">GitHub Discussions</a> · sign in with GitHub to join in</p>
+    </div>
+    {%- if comments_theme == "dark_dimmed" and not dw.comments.theme %}
+    <p class="dw-comments__preview">Local preview: browsers do not let giscus load a theme from your machine, so this is GitHub's dark theme. The published site uses <code>giscus/{{ comments_palette }}.css</code>.</p>
+    {%- endif %}
+    <script src="https://giscus.app/client.js"
+        data-repo="{{ dw.comments.repo | safe }}"
+        data-repo-id="{{ dw.comments.repo_id }}"
+        data-category="{{ dw.comments.category }}"
+        data-category-id="{{ dw.comments.category_id }}"
+        data-mapping="{{ dw.comments.mapping }}"
+        data-strict="0"
+        data-reactions-enabled="{% if dw.comments.reactions %}1{% else %}0{% endif %}"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="{{ comments_theme | safe }}"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async></script>
+    <noscript><p>The discussion loads from GitHub with JavaScript. Read it on <a href="https://github.com/{{ dw.comments.repo | safe }}/discussions">GitHub Discussions</a> instead.</p></noscript>
+</section>
+{%- endif %}

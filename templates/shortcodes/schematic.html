@@ -1,0 +1,123 @@
+{% if data_path %}
+{% set schematic = load_data(path=data_path, format="json") %}
+{% else %}
+{% set schematic = data %}
+{% endif %}
+{% set schematic_id = schematic.id | default(value="docs-schematic") %}
+{% set mode = schematic.mode | default(value="flow") %}
+{% set direction = schematic.direction | default(value="vertical") %}
+{% set has_support_nodes = false %}
+{% for node in schematic.nodes %}
+{% if node.role | default(value="main") == "support" %}{% set_global has_support_nodes = true %}{% endif %}
+{% endfor %}
+{% set show_connections = false %}
+{% if schematic.relationships | default(value="auto") == "always" %}{% set show_connections = true %}{% endif %}
+{% for edge in schematic.edges %}
+{% if edge.label or edge.kind | default(value="normal") != "normal" %}
+{% set_global show_connections = true %}
+{% else %}
+{% set_global edge_from_index = -1 %}
+{% set_global edge_to_index = -1 %}
+{% for node in schematic.nodes %}
+{% if node.role | default(value="main") != "support" and node.id == edge.from %}{% set_global edge_from_index = loop.index0 %}{% endif %}
+{% if node.role | default(value="main") != "support" and node.id == edge.to %}{% set_global edge_to_index = loop.index0 %}{% endif %}
+{% endfor %}
+{% if edge_from_index >= 0 and edge_to_index != edge_from_index + 1 %}{% set_global show_connections = true %}{% endif %}
+{% endif %}
+{% endfor %}
+<figure class="docs-schematic docs-schematic--{{ mode }} docs-schematic--{{ direction }}{% if has_support_nodes %} docs-schematic--with-support{% else %} docs-schematic--without-support{% endif %}" aria-labelledby="{{ schematic_id | escape | safe }}-title">
+  <figcaption class="docs-schematic__caption">
+    {% if schematic.heading_level | default(value=2) == 3 %}
+    <h3 id="{{ schematic_id | escape | safe }}-title">{{ schematic.title | escape | safe }}</h3>
+    {% else %}
+    <h2 id="{{ schematic_id | escape | safe }}-title">{{ schematic.title | escape | safe }}</h2>
+    {% endif %}
+    {% if schematic.description %}<p>{{ schematic.description | escape | safe }}</p>{% endif %}
+  </figcaption>
+
+  <div class="docs-schematic__canvas{% if has_support_nodes %} docs-schematic__canvas--with-support{% else %} docs-schematic__canvas--without-support{% endif %}">
+    <ol class="docs-schematic__nodes" aria-label="Main flow">
+      {% for node in schematic.nodes %}
+      {% if node.role | default(value="main") != "support" %}
+      <li class="docs-schematic__node docs-schematic__node--{{ node.kind | default(value="component") | escape | safe }}">
+        <span class="docs-schematic__kind">{{ node.kind | default(value="component") | escape | safe }}</span>
+        {% if node.page %}
+        <a class="docs-schematic__title" href="{{ get_url(path=node.page) }}">{{ node.title | escape | safe }}</a>
+        {% elif node.url %}
+        <a class="docs-schematic__title" href="{{ node.url | escape | safe }}">{{ node.title | escape | safe }}</a>
+        {% else %}
+        <h3 class="docs-schematic__title">{{ node.title | escape | safe }}</h3>
+        {% endif %}
+        {% if node.detail %}<p>{{ node.detail | escape | safe }}</p>{% endif %}
+        {% if node.links %}
+        <ul class="docs-schematic__receipts" aria-label="{{ node.title | escape | safe }} references">
+          {% for link in node.links %}
+          <li>
+            {% if link.page %}<a href="{{ get_url(path=link.page) }}">{{ link.label | escape | safe }}</a>{% elif link.url %}<a href="{{ link.url | escape | safe }}">{{ link.label | escape | safe }}</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ol>
+
+    {% if has_support_nodes %}
+    <div class="docs-schematic__support" aria-label="Supporting systems">
+      {% for node in schematic.nodes %}
+      {% if node.role | default(value="main") == "support" %}
+      <article class="docs-schematic__node docs-schematic__node--{{ node.kind | default(value="component") | escape | safe }}">
+        <span class="docs-schematic__kind">{{ node.kind | default(value="component") | escape | safe }}</span>
+        {% if node.page %}
+        <a class="docs-schematic__title" href="{{ get_url(path=node.page) }}">{{ node.title | escape | safe }}</a>
+        {% elif node.url %}
+        <a class="docs-schematic__title" href="{{ node.url | escape | safe }}">{{ node.title | escape | safe }}</a>
+        {% else %}
+        <h3 class="docs-schematic__title">{{ node.title | escape | safe }}</h3>
+        {% endif %}
+        {% if node.detail %}<p>{{ node.detail | escape | safe }}</p>{% endif %}
+        {% if node.links %}
+        <ul class="docs-schematic__receipts" aria-label="{{ node.title | escape | safe }} references">
+          {% for link in node.links %}
+          <li>
+            {% if link.page %}<a href="{{ get_url(path=link.page) }}">{{ link.label | escape | safe }}</a>{% elif link.url %}<a href="{{ link.url | escape | safe }}">{{ link.label | escape | safe }}</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </article>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if schematic.edges %}
+  <details class="docs-schematic__connections"{% if show_connections %} open{% endif %}>
+    <summary>How the pieces relate</summary>
+    <ul>
+      {% for edge in schematic.edges %}
+      <li class="docs-schematic__connection docs-schematic__connection--{{ edge.kind | default(value="normal") | escape | safe }}">
+        <span class="docs-schematic__endpoint">
+          {% for node in schematic.nodes %}{% if node.id == edge.from %}{{ node.title | escape | safe }}{% endif %}{% endfor %}
+        </span>
+        {% if edge.label %}<span class="docs-schematic__edge-label">{{ edge.label | escape | safe }}</span>{% endif %}
+        <span class="docs-schematic__arrow" aria-hidden="true">→</span>
+        <span class="docs-schematic__endpoint">
+          {% for node in schematic.nodes %}{% if node.id == edge.to %}{{ node.title | escape | safe }}{% endif %}{% endfor %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% if schematic.legend %}
+  <ul class="docs-schematic__legend" aria-label="Diagram key">
+    {% for item in schematic.legend %}
+    <li><span class="docs-schematic__legend-swatch docs-schematic__legend-swatch--{{ item.kind | escape | safe }}"></span>{{ item.label | escape | safe }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</figure>

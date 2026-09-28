@@ -1,0 +1,79 @@
+{#- The record rail beside a project page: identity, downloads, links, machine-readable data. -#}
+<aside class="dw-project__rail" aria-label="Project record">
+    <section class="dw-panel">
+        <h2 class="dw-panel__title">Record</h2>
+        <div class="dw-panel__body">
+            <dl class="dw-record">
+                <dt>Id</dt><dd class="dw-id" title="{{ project.id }}">{{ project.id | truncate(length=8, end="") }}… <button class="dw-copy" type="button" data-copy="{{ project.id }}" aria-label="Copy project id">Copy</button></dd>
+                <dt>Slug</dt><dd><code>{{ project.slug }}</code></dd>
+                <dt>Type</dt><dd>{{ dw_macros::type_label(type=project.type) }}</dd>
+                <dt>Status</dt><dd>{{ dw_macros::status(state=project.status) }}</dd>
+                <dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}</dd>
+                {%- if not dw_offline %}
+                {%- for channel in project.channel_order %}
+                <dt>{{ channel | capitalize }}</dt><dd>{{ project.heads[channel].version }}</dd>
+                {%- endfor %}
+                {%- endif %}
+            </dl>
+        </div>
+    </section>
+
+    {%- if not dw_offline and project.channel_order | length > 0 %}
+    <section class="dw-panel">
+        <h2 class="dw-panel__title">Downloads</h2>
+        <div class="dw-panel__body">
+        {%- for channel in project.channel_order %}
+            {%- set release = project.heads[channel] %}
+            <p class="dw-kicker"><span>{{ channel }}</span><span>{{ release.version }}</span>{% if release.date is defined %}<span>{{ release.date }}</span>{% endif %}</p>
+            {%- for artifact in release.artifacts %}
+            {{ dw_macros::artifact(artifact=artifact, release=release, project=project, primary=channel == "stable") }}
+            {%- endfor %}
+        {%- endfor %}
+        </div>
+    </section>
+    {%- endif %}
+
+    <section class="dw-panel">
+        <h2 class="dw-panel__title">Links</h2>
+        <div class="dw-panel__body">
+            <ul class="dw-linklist">
+                {%- if project.links.documentation is defined %}<li><a href="{{ project.links.documentation | safe }}"><span>Documentation</span></a></li>{% endif %}
+                {%- if changelog_page and project.declared_releases | length > 0 %}<li><a href="{{ changelog_url | safe }}"><span>Changelog</span><small>{{ project.declared_releases | length }}</small></a></li>{% endif %}
+                <li><a href="{{ project.links.source | safe }}"><span>Source</span></a></li>
+                <li><a href="{{ project.links.issues | safe }}"><span>Report a problem</span></a></li>
+                {%- if not dw_offline and dw.comments is defined and dw.comments.state == "on" %}<li><a href="#comments"><span>Discussion</span></a></li>{% endif %}
+                {%- if project.links.support is defined %}<li><a href="{{ project.links.support | safe }}"><span>Support</span></a></li>{% endif %}
+                {%- if project.nexusmods %}<li><a href="https://www.nexusmods.com/{{ project.nexusmods.game }}/mods/{{ project.nexusmods.mod_id }}"><span>Nexus Mods</span><small>{{ project.nexusmods.mod_id }}</small></a></li>{% endif %}
+                {%- if project.links.donate is defined %}<li><a href="{{ project.links.donate | safe }}"><span>Support the author</span></a></li>{% endif %}
+            </ul>
+        </div>
+    </section>
+
+    {%- if relationships.required_by | default(value=[]) | length > 0 or relationships.recommended_by | default(value=[]) | length > 0 %}
+    <section class="dw-panel">
+        <h2 class="dw-panel__title">Used by</h2>
+        <div class="dw-panel__body">
+            <ul class="dw-linklist">
+            {%- for item in relationships.required_by | default(value=[]) %}<li><a href="{{ get_url(path=item.page_path) | safe }}"><span>{{ item.display_name }}</span><small>requires{% if item.version is defined %} {{ item.version }}{% endif %}</small></a></li>{% endfor %}
+            {%- for item in relationships.recommended_by | default(value=[]) %}<li><a href="{{ get_url(path=item.page_path) | safe }}"><span>{{ item.display_name }}</span><small>recommends</small></a></li>{% endfor %}
+            </ul>
+        </div>
+    </section>
+    {%- endif %}
+
+    {%- if not dw_offline %}
+    <section class="dw-panel">
+        <h2 class="dw-panel__title">Machine-readable</h2>
+        <div class="dw-panel__body">
+            <ul class="dw-linklist">
+                <li><a href="{{ project.manifest_url | safe }}"><span>Project manifest</span><small>json</small></a></li>
+                <li><a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}"><span>Site index</span><small>json</small></a></li>
+                {%- set network_page = load_data(path="content/network.md", format="plain", required=false) %}
+                {%- if network_page %}
+                <li><a href="{{ get_url(path='@/network.md') | safe }}#{{ project.slug }}"><span>Distribution metadata</span><small>checks</small></a></li>
+                {%- endif %}
+            </ul>
+        </div>
+    </section>
+    {%- endif %}
+</aside>

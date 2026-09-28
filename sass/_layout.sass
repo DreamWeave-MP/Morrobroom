@@ -1,0 +1,171 @@
+// Page chrome: shell, header, footer, the article column and the project two-column grid.
+
+.dw-shell
+  width: 100%
+  max-width: var(--dw-width-page)
+  margin: 0 auto
+  padding: 0 clamp(12px, 3vw, 32px)
+
+.dw-header
+  position: relative
+  z-index: 10
+  border-top: 3px solid var(--dw-accent-strong)
+  border-bottom: 1px solid var(--dw-line)
+  background: var(--dw-bg-1)
+
+.dw-header__inner
+  display: grid
+  grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 22rem)
+  gap: 1rem 1.5rem
+  align-items: center
+  min-height: 3.6rem
+
+.dw-brand
+  display: inline-flex
+  gap: .6em
+  align-items: center
+  color: var(--dw-text)
+  font-family: var(--dw-font-display)
+  font-weight: 700
+  letter-spacing: -.02em
+  text-decoration: none
+  white-space: nowrap
+
+  img
+    width: 26px
+    height: 26px
+
+  &:hover
+    color: var(--dw-accent-hover)
+
+.dw-brand__mark
+  display: inline-block
+  width: .7em
+  height: .7em
+  border: 2px solid var(--dw-accent)
+  transform: rotate(45deg)
+
+.dw-nav
+  display: flex
+  flex-wrap: wrap
+  gap: .15rem .25rem
+  font-family: var(--dw-font-mono)
+  font-size: .82rem
+
+  a
+    padding: .35em .6em
+    border-radius: var(--dw-radius)
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover
+      background: var(--dw-bg-3)
+      color: var(--dw-text)
+
+    &[aria-current="page"]
+      color: var(--dw-accent)
+      box-shadow: inset 0 -2px 0 var(--dw-accent)
+
+.dw-main
+  display: block
+  padding: 1.5rem 0 3rem
+
+  // A hero is the top of its page: no gap between it and the header.
+  > .dw-hero:first-child
+    margin-top: -1.5rem
+
+.dw-footer
+  border-top: 1px solid var(--dw-line)
+  background: var(--dw-bg-1)
+  color: var(--dw-text-faint)
+  font-size: .82rem
+
+.dw-footer__inner
+  display: flex
+  flex-wrap: wrap
+  gap: .5rem 1.5rem
+  align-items: center
+  justify-content: space-between
+  padding-block: 1.1rem
+
+.dw-footer__links
+  display: flex
+  flex-wrap: wrap
+  gap: .3rem 1rem
+  font-family: var(--dw-font-mono)
+
+  a
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover
+      color: var(--dw-accent)
+
+.dw-footer__emblem
+  width: 20px
+  height: 20px
+  opacity: .7
+  vertical-align: middle
+
+// Reading column for articles and generic pages
+.dw-article
+  max-width: calc(var(--dw-width-prose) + 18rem)
+
+.dw-prose
+  > p, > ul, > ol, > blockquote, > dl, > h2, > h3, > h4, > h5, > h6
+    max-width: var(--dw-width-prose)
+
+  > h2
+    padding-bottom: .3em
+    border-bottom: 1px solid var(--dw-line)
+
+  li + li
+    margin-top: .25em
+
+  > table
+    display: block
+    overflow-x: auto
+
+  img
+    border-radius: var(--dw-radius)
+
+// Project page: reading column plus a sticky record rail
+.dw-project__body
+  display: grid
+  grid-template-columns: minmax(0, 1fr) var(--dw-width-rail)
+  gap: 2.25rem
+  align-items: start
+  margin-top: 1.75rem
+
+.dw-project__main
+  min-width: 0
+
+.dw-project__rail
+  position: sticky
+  top: 1rem
+  display: grid
+  gap: 1rem
+  min-width: 0
+
+@media (max-width: 1100px)
+  .dw-project__body
+    grid-template-columns: minmax(0, 1fr)
+
+  // Below the page, not above it: the hero already offers the download, and on a phone the
+  // record and links would push what the mod is off the first screen.
+  .dw-project__rail
+    position: static
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))
+
+@media (max-width: 860px)
+  .dw-header__inner
+    grid-template-columns: minmax(0, 1fr) auto
+    padding-block: .6rem
+
+  .dw-nav
+    grid-column: 1 / -1
+    grid-row: 2
+
+  .dw-header .dw-search
+    grid-column: 1 / -1
+    grid-row: 3

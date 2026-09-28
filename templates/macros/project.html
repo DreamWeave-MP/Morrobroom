@@ -1,0 +1,364 @@
+{#- The project model, assembled from files Zola reads by itself: mod.toml, mod.lock and the
+    page's frontmatter. `zola serve` therefore shows a project page as the site will, with nothing
+    else to run. tools/dreamweave/model.py reads the same files in CI to validate them and write the
+    manifests; its defaults and these must agree, and the tests render both and compare.
+
+    Tera has no dict literals, so a model is written out as JSON and parsed back:
+
+        {% set text = project_model::model(path=page.colocated_path, page=page, ci=ci, index=index) %}
+        {% set project = load_data(literal=text, format="json") %}
+
+    `ci` is what only CI knows, from static/dreamweave/view.json when a CI build wrote it: the
+    development build, tags that were never recorded, and which version offline documentation is
+    packaged with. Without it the page shows everything mod.toml and mod.lock say.
+
+    `index` is every project on the site (see index() below), for naming related projects and
+    listing the projects that use this one.
+
+    Import this file as `project_model`: its macros call each other through that name, as the
+    docs sidebar does, because `self::` only resolves in the first file a child template imports. -#}
+
+{% macro model(path, page, ci=false, index=false) -%}
+{%- set m = load_data(path="content/" ~ path ~ "mod.toml") -%}
+{%- set offline = config.extra.dreamweave_offline | default(value=false) -%}
+{%- set repository = "https://github.com/" ~ config.extra.github_username ~ "/" ~ config.extra.github_project -%}
+{%- set id = m.id | default(value="") -%}
+{%- set slug = m.slug | default(value="") -%}
+{%- set game = m.game | default(value="morrowind") -%}
+
+{#- The published releases: mod.lock, which CI writes when a release tag is pushed. Offline
+    documentation never reads it, so an archive's bytes depend only on what its tag holds. -#}
+{%- set records = [] -%}
+{%- if not offline -%}
+  {%- set lock = load_data(path="content/" ~ path ~ "mod.lock", format="json", required=false) -%}
+  {%- if lock and lock.project == id %}{% set records = lock.releases | default(value=[]) %}{% endif -%}
+{%- endif -%}
+{%- set recorded_versions = records | map(attribute="version") -%}
+{%- set all_declared = m.releases | default(value=[]) -%}
+{#- Newest first. CI checks that dates and versions agree within a channel. -#}
+{%- set declared = all_declared | filter(attribute="date") | sort(attribute="date") | reverse -%}
+{%- set declared_versions = declared | map(attribute="version") -%}
+{%- set unverified = [] -%}
+{%- if ci and ci.unverified is defined %}{% set unverified = ci.unverified %}{% endif -%}
+{%- set mirrors = m.mirrors | default(value=[]) -%}
+{%- set sigstore = m.provenance.sigstore | default(value=false) -%}
+
+{%- set components_text = project_model::components(m=m, name=page.title) -%}
+{%- set components = load_data(literal=components_text, format="json") -%}
+{%- set optional = components | filter(attribute="required", value=false) -%}
+
+{"id": {{ id | json_encode | safe }},
+ "slug": {{ slug | json_encode | safe }},
+ "name": {{ page.title | json_encode | safe }},
+ "summary": {% if page.description %}{{ page.description | json_encode | safe }}{% else %}null{% endif %},
+ "tags": {{ page.taxonomies.tags | default(value=[]) | json_encode | safe }},
+ "type": {{ m.type | default(value="mod") | json_encode | safe }},
+ "status": {{ m.status | default(value="active") | json_encode | safe }},
+ "versioning": {{ m.versioning | default(value="numeric") | json_encode | safe }},
+ "game": {{ game | json_encode | safe }},
+ "license": {% if m.license is defined %}{{ m.license | json_encode | safe }}{% else %}null{% endif %},
+ "page_path": {{ path | json_encode | safe }},
+ "manifest_url": {{ get_url(path="dreamweave/projects/" ~ id ~ ".json", trailing_slash=false) | json_encode | safe }},
+ "format": {{ m.package.format | default(value="flat") | json_encode | safe }},
+ {%- if m.package.format is defined and m.package.format == "binary" %}
+ "documentation_packaged": false,
+ "binary": {{ m.package.binary | default(value="") | json_encode | safe }},
+ "include": {{ m.package.include | default(value=[]) | json_encode | safe }},
+ {%- else %}
+ "documentation_packaged": {{ m.package.documentation | default(value=true) | json_encode | safe }},
+ {%- endif %}
+ "maintainers": [
+  {%- for person in m.maintainers | default(value=[]) -%}
+  {%- if not loop.first %},{% endif %}{"name": {{ person.name | default(value="") | json_encode | safe }}{% if person.url is defined %}, "url": {{ person.url | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+ ],
+ "credits": [
+  {%- for credit in m.credits | default(value=[]) -%}
+  {%- if not loop.first %},{% endif %}{"name": {{ credit.name | default(value="") | json_encode | safe }}{% if credit.role is defined %}, "role": {{ credit.role | json_encode | safe }}{% endif %}{% if credit.url is defined %}, "url": {{ credit.url | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+ ],
+ "links": {
+  "source": {% if m.links.source is defined %}{{ m.links.source | json_encode | safe }}{% else %}{{ repository | json_encode | safe }}{% endif %},
+  {%- set issues = repository ~ "/issues" %}
+  "issues": {% if m.links.issues is defined %}{{ m.links.issues | json_encode | safe }}{% else %}{{ issues | json_encode | safe }}{% endif %}
+  {%- if m.links.documentation is defined -%}
+    {%- if m.links.documentation is starting_with("@/") %}{% set documentation = get_url(path=m.links.documentation) %}{% else %}{% set documentation = m.links.documentation %}{% endif -%}
+    , "documentation": {{ documentation | json_encode | safe }}
+  {%- endif -%}
+  {%- if m.links.support is defined %}, "support": {{ m.links.support | json_encode | safe }}{% endif -%}
+  {%- if m.links.donate is defined %}, "donate": {{ m.links.donate | json_encode | safe }}{% endif -%}
+  {%- if m.links.homepage is defined %}, "homepage": {{ m.links.homepage | json_encode | safe }}{% endif -%}
+  {%- if m.links.nexusmods is defined %}, "nexusmods": {{ m.links.nexusmods | json_encode | safe }}{% endif -%}
+ },
+ "nexusmods": {% if m.nexusmods.mod_id is defined %}{"game": {{ game | json_encode | safe }}, "mod_id": {{ m.nexusmods.mod_id | json_encode | safe }}}{% else %}false{% endif %},
+ "media": [
+  {%- for item in m.media | default(value=[]) -%}
+  {%- if not loop.first %},{% endif -%}
+  {"kind": {% if item.video is defined %}"video", "url": {{ item.video | json_encode | safe }}{% else %}"image"{% endif %},
+   "alt": {{ item.alt | default(value="") | json_encode | safe }},
+   "featured": {{ item.featured | default(value=false) | json_encode | safe }}
+   {%- if item.file is defined %}, "file": {{ item.file | json_encode | safe }}{% endif -%}
+   {%- if item.thumbnail is defined %}, "thumbnail": {{ item.thumbnail | json_encode | safe }}{% endif -%}
+   {%- if item.caption is defined %}, "caption": {{ item.caption | json_encode | safe }}{% endif -%}
+   {%- if item.category is defined %}, "category": {{ item.category | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+ ],
+ "runtimes": {% if m.runtimes is defined %}{{ m.runtimes | json_encode | safe }}{% else %}{}{% endif %},
+ "platforms": [
+  {%- for platform in m.platforms | default(value=[]) -%}
+  {%- if not loop.first %},{% endif %}{"os": {{ platform.os | default(value="linux") | json_encode | safe }}, "arch": {{ platform.arch | default(value="x86_64") | json_encode | safe }}}
+  {%- endfor -%}
+ ],
+ "provides": {{ m.provides | default(value=[]) | json_encode | safe }},
+ "relationships": {{ project_model::relationships(m=m, id=id, index=index) }},
+ "implicit_component": {% if m.components is defined and m.components | length > 0 %}false{% else %}true{% endif %},
+ "components": {{ components_text | safe }},
+ "groups": [
+  {%- for group in m.groups | default(value=[]) -%}
+  {%- if not loop.first %},{% endif %}{"id": {{ group.id | default(value="") | json_encode | safe }}, "name": {{ group.name | default(value="") | json_encode | safe }}, "select": {{ group.select | default(value="any") | json_encode | safe }}{% if group.description is defined %}, "description": {{ group.description | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+ ],
+ "openmw": {% if m.runtimes.openmw is defined -%}
+  {"components": {
+    {%- for component in components -%}
+    {%- if not loop.first %},{% endif %}{{ component.id | json_encode | safe }}: {{ component.openmw | json_encode | safe }}
+    {%- endfor -%}
+   },
+   {%- if m.openmw.lua_api is defined %}"lua_api": {{ m.openmw.lua_api | json_encode | safe }},{% endif %}
+   "requires_content": {{ m.openmw.requires_content | default(value=[]) | json_encode | safe }},
+   "settings": {{ m.openmw.settings | default(value=[]) | json_encode | safe }}}
+  {%- else %}false{% endif %},
+ "install_notes": {% if m.install is defined %}{{ m.install | json_encode | safe }}{% else %}{}{% endif %},
+ "config": {{ project_model::config(components=components) }},
+ "install": {"slug": {{ slug | json_encode | safe }}, "name": {{ page.title | json_encode | safe }}, "placeholder": "C:/Games/OpenMW-Mods",
+  "components": [
+   {%- for component in components -%}
+   {%- if not loop.first %},{% endif %}{"id": {{ component.id | json_encode | safe }}, "required": {{ component.required | json_encode | safe }}, "default": {{ component.default | json_encode | safe }}, "group": {{ component.group | json_encode | safe }}}
+   {%- endfor -%}
+  ],
+  "config": {{ project_model::config(components=components) }}},
+
+ {#- Every release mod.toml declares, newest first. Offline documentation stops at the version it
+     ships with, so an archive never describes releases that came after it. -#}
+ {%- set_global reached = true -%}
+ {%- if offline and ci and ci.packaged_version is defined and ci.packaged_version in declared_versions %}{% set_global reached = false %}{% endif -%}
+ {%- set_global emitted = 0 %}
+ "declared_releases": [
+  {%- for release in declared -%}
+  {%- if not reached %}{% if release.version == ci.packaged_version %}{% set_global reached = true %}{% endif %}{% endif -%}
+  {%- if reached -%}
+  {%- if emitted > 0 %},{% endif %}{% set_global emitted = emitted + 1 -%}
+  {"version": {{ release.version | json_encode | safe }},
+   "channel": {{ release.channel | default(value="stable") | json_encode | safe }},
+   "date": {{ release.date | json_encode | safe }},
+   "notes": {{ release | json_encode | safe }}
+   {%- if release.yanked is defined %}, "yanked": {{ release.yanked | json_encode | safe }}{% endif -%}
+   {%- if release.deprecated is defined %}, "deprecated": {{ release.deprecated | json_encode | safe }}{% endif -%}
+   {%- if release.replacement is defined %}, "replacement": {{ release.replacement | json_encode | safe }}{% endif -%}
+   {%- if not offline -%}
+   , "state": {% if release.version in recorded_versions %}"published"{% elif release.version in unverified %}"unverified"{% else %}"planned"{% endif %}
+   {%- endif %}}
+  {%- endif -%}
+  {%- endfor -%}
+ ],
+
+ {#- Published releases, as the manifest lists them. mod.lock keeps its records in version order,
+     so reading it backwards finds each channel's newest available release without comparing
+     versions, which Tera cannot do. -#}
+ "releases": [
+  {%- set_global emitted = 0 -%}
+  {%- for record in records | reverse -%}
+  {%- set release = all_declared | filter(attribute="version", value=record.version) | first -%}
+  {%- if release -%}
+  {%- if emitted > 0 %},{% endif %}{% set_global emitted = emitted + 1 -%}
+  {{ project_model::release(record=record, declared=release, slug=slug, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
+  {%- endif -%}
+  {%- endfor -%}
+  {%- if ci and ci.development is defined %}{% if emitted > 0 %},{% endif %}{{ ci.development | json_encode | safe }}{% endif -%}
+ ],
+ {%- set_global channels = [] %}
+ "heads": {
+  {%- for record in records | reverse -%}
+  {%- set release = all_declared | filter(attribute="version", value=record.version) | first -%}
+  {%- if release -%}
+  {%- set channel = release.channel | default(value="stable") -%}
+  {%- if release.yanked is not defined and release.deprecated is not defined and channel not in channels -%}
+  {%- if channels | length > 0 %},{% endif -%}
+  {{ channel | json_encode | safe }}: {{ project_model::release(record=record, declared=release, slug=slug, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
+  {%- set_global channels = channels | concat(with=channel) -%}
+  {%- endif -%}
+  {%- endif -%}
+  {%- endfor -%}
+  {%- if ci and ci.development is defined %}{% if channels | length > 0 %},{% endif %}"development": {{ ci.development | json_encode | safe }}{% endif -%}
+ },
+ {%- set_global order = [] -%}
+ {%- if "stable" in channels %}{% set_global order = ["stable"] %}{% endif -%}
+ {%- for channel in channels | sort %}{% if channel != "stable" %}{% set_global order = order | concat(with=channel) %}{% endif %}{% endfor -%}
+ {%- if ci and ci.development is defined %}{% set_global order = order | concat(with="development") %}{% endif %}
+ "channel_order": {{ order | json_encode | safe }}}
+{%- endmacro model %}
+
+
+{#- Components with every default applied. A project without [[components]] has one, "main", at
+    the archive's root, and its OpenMW data comes from the top-level [openmw] table. -#}
+{% macro components(m, name) -%}
+[
+{%- if m.components is defined and m.components | length > 0 -%}
+  {%- for component in m.components -%}
+  {%- if not loop.first %},{% endif -%}
+  {%- set required = component.required | default(value=false) -%}
+  {"id": {{ component.id | default(value="") | json_encode | safe }},
+   "name": {% if component.name is defined %}{{ component.name | json_encode | safe }}{% else %}{{ component.id | default(value="") | json_encode | safe }}{% endif %},
+   {%- if component.description is defined %}"description": {{ component.description | json_encode | safe }},{% endif %}
+   "path": {{ component.path | default(value="") | json_encode | safe }},
+   "required": {{ required | json_encode | safe }},
+   "default": {% if component.default is defined %}{{ component.default | json_encode | safe }}{% else %}{{ required | json_encode | safe }}{% endif %},
+   "group": {% if component.group is defined %}{{ component.group | json_encode | safe }}{% else %}null{% endif %},
+   "requires": {{ component.requires | default(value=[]) | json_encode | safe }},
+   "conflicts": {{ component.conflicts | default(value=[]) | json_encode | safe }},
+   "openmw": {% if component.openmw is defined %}{{ project_model::openmw(table=component.openmw, component_level=true) }}{% else %}{{ project_model::openmw(table=false, component_level=true) }}{% endif %}}
+  {%- endfor -%}
+{%- else -%}
+  {"id": "main", "name": {{ name | json_encode | safe }}, "path": ".", "required": true, "default": true, "group": null, "requires": [], "conflicts": [],
+   "openmw": {% if m.openmw is defined %}{{ project_model::openmw(table=m.openmw, component_level=false) }}{% else %}{{ project_model::openmw(table=false, component_level=false) }}{% endif %}}
+{%- endif -%}
+]
+{%- endmacro components %}
+
+
+{% macro openmw(table, component_level) -%}
+{%- if table -%}
+{"data_directories": {{ table.data_directories | default(value=["."]) | json_encode | safe }},
+ "content_files": {{ table.content_files | default(value=[]) | json_encode | safe }},
+ "groundcover_files": {{ table.groundcover_files | default(value=[]) | json_encode | safe }},
+ "fallback_archives": {{ table.fallback_archives | default(value=[]) | json_encode | safe }},
+ "fallback_entries": {% if table.fallback_entries is defined %}{{ table.fallback_entries | json_encode | safe }}{% else %}{}{% endif %},
+ "config": {{ table.config | default(value=false) | json_encode | safe }},
+ "requires_content": {% if component_level %}{{ table.requires_content | default(value=[]) | json_encode | safe }}{% else %}[]{% endif %}}
+{%- else -%}
+{"data_directories": ["."], "content_files": [], "groundcover_files": [], "fallback_archives": [], "fallback_entries": {}, "config": false, "requires_content": []}
+{%- endif -%}
+{%- endmacro openmw %}
+
+
+{#- openmw.cfg lines per component, in the order OpenMW needs them. {install} stands for the folder
+    the player extracted the archive to; the page and its configurator fill it in. -#}
+{% macro config(components) -%}
+[
+{%- for component in components -%}
+{%- if not loop.first %},{% endif -%}
+{%- set_global lines = [] -%}
+{%- for key, value in component.openmw.fallback_entries %}{% set_global lines = lines | concat(with="fallback=" ~ key ~ "," ~ value) %}{% endfor -%}
+{%- for directory in component.openmw.data_directories -%}
+  {%- if component.path == "." %}{% set joined = directory %}{% elif directory == "." %}{% set joined = component.path %}{% else %}{% set joined = component.path ~ "/" ~ directory %}{% endif -%}
+  {%- if joined == "." %}{% set line = 'data="{install}"' %}{% else %}{% set line = 'data="{install}/' ~ joined ~ '"' %}{% endif -%}
+  {%- set_global lines = lines | concat(with=line) -%}
+{%- endfor -%}
+{%- for file in component.openmw.fallback_archives %}{% set_global lines = lines | concat(with="fallback-archive=" ~ file) %}{% endfor -%}
+{%- for file in component.openmw.content_files %}{% set_global lines = lines | concat(with="content=" ~ file) %}{% endfor -%}
+{%- for file in component.openmw.groundcover_files %}{% set_global lines = lines | concat(with="groundcover=" ~ file) %}{% endfor -%}
+{%- if component.openmw.config -%}
+  {%- if component.path == "." %}{% set line = 'config="{install}"' %}{% else %}{% set line = 'config="{install}/' ~ component.path ~ '"' %}{% endif -%}
+  {%- set_global lines = lines | concat(with=line) -%}
+{%- endif -%}
+{"component": {{ component.id | json_encode | safe }}, "lines": {{ lines | json_encode | safe }}}
+{%- endfor -%}
+]
+{%- endmacro config %}
+
+
+{#- One published release as the manifest describes it: its record in mod.lock, plus the date,
+    channel, status and notes mod.toml still owns. -#}
+{% macro release(record, declared, slug, repository, mirrors, sigstore) -%}
+{%- set tag = slug ~ "-" ~ record.version -%}
+{%- if declared.yanked is defined %}{% set status = "yanked" %}{% elif declared.deprecated is defined %}{% set status = "deprecated" %}{% else %}{% set status = "available" %}{% endif -%}
+{"version": {{ record.version | json_encode | safe }},
+ "channel": {{ declared.channel | default(value="stable") | json_encode | safe }},
+ "date": {{ declared.date | json_encode | safe }},
+ "status": "{{ status }}",
+ "source": {"repository": {{ repository | json_encode | safe }}, "tag": {{ tag | json_encode | safe }}{% if record.locked_from %}, "revision": {{ record.locked_from | json_encode | safe }}{% endif %}},
+ "artifacts": [
+ {%- for artifact in record.artifacts -%}
+ {%- if not loop.first %},{% endif -%}
+ {%- set download = repository ~ "/releases/download/" ~ tag ~ "/" ~ artifact.filename -%}
+ {%- set bundle = download ~ ".sigstore.json" -%}
+ {"id": {{ artifact.id | json_encode | safe }}, "format": {{ artifact.format | json_encode | safe }}, "filename": {{ artifact.filename | json_encode | safe }}, "size": {{ artifact.size | json_encode | safe }}, "digests": {{ artifact.digests | json_encode | safe }},
+  {%- if artifact.platform is defined %} "platform": {{ artifact.platform | json_encode | safe }},{% endif %}
+  "sources": [{"url": {{ download | json_encode | safe }}, "kind": "publisher"}
+  {%- for mirror in mirrors -%}
+  {%- set mirror_url = mirror.url | replace(from="{slug}", to=slug) | replace(from="{version}", to=record.version) | replace(from="{tag}", to=tag) | replace(from="{filename}", to=artifact.filename) | replace(from="{sha256}", to=artifact.digests.sha256) -%}
+  , {"url": {{ mirror_url | json_encode | safe }}, "kind": "mirror"{% if mirror.name is defined %}, "name": {{ mirror.name | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+  ],
+  "signatures": [{% if sigstore %}{"format": "sigstore-bundle", "url": {{ bundle | json_encode | safe }}}{% endif %}]}
+ {%- endfor -%}
+ ]}
+{%- endmacro release %}
+
+
+{#- Relationships by kind, each with a name to show: its own, or the local project's it names.
+    required_by and recommended_by list the site's projects that point at this one. -#}
+{% macro relationships(m, id, index) -%}
+{
+{%- for kind in ["requires", "recommends", "conflicts", "compatible", "replaces"] -%}
+{%- if not loop.first %},{% endif -%}
+{%- set entries = [] -%}
+{%- if kind == "requires" %}{% set entries = m.requires | default(value=[]) %}
+{%- elif kind == "recommends" %}{% set entries = m.recommends | default(value=[]) %}
+{%- elif kind == "conflicts" %}{% set entries = m.conflicts | default(value=[]) %}
+{%- elif kind == "compatible" %}{% set entries = m.compatible | default(value=[]) %}
+{%- else %}{% set entries = m.replaces | default(value=[]) %}{% endif -%}
+"{{ kind }}": [
+  {%- for relationship in entries -%}
+  {%- if not loop.first %},{% endif -%}
+  {%- set local = false -%}
+  {%- if index and relationship.id is defined and relationship.id in index %}{% set local = index[relationship.id] %}{% endif -%}
+  {"kind": "{{ kind }}"
+   {%- if relationship.id is defined %}, "project": {{ relationship.id | json_encode | safe }}{% endif -%}
+   {%- if relationship.capability is defined %}, "capability": {{ relationship.capability | json_encode | safe }}{% endif -%}
+   {%- if relationship.name is defined %}, "name": {{ relationship.name | json_encode | safe }}{% endif -%}
+   {%- if relationship.version is defined %}, "version": {{ relationship.version | json_encode | safe }}{% endif -%}
+   {%- if relationship.url is defined %}, "url": {{ relationship.url | json_encode | safe }}{% endif -%}
+   {%- if relationship.reason is defined %}, "reason": {{ relationship.reason | json_encode | safe }}{% endif -%}
+   , "display_name": {% if relationship.name is defined %}{{ relationship.name | json_encode | safe }}{% elif local %}{{ local.name | json_encode | safe }}{% elif relationship.capability is defined %}{{ relationship.capability | json_encode | safe }}{% else %}{{ relationship.id | default(value="") | json_encode | safe }}{% endif %}
+   {%- if local %}, "page_path": {{ local.page_path | json_encode | safe }}{% endif %}}
+  {%- endfor -%}
+]
+{%- endfor -%}
+{%- if index -%}
+{%- for kind in ["requires", "recommends"] -%}
+{%- set_global emitted = 0 -%}
+, "{% if kind == 'requires' %}required_by{% else %}recommended_by{% endif %}": [
+  {%- for other_id, other in index -%}
+  {%- if other_id -%}
+  {%- for relationship in other[kind] -%}
+  {%- if relationship.id is defined and relationship.id == id -%}
+  {%- if emitted > 0 %},{% endif %}{% set_global emitted = emitted + 1 -%}
+  {"project": {{ other_id | json_encode | safe }}, "display_name": {{ other.name | json_encode | safe }}, "page_path": {{ other.page_path | json_encode | safe }}{% if relationship.version is defined %}, "version": {{ relationship.version | json_encode | safe }}{% endif %}}
+  {%- endif -%}
+  {%- endfor -%}
+  {%- endif -%}
+  {%- endfor -%}
+]
+{%- endfor -%}
+{%- endif -%}
+}
+{%- endmacro relationships %}
+
+
+{#- Every project on the site, keyed by id: a page whose directory holds a mod.toml. Written as
+    JSON object members, each after a comma, so wrap it before parsing:
+        load_data(literal='{"": null' ~ project_model::index() ~ '}', format="json")
+    and skip the empty key. -#}
+{% macro index(section_path="_index.md") -%}
+{%- set listed = get_section(path=section_path) -%}
+{%- for listed_page in listed.pages -%}
+{%- if listed_page.colocated_path -%}
+{%- set m = load_data(path="content/" ~ listed_page.colocated_path ~ "mod.toml", required=false) -%}
+{%- if m and m.id is defined -%}
+, {{ m.id | json_encode | safe }}: {"name": {{ listed_page.title | json_encode | safe }}, "page_path": {{ listed_page.colocated_path | json_encode | safe }}, "requires": {{ m.requires | default(value=[]) | json_encode | safe }}, "recommends": {{ m.recommends | default(value=[]) | json_encode | safe }}}
+{%- endif -%}
+{%- endif -%}
+{%- endfor -%}
+{%- for subsection in listed.subsections %}{{ project_model::index(section_path=subsection) }}{% endfor -%}
+{%- endmacro index %}

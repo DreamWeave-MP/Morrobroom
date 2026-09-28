@@ -1,0 +1,8 @@
+{#- {{ figure(src="/img/shot.png", alt="...", caption="Markdown", position="center") }}. Kept from V4. -#}
+{%- if src -%}
+{%- if src is starting_with("http") %}{% set image_url = src %}{% else %}{% set image_url = config.base_url ~ src %}{% endif -%}
+<figure class="dw-figure dw-image--{{ position | default(value='center') }}">
+  <img src="{{ image_url | safe }}"{% if alt %} alt="{{ alt }}"{% else %} alt=""{% endif %}{% if style %} style="{{ style | safe }}"{% endif %} decoding="async" loading="lazy">
+  {%- if caption %}<figcaption{% if caption_style %} style="{{ caption_style | safe }}"{% endif %}>{{ caption | markdown(inline=true) | safe }}</figcaption>{% endif %}
+</figure>
+{%- endif -%}

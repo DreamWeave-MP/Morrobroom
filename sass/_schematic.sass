@@ -1,0 +1,422 @@
+// Schematic shortcode styles, from S3ctors-S3cret-St4sh sass/docs.sass at 86cbc261 (the same
+// revision StroggForge imports). Keep in sync with upstream rather than restyling here.
+
+.docs-schematic
+  margin: 2em auto
+  border: 1px solid var(--accent-alpha-70)
+  border-radius: .35em
+  padding: 1.25em
+  background: linear-gradient(135deg, var(--accent-alpha-20), transparent 55%)
+
+.docs-schematic__caption
+  display: flex
+  min-height: 4.5em
+  flex-direction: column
+  justify-content: center
+  margin-bottom: 1.25em
+  padding: .9em 1em
+  background: var(--accent-alpha-20)
+  color: var(--color)
+
+.docs-schematic__caption h2,
+.docs-schematic__caption h3
+  margin: 0 0 .35em
+  border: 0
+  padding: 0
+  color: var(--accent)
+
+.docs-schematic__caption p
+  max-width: 70ch
+  margin: 0
+  opacity: .78
+
+.docs-schematic__canvas
+  display: grid
+  grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr)
+  gap: 1.5em
+  align-items: center
+
+.docs-schematic__canvas--without-support
+  grid-template-columns: 1fr
+
+.docs-schematic__nodes
+  display: grid
+  gap: 1.25em
+  margin: 0
+  padding: 0
+  list-style: none
+  counter-reset: schematic-node
+
+.docs-schematic__nodes > li
+  position: relative
+  counter-increment: schematic-node
+  width: min(100%, 36rem)
+  margin-inline: auto
+
+.docs-schematic__nodes > li:not(:last-child)::after
+  content: ""
+  position: absolute
+  top: 100%
+  left: 50%
+  width: 1px
+  height: 1.25em
+  background: var(--accent)
+  display: none
+
+.docs-schematic__nodes > li:not(:last-child)::before
+  content: ""
+  position: absolute
+  z-index: 1
+  top: calc(100% + .8em)
+  left: calc(50% - .35em)
+  width: 0
+  height: 0
+  border-right: .35em solid transparent
+  border-left: .35em solid transparent
+  border-top: .45em solid var(--accent)
+  transform: translateX(-50%)
+
+.docs-schematic--horizontal .docs-schematic__canvas
+  display: block
+
+.docs-schematic--horizontal .docs-schematic__nodes
+  grid-template-columns: repeat(3, minmax(0, 1fr))
+
+.docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::after
+  display: block
+  top: 50%
+  left: 100%
+  width: 1.25em
+  height: 1px
+  background: var(--accent)
+  transform: translateY(-50%)
+
+.docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::before
+  top: 50%
+  left: calc(100% + .8em)
+  border-top: .35em solid transparent
+  border-right: 0
+  border-bottom: .35em solid transparent
+  border-left: .45em solid var(--accent)
+  transform: translateY(-50%)
+
+.docs-schematic__node
+  min-width: 0
+  border: 1px solid var(--border-color)
+  border-left: .3em solid var(--accent)
+  border-radius: .25em
+  padding: .8em 1em
+  background: var(--background)
+  box-shadow: 0 .3em 1em rgb(0 0 0 / 12%)
+  overflow-wrap: anywhere
+
+.docs-schematic__node::before
+  content: counter(schematic-node, decimal-leading-zero)
+  float: right
+  margin-left: .75em
+  color: var(--accent-alpha-70)
+  font-size: .75em
+  font-weight: bold
+  letter-spacing: .08em
+
+.docs-schematic__node--source
+  border-left-color: #7ee2a8
+
+.docs-schematic__node--input
+  border-left-color: #7ee2a8
+
+.docs-schematic__node--state,
+.docs-schematic__node--cache
+  border-left-color: #83c7ff
+
+.docs-schematic__node--tool
+  border-left-color: #f2c66d
+
+.docs-schematic__node--component
+  border-left-color: #b48cff
+
+.docs-schematic__node--service
+  border-left-color: #83c7ff
+
+.docs-schematic__node--boundary
+  border-left-color: #f2c66d
+
+.docs-schematic__node--engine,
+.docs-schematic__node--external
+  border-left-width: .4em
+  border-left-color: #9aa4b2
+
+.docs-schematic__node--allocation
+  border-left-color: #ff8f70
+
+.docs-schematic__node--result
+  border-left-color: #7ee2a8
+
+.docs-schematic__node--history,
+.docs-schematic__node--scar
+  border-left-style: dashed
+  border-left-color: #9aa4b2
+
+.docs-schematic__node--cod3x
+  border-color: var(--accent)
+  border-style: dashed
+  background: var(--accent-alpha-20)
+
+.docs-schematic__kind
+  display: block
+  margin-bottom: .3em
+  color: var(--accent)
+  font-size: .7em
+  font-weight: bold
+  letter-spacing: .12em
+  text-transform: uppercase
+
+.docs-schematic__title
+  display: block
+  margin: 0
+  color: var(--color)
+  font-size: 1.05em
+  font-weight: bold
+  text-decoration: none
+
+a.docs-schematic__title:hover,
+a.docs-schematic__title:focus-visible
+  color: var(--link-hover-color)
+  text-decoration: underline
+
+.docs-schematic__node p
+  margin: .35em 0 0
+  font-size: .9em
+  opacity: .78
+
+.docs-schematic__receipts
+  display: flex
+  flex-wrap: wrap
+  gap: .35em .8em
+  margin: .7em 0 0
+  padding: .55em 0 0
+  border-top: 1px solid var(--border-color)
+  list-style: none
+  font-size: .75em
+
+.docs-schematic__receipts li:not(:last-child)::after
+  content: "·"
+  margin-left: .8em
+  color: var(--accent-alpha-70)
+
+.docs-schematic__receipts a
+  color: var(--link-color)
+  text-decoration: none
+
+.docs-schematic__receipts a:hover,
+.docs-schematic__receipts a:focus-visible
+  color: var(--link-hover-color)
+  text-decoration: underline
+
+.docs-schematic__support
+  position: relative
+  display: grid
+  gap: 1em
+
+.docs-schematic__support::before
+  content: ""
+  position: absolute
+  top: 50%
+  right: 100%
+  width: 1.5em
+  border-top: 1px dashed var(--accent)
+
+.docs-schematic--horizontal .docs-schematic__support
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))
+  margin-top: 1.5em
+
+.docs-schematic--horizontal .docs-schematic__support::before
+  top: auto
+  right: auto
+  bottom: 100%
+  left: 50%
+  width: 1px
+  height: 1.5em
+  border-top: 0
+  border-left: 1px dashed var(--accent)
+
+.docs-schematic__support .docs-schematic__node::before
+  content: ""
+
+.docs-schematic__support .docs-schematic__node
+  width: min(100%, 36rem)
+  margin-inline: auto
+
+.docs-schematic__connections
+  margin-top: 1.5em
+  border-top: 1px solid var(--border-color)
+  padding-top: 1em
+
+.docs-schematic__connections > summary
+  margin: 0
+  color: var(--accent)
+  font-size: .9em
+  font-weight: bold
+  cursor: pointer
+
+.docs-schematic__connections > summary::before
+  content: "▸"
+  display: inline-block
+  width: 1em
+  color: var(--accent-alpha-70)
+
+.docs-schematic__connections[open] > summary
+  margin-bottom: .7em
+
+.docs-schematic__connections[open] > summary::before
+  content: "▾"
+
+.docs-schematic__connections > summary::marker
+  content: none
+
+.docs-schematic__connections > summary
+  list-style: none
+
+.docs-schematic__connections ul,
+.docs-schematic__legend
+  display: grid
+  gap: .45em
+  margin: 0
+  padding: 0
+  list-style: none
+
+.docs-schematic__connections ul
+  max-width: 58rem
+  margin-inline: auto
+
+.docs-schematic__connection
+  display: grid
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)
+  gap: .6em
+  align-items: center
+  border-left: 2px solid var(--accent-alpha-70)
+  padding: .45em .65em
+  background: var(--accent-alpha-20)
+  font-size: .9em
+
+.docs-schematic__connection--support
+  border-left-style: dashed
+
+.docs-schematic__endpoint
+  min-width: 0
+  overflow-wrap: anywhere
+
+.docs-schematic__edge-label
+  grid-column: 1 / -1
+  grid-row: 2
+  color: var(--color)
+  font-size: .85em
+  font-style: italic
+  opacity: .72
+
+.docs-schematic__arrow
+  color: var(--accent)
+  font-size: 1.2em
+
+.docs-schematic__legend
+  display: flex
+  flex-wrap: wrap
+  gap: .75em 1.25em
+  margin-top: 1.25em
+  color: var(--color)
+  font-size: .75em
+  opacity: .78
+
+.docs-schematic__legend li
+  display: inline-flex
+  gap: .4em
+  align-items: center
+
+.docs-schematic__legend-swatch
+  display: inline-block
+  width: .8em
+  height: .8em
+  border-left: .25em solid var(--accent)
+  background: var(--background)
+
+.docs-schematic__legend-swatch--source
+  border-left-color: #7ee2a8
+
+.docs-schematic__legend-swatch--input
+  border-left-color: #7ee2a8
+
+.docs-schematic__legend-swatch--state,
+.docs-schematic__legend-swatch--cache
+  border-left-color: #83c7ff
+
+.docs-schematic__legend-swatch--component
+  border-left-color: #b48cff
+
+.docs-schematic__legend-swatch--tool
+  border-left-color: #f2c66d
+
+.docs-schematic__legend-swatch--service
+  border-left-color: #83c7ff
+
+.docs-schematic__legend-swatch--boundary
+  border-left-color: #f2c66d
+
+.docs-schematic__legend-swatch--engine,
+.docs-schematic__legend-swatch--external
+  border-left-width: .35em
+  border-left-color: #9aa4b2
+
+.docs-schematic__legend-swatch--allocation
+  border-left-color: #ff8f70
+
+.docs-schematic__legend-swatch--result
+  border-left-color: #7ee2a8
+
+.docs-schematic__legend-swatch--history,
+.docs-schematic__legend-swatch--scar
+  border-left-style: dashed
+  border-left-color: #9aa4b2
+
+.docs-schematic__legend-swatch--cod3x
+  border: 1px dashed var(--accent)
+  background: var(--accent-alpha-20)
+
+@media (max-width: 600px)
+  .docs-schematic__canvas
+    display: block
+
+  .docs-schematic--horizontal .docs-schematic__nodes
+    grid-template-columns: 1fr
+
+  .docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::after
+    display: none
+    top: auto
+    left: 50%
+    width: 1px
+    height: 1.25em
+    background: var(--accent)
+    transform: none
+
+  .docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::before
+    top: calc(100% + .8em)
+    left: calc(50% - .35em)
+    border-top: .45em solid var(--accent)
+    border-right: .35em solid transparent
+    border-bottom: 0
+    border-left: .35em solid transparent
+    transform: translateX(-50%)
+
+  .docs-schematic__support,
+  .docs-schematic--horizontal .docs-schematic__support
+    margin-top: 1.5em
+
+  .docs-schematic__support::before,
+  .docs-schematic--horizontal .docs-schematic__support::before
+    top: -1.5em
+    right: auto
+    bottom: auto
+    left: 50%
+    width: 1px
+    height: 1.5em
+    border-top: 0
+    border-left: 1px dashed var(--accent)

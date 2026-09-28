@@ -1,0 +1,144 @@
+{#- Presentation macros shared by project, changelog, catalog and network pages. They only read
+    the project model (macros/project.html); they never invent a value the manifest does not
+    contain. Import this file as `dw_macros`: its macros call each other through that name. -#}
+
+{% macro type_label(type) -%}
+{%- if type == "total-conversion" %}Total conversion{% elif type == "assets" %}Asset pack{% else %}{{ type | capitalize }}{% endif -%}
+{%- endmacro type_label %}
+
+{% macro format_label(format) -%}
+{%- if format == "fomod" %}FOMOD + BAIN{% elif format == "bain" %}BAIN{% elif format == "binary" %}Program{% else %}Single directory{% endif -%}
+{%- endmacro format_label %}
+
+{#- What a person calls a platform, not what a compiler does. -#}
+{% macro platform_label(os, arch) -%}
+{%- if os == "windows" %}Windows{% if arch == "aarch64" %} on Arm{% endif -%}
+{%- elif os == "macos" %}macOS, {% if arch == "aarch64" %}Apple silicon{% else %}Intel{% endif -%}
+{%- else %}Linux{% if arch == "aarch64" %} on Arm{% endif %}{% endif -%}
+{%- endmacro platform_label %}
+
+{% macro runtime_label(runtime) -%}
+{%- if runtime == "openmw" %}OpenMW{% elif runtime == "mwse" %}MWSE{% elif runtime == "tes3mp" %}TES3MP{% elif runtime == "morrowind" %}Morrowind.exe{% else %}{{ runtime }}{% endif -%}
+{%- endmacro runtime_label %}
+
+{% macro constraint(text) -%}
+{%- if text == "*" %}any version{% else %}{{ text }}{% endif -%}
+{%- endmacro constraint %}
+
+{% macro status(state, label="") -%}
+<span class="dw-status dw-status--{{ state }}">{% if label %}{{ label }}{% else %}{{ state }}{% endif %}</span>
+{%- endmacro status %}
+
+{% macro short_digest(digest) -%}
+{{ digest | truncate(length=12, end="") }}…{{ digest | split(pat="") | slice(start=-9) | join(sep="") }}
+{%- endmacro short_digest %}
+
+{% macro relationship(item) -%}
+{%- if item.page_path is defined -%}
+<a href="{{ get_url(path=item.page_path) | safe }}">{{ item.display_name }}</a>
+{%- elif item.url is defined -%}
+<a href="{{ item.url | safe }}">{{ item.display_name }}</a>
+{%- else -%}
+{{ item.display_name }}
+{%- endif -%}
+{%- if item.version is defined %}<span class="dw-constraint">{{ item.version }}</span>{% endif -%}
+{%- if item.capability is defined %} <span class="dw-badge">capability</span>{% endif -%}
+{%- if item.project is not defined and item.capability is not defined %} <span class="dw-badge" title="No DreamWeave id: shown to people, not resolvable by clients">not on the network</span>{% endif -%}
+{%- endmacro relationship %}
+
+{% macro notes(notes) -%}
+{%- if notes.highlights is defined %}{{ notes.highlights | markdown | safe }}{% endif -%}
+{%- for key in ["breaking", "added", "changed", "fixed", "known_issues"] %}
+{%- if notes[key] is defined %}
+<h4>{% if key == "known_issues" %}Known issues{% elif key == "breaking" %}Breaking changes{% else %}{{ key | capitalize }}{% endif %}</h4>
+<ul class="dw-notes--{{ key }}">
+{%- for line in notes[key] %}<li>{{ line | markdown(inline=true) | safe }}</li>{% endfor %}
+</ul>
+{%- endif %}
+{%- endfor %}
+{%- if notes.migration is defined %}<h4>Migration</h4>{{ notes.migration | markdown | safe }}{% endif -%}
+{%- if notes.notes is defined %}{{ notes.notes | markdown | safe }}{% endif -%}
+{%- endmacro notes %}
+
+{% macro artifact(artifact, release, project, primary=false) -%}
+{%- set publisher = artifact.sources | filter(attribute="kind", value="publisher") | first -%}
+<div class="dw-artifact">
+    <div class="dw-artifact__head">
+        <span class="dw-artifact__name">{{ artifact.filename }}</span>
+        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · {% if artifact.platform is defined %}{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }}{% else %}{{ artifact.format }}{% endif %}</span>
+    </div>
+    <div class="dw-artifact__actions">
+        <a class="dw-button{% if primary %} dw-button--primary{% endif %} dw-button--small" href="{{ publisher.url | safe }}"{% if artifact.platform is defined %} data-platform="{{ artifact.platform.os }}"{% endif %}>Download {{ release.version }}</a>
+        {%- if artifact.format != "binary" %}
+        <a class="dw-button dw-button--small" href="modl://{{ project.game }}/?url={{ publisher.url | safe }}" title="Hand this archive to umo or ModdingLinked MO2">Mod manager</a>
+        {%- endif %}
+    </div>
+    <details>
+        <summary>Verify · sha256 {{ dw_macros::short_digest(digest=artifact.digests.sha256) }}</summary>
+        <div class="dw-artifact__verify">
+            <dl class="dw-record">
+                <dt>Release</dt><dd>{{ release.version }} ({{ release.channel }})</dd>
+                <dt>Size</dt><dd>{{ artifact.size }} bytes</dd>
+                <dt>SHA-256</dt><dd class="dw-digest">{{ artifact.digests.sha256 }} <button class="dw-copy" type="button" data-copy="{{ artifact.digests.sha256 }}">Copy</button></dd>
+                {%- if release.source.revision is defined %}
+                <dt>Commit</dt><dd class="dw-digest"><a href="{{ release.source.repository | safe }}/commit/{{ release.source.revision }}">{{ release.source.revision | truncate(length=12, end="") }}</a></dd>
+                {%- endif %}
+                <dt>Sources</dt><dd>{{ artifact.sources | length }}{% if artifact.sources | length > 1 %} (publisher + mirrors){% endif %}</dd>
+                {%- for signature in artifact.signatures %}
+                <dt>Signature</dt><dd><a href="{{ signature.url | safe }}">{{ signature.format }}</a></dd>
+                {%- endfor %}
+            </dl>
+            <p class="dw-method__hint">Check it yourself: <code>sha256sum {{ artifact.filename }}</code> must print the digest above.</p>
+        </div>
+    </details>
+</div>
+{%- endmacro artifact %}
+
+{% macro release_entry(declared, published, project, heading_level=3) -%}
+{%- set state_class = "" -%}
+{%- if declared.yanked is defined %}{% set state_class = "dw-release--yanked" %}{% elif declared.deprecated is defined %}{% set state_class = "dw-release--deprecated" %}{% endif -%}
+<li class="dw-release {{ state_class }}" id="v{{ declared.version | slugify }}">
+    <h{{ heading_level }}>
+        <span>{{ declared.version }}</span>
+        <span class="dw-badge{% if declared.channel == 'stable' %} dw-badge--ok{% else %} dw-badge--info{% endif %}">{{ declared.channel }}</span>
+        {%- if declared.state is defined and declared.state == "unverified" %}
+        <span class="dw-badge dw-badge--warn" title="Tagged before this site recorded releases: no hash is on record, so the manifest leaves it out">unverified</span>
+        {%- elif declared.state is defined and declared.state == "planned" %}
+        <span class="dw-badge dw-badge--info" title="Declared in mod.toml. Pushing its tag, {{ project.slug }}-{{ declared.version }}, publishes it">unreleased</span>
+        {%- endif %}
+        <span class="dw-release__meta">{{ declared.date }}</span>
+    </h{{ heading_level }}>
+    {%- if declared.yanked is defined %}
+    <p class="dw-release__notice"><strong>Yanked:</strong> {{ declared.yanked }}{% if declared.replacement is defined %} Use {{ declared.replacement }} instead.{% endif %}</p>
+    {%- elif declared.deprecated is defined %}
+    <p class="dw-release__notice dw-release__notice--deprecated"><strong>Deprecated:</strong> {{ declared.deprecated }}{% if declared.replacement is defined %} Use {{ declared.replacement }} instead.{% endif %}</p>
+    {%- endif %}
+    {%- if declared.notes.summary is defined %}<p class="dw-release__summary">{{ declared.notes.summary }}</p>{% endif %}
+    {{ dw_macros::notes(notes=declared.notes) }}
+    {%- if published %}
+    {%- for artifact in published.artifacts %}{{ dw_macros::artifact(artifact=artifact, release=published, project=project) }}{% endfor %}
+    {%- endif %}
+</li>
+{%- endmacro release_entry %}
+
+{% macro media_image(project, item, width, class="") -%}
+{%- set source = "content/" ~ project.page_path ~ item.file -%}
+{%- set image = resize_image(path=source, width=width, op="fit_width", format="webp", quality=80) -%}
+<img{% if class %} class="{{ class }}"{% endif %} src="{{ image.url | safe }}" width="{{ image.width }}" height="{{ image.height }}" alt="{{ item.alt }}" loading="lazy" decoding="async">
+{%- endmacro media_image %}
+
+{% macro config_block(project) -%}
+{%- set install_root = project.install.placeholder ~ "/" ~ project.name -%}
+{%- set_global cfg_lines = [] -%}
+{%- for component in project.components -%}
+  {%- if component.required or component.default -%}
+    {%- for block in project.config -%}
+      {%- if block.component == component.id -%}
+        {%- for line in block.lines %}{% set filled = line | replace(from="{install}", to=install_root) %}{% set_global cfg_lines = cfg_lines | concat(with=filled) %}{% endfor -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor -%}
+<pre data-lang="cfg" class="dw-configurator__output"><code>{% for line in cfg_lines %}{{ line }}
+{% endfor %}</code></pre>
+{%- endmacro config_block %}

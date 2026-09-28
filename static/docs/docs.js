@@ -4,57 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
-  docsShell.querySelectorAll('.docs-article pre').forEach(function(block) {
-    const code = block.querySelector('code');
-    if (!code || block.parentElement.classList.contains('docs-code-block')) {
-      return;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'docs-code-block';
-    block.parentNode.insertBefore(wrapper, block);
-    wrapper.appendChild(block);
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'docs-code-copy';
-    button.textContent = 'Copy';
-    button.setAttribute('aria-label', 'Copy code to clipboard');
-    wrapper.appendChild(button);
-
-    button.addEventListener('click', async function() {
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(code.textContent);
-        copied = true;
-      } catch (error) {
-        try {
-          const selection = window.getSelection();
-          if (!selection) {
-            throw new Error('Text selection is unavailable');
-          }
-          const range = document.createRange();
-          range.selectNodeContents(code);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          copied = document.execCommand('copy');
-          selection.removeAllRanges();
-        } catch (fallbackError) {
-          copied = false;
-        }
-      }
-
-      button.textContent = copied ? 'Copied!' : 'Copy failed';
-      button.setAttribute('aria-label', copied ? 'Code copied to clipboard' : 'Copying code failed');
-      window.setTimeout(function() {
-        button.textContent = 'Copy';
-        button.setAttribute('aria-label', 'Copy code to clipboard');
-      }, 1500);
-    });
-  });
-
   const sidebarPanel = docsShell.querySelector('.docs-sidebar__panel');
-  const narrowScreen = window.matchMedia('(max-width: 899px)');
+  const narrowScreen = window.matchMedia('(max-width: 1100px)');
   const syncSidebar = function() {
     if (narrowScreen.matches) {
       sidebarPanel?.removeAttribute('open');
@@ -65,22 +16,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   syncSidebar();
   narrowScreen.addEventListener?.('change', syncSidebar);
-
-  const search = document.getElementById('search');
-  document.addEventListener('keydown', function(event) {
-    if (event.key === '/' && document.activeElement !== search && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-      event.preventDefault();
-      search?.focus();
-    }
-
-    if (event.key === 'Escape' && search) {
-      search.blur();
-      const results = document.querySelector('.search-results');
-      if (results) {
-        results.style.display = 'none';
-      }
-    }
-  });
 
   const tocLinks = Array.from(docsShell.querySelectorAll('.docs-toc a'));
   const headings = tocLinks.map(function(link) {

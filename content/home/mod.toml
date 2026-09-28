@@ -1,0 +1,61 @@
+# Morrobroom. Structured facts only: the name and summary are `title` and `description` in
+# index.md. Every key is explained at
+# https://dreamweave-mp.github.io/DreamWeave-Mod-Template/guide/mod-toml/
+
+# Permanent identity. Never changes, whatever the program is called or wherever it is hosted.
+id = "015878d0-9501-4b1f-8453-7726bcccf860"
+
+# Release tags are morrobroom-<version>.
+slug = "morrobroom"
+type = "tool"
+license = "AGPL-3.0"
+
+[[maintainers]]
+name = "DreamWeave"
+url = "https://github.com/DreamWeave-MP"
+
+[links]
+documentation = "@/docs/_index.md"
+support = "https://github.com/DreamWeave-MP/Morrobroom/discussions"
+
+# A program: StroggForge's Rust workflow builds it once per [[platforms]] entry, and packs
+# the files in include beside it. resources/ is the TrenchBroom game configuration.
+[package]
+format = "binary"
+binary = "morrobroom"
+include = ["README.md", "LICENSE", "THIRD_PARTY.md", "resources", "content"]
+
+[[platforms]]
+os = "windows"
+arch = "x86_64"
+
+[[platforms]]
+os = "macos"
+arch = "aarch64"
+
+[[platforms]]
+os = "macos"
+arch = "x86_64"
+
+[[platforms]]
+os = "linux"
+arch = "x86_64"
+
+[[credits]]
+name = "Kurpulio"
+role = "VFX Meshbank, the source of the VFX catalog's editor previews"
+url = "https://www.nexusmods.com/morrowind/mods/49695"
+
+# Pushing the tag morrobroom-1.0.0 publishes this: CI builds every platform from the tag and
+# records it. Set the date to the day you push it.
+[[releases]]
+version = "1.0.0"
+date = 2026-09-28
+summary = "First release: compile TrenchBroom maps into Morrowind content for OpenMW."
+added = [
+    "Compile Valve 220 maps into NIF meshes and a TES3 plugin, with brush-built statics, activators, containers, items, lights and leveled lists.",
+    "Bake static lighting into lightmaps that OpenMW loads without an engine patch.",
+    "Author NIF materials, alpha, texturing, scrolling UVs, billboards, sort nodes and collision roots from TrenchBroom.",
+    "Generate a TrenchBroom entity catalog from an OpenMW load order.",
+    "Reverse-compile visual NIF geometry into editable maps with nif2map.",
+]

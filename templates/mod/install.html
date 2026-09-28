@@ -1,0 +1,170 @@
+{#- Installation, generated from the package format and the component model. The methods share a
+    <details name>, so opening one closes the others without any script. -#}
+{%- set bain_like = project.format == "bain" or project.format == "fomod" -%}
+{%- set has_choices = optional_components | length > 0 -%}
+<section class="dw-section" id="install" aria-labelledby="install-title">
+    <div class="dw-section__head"><h2 id="install-title">Install</h2><p>{{ dw_macros::format_label(format=project.format) }}{% if not dw_offline and primary %} · {{ primary.version }}{% endif %}</p></div>
+
+    <div class="dw-methods">
+    {%- if project.format == "binary" %}
+        <details class="dw-method" name="dw-install-method" open>
+            <summary><span class="dw-method__name">Download and run</span><span class="dw-method__hint">a program: one archive per platform, no installer</span></summary>
+            <div class="dw-method__body">
+                {%- if not dw_offline and primary %}
+                <div class="dw-actions dw-platforms">
+                {%- for artifact in primary.artifacts %}
+                    {%- set platform_source = artifact.sources | filter(attribute="kind", value="publisher") | first %}
+                    <a class="dw-button dw-button--small" data-platform="{{ artifact.platform.os }}" href="{{ platform_source.url | safe }}">{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
+                {%- endfor %}
+                </div>
+                {%- endif %}
+                <ol class="dw-steps">
+                    <li>{% if dw_offline %}This is the archive for one platform{% elif primary %}Download the archive for your platform{% else %}Download the archive for your platform once a build is published{% endif %}{% if project.platforms | length > 0 %}: {% for platform in project.platforms %}{{ dw_macros::platform_label(os=platform.os, arch=platform.arch) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</li>
+                    <li>Unzip it wherever you keep your tools. Nothing goes into the game's folders.</li>
+                    <li>Run <code>{{ project.binary }}</code>, or <code>{{ project.binary }}.exe</code> on Windows. From a terminal, <code>{{ project.binary }} --help</code> lists what it can do.</li>
+                </ol>
+                {%- if project.links.documentation is defined %}
+                <p>Then the <a href="{{ project.links.documentation | safe }}">documentation</a> takes it from there.</p>
+                {%- endif %}
+            </div>
+        </details>
+    {%- endif %}
+
+    {%- if project.format == "fomod" %}
+        <details class="dw-method" name="dw-install-method" open>
+            <summary><span class="dw-method__name">Mod Organizer 2 or Vortex</span><span class="dw-method__hint">FOMOD installer, asks which components you want</span></summary>
+            <div class="dw-method__body">
+                <ol class="dw-steps">
+                    <li>{% if dw_offline %}Install the archive this page came from{% else %}Download the archive, or use <strong>Mod manager</strong> above to hand it to MO2 or umo{% endif %}.</li>
+                    <li>Install it from the mod manager. The installer lists each optional component and preselects the recommended ones.</li>
+                    <li>Enable the mod, then enable its content files{% if project.openmw %} in the plugin list{% endif %}.</li>
+                </ol>
+            </div>
+        </details>
+    {%- endif %}
+
+    {%- if project.openmw and project.format != "binary" %}
+        <details class="dw-method" name="dw-install-method"{% if project.format != "fomod" %} open{% endif %}>
+            <summary><span class="dw-method__name">OpenMW, by hand</span><span class="dw-method__hint">extract, then add these lines to openmw.cfg</span></summary>
+            <div class="dw-method__body">
+                <ol class="dw-steps">
+                    <li>Extract the archive to a folder of its own, for example <code>C:/Games/OpenMW-Mods/{{ page.title }}</code>.</li>
+                    <li>Add the lines below to <code>openmw.cfg</code>{% if bain_like %}, one <code>data=</code> line per component you want{% endif %}. Keep them after the <code>data=</code> lines of anything this mod depends on.</li>
+                    <li>Open the launcher and check the load order. Content files load in the order listed here.</li>
+                </ol>
+                <div class="dw-configurator" data-configurator>
+                    {#- JSON inside <script> must not contain "<", or author text could close the element. -#}
+                    <script type="application/json" data-install-model>{{ project.install | json_encode | replace(from="&", to="\u0026") | replace(from="<", to="\u003c") | replace(from=">", to="\u003e") | safe }}</script>
+                    <div class="dw-configurator__row" data-configurator-controls hidden>
+                        <label for="dw-install-path-{{ project.slug }}">Folder you extracted to</label>
+                        <input type="text" id="dw-install-path-{{ project.slug }}" data-install-path placeholder="C:/Games/OpenMW-Mods/{{ page.title }}" spellcheck="false" autocomplete="off">
+                    </div>
+                    {%- if has_choices %}
+                    <div data-configurator-controls hidden>
+                    {%- for group in project.groups %}
+                        <fieldset class="dw-choices">
+                            <legend>{{ group.name }} · {{ group.select }}</legend>
+                            {%- if group.select == "at-most-one" %}
+                            <label><input type="radio" name="dw-{{ project.slug }}-{{ group.id }}" value="" data-component-choice> None</label>
+                            {%- endif %}
+                            {%- for component in project.components | filter(attribute="group", value=group.id) %}
+                            <label><input type="{% if group.select == 'exactly-one' or group.select == 'at-most-one' %}radio{% else %}checkbox{% endif %}" name="dw-{{ project.slug }}-{{ group.id }}" value="{{ component.id }}" data-component-choice{% if component.default %} checked{% endif %}> {{ component.name }}</label>
+                            {%- endfor %}
+                        </fieldset>
+                    {%- endfor %}
+                    {%- set loose = [] %}
+                    {%- for component in optional_components %}{% if not component.group %}{% set_global loose = loose | concat(with=component) %}{% endif %}{% endfor %}
+                    {%- if loose | length > 0 %}
+                        <fieldset class="dw-choices">
+                            <legend>Optional components</legend>
+                            {%- for component in loose %}
+                            <label><input type="checkbox" value="{{ component.id }}" data-component-choice{% if component.default %} checked{% endif %}> {{ component.name }}</label>
+                            {%- endfor %}
+                        </fieldset>
+                    {%- endif %}
+                    </div>
+                    {%- endif %}
+                    {{ dw_macros::config_block(project=project) }}
+                    <p class="dw-method__hint">{% if has_choices %}Shows the required components plus the defaults. {% endif %}Replace the folder with wherever you extracted the archive.</p>
+                </div>
+                {%- if project.openmw.settings | length > 0 %}
+                <p>Also set these in <code>settings.cfg</code>, or in the launcher's settings:</p>
+                <pre data-lang="cfg"><code>{% for setting in project.openmw.settings %}[{{ setting.category }}]
+{{ setting.key }} = {{ setting.value }}
+{% endfor %}</code></pre>
+                {%- endif %}
+            </div>
+        </details>
+    {%- endif %}
+
+    {%- if bain_like %}
+        <details class="dw-method" name="dw-install-method">
+            <summary><span class="dw-method__name">Wrye Bash</span><span class="dw-method__hint">BAIN package with numbered sub-packages</span></summary>
+            <div class="dw-method__body">
+                <ol class="dw-steps">
+                    <li>Put the archive in Wrye Bash's installers folder.</li>
+                    <li>Select the sub-packages you want: the required ones are {% for component in project.components | filter(attribute="required", value=true) %}<code>{{ component.path }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.</li>
+                    <li>Install, then activate the content files.</li>
+                </ol>
+            </div>
+        </details>
+    {%- endif %}
+
+    {%- if not dw_offline %}
+        <details class="dw-method" name="dw-install-method">
+            <summary><span class="dw-method__name">DreamWeave clients</span><span class="dw-method__hint">CHIMERA and other tools that read the manifest</span></summary>
+            <div class="dw-method__body">
+                <p>Give the tool this page's address, or the manifest directly. It finds the release for its channel, checks compatibility and dependencies, downloads from any listed source and refuses bytes whose SHA-256 does not match.</p>
+                <dl class="dw-record">
+                    <dt>Project id</dt><dd class="dw-id">{{ project.id }} <button class="dw-copy" type="button" data-copy="{{ project.id }}">Copy</button></dd>
+                    <dt>Manifest</dt><dd><a href="{{ project.manifest_url | safe }}">{{ project.manifest_url }}</a></dd>
+                </dl>
+            </div>
+        </details>
+    {%- endif %}
+    </div>
+
+    <h3>What is in the archive</h3>
+    <div class="dw-tree" role="group" aria-label="Archive layout">
+        {%- if project.format == "binary" %}
+        <ul><li><span class="dw-tree__dir">{{ project.binary }}-&lt;platform&gt;.zip</span><span class="dw-tree__note">one per platform</span>
+            <ul>
+                <li>{{ project.binary }}<span class="dw-tree__note">the program; {{ project.binary }}.exe on Windows</span></li>
+            {%- for included in project.include %}
+                <li>{{ included }}</li>
+            {%- endfor %}
+            </ul>
+        </li></ul>
+        {%- else %}
+        <ul><li><span class="dw-tree__dir">{{ project.slug }}.zip</span>
+            <ul>
+            {%- if project.implicit_component %}
+                {%- if project.openmw and project.openmw.components.main.content_files | length > 0 %}
+                <li>{% for file in project.openmw.components.main.content_files %}{{ file }}{% if not loop.last %}, {% endif %}{% endfor %}<span class="dw-tree__note">and the rest of the data directory</span></li>
+                {%- else %}
+                <li>the mod's files<span class="dw-tree__note">one data directory</span></li>
+                {%- endif %}
+            {%- else %}
+            {%- for component in project.components | sort(attribute="path") %}
+                <li><span class="dw-tree__dir">{{ component.path }}/</span><span class="dw-tree__note">{{ component.name }}</span>{% if component.required %}<span class="dw-badge dw-badge--accent dw-tree__tag">required</span>{% elif component.group %}<span class="dw-badge dw-tree__tag">choice</span>{% else %}<span class="dw-badge dw-tree__tag">optional</span>{% endif %}</li>
+            {%- endfor %}
+            {%- endif %}
+            {%- if project.documentation_packaged %}
+                <li><span class="dw-tree__dir">Documentation/</span><span class="dw-tree__note">this page and its docs, readable offline</span></li>
+            {%- endif %}
+            {%- if project.format == "fomod" %}
+                <li><span class="dw-tree__dir">fomod/</span><span class="dw-tree__note">installer for MO2 and Vortex</span></li>
+            {%- endif %}
+                <li>dreamweave.release.json<span class="dw-tree__note">what this archive is, for tools</span></li>
+            </ul>
+        </li></ul>
+        {%- endif %}
+    </div>
+
+    {%- for key in ["post_install", "upgrade", "uninstall", "notes"] %}
+    {%- if project.install_notes[key] is defined %}
+    <h3>{% if key == "post_install" %}After installing{% elif key == "upgrade" %}Upgrading{% elif key == "uninstall" %}Uninstalling{% else %}Notes{% endif %}</h3>
+    <div class="dw-prose">{{ project.install_notes[key] | markdown | safe }}</div>
+    {%- endif %}
+    {%- endfor %}
+</section>

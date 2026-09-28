@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{%- block content %}
+<header class="dw-hero">
+    <div class="dw-shell">
+        <h1 class="dw-hero__title">{{ section.title }}</h1>
+        {%- if section.description %}<p class="dw-hero__summary">{{ section.description }}</p>{% endif %}
+    </div>
+</header>
+<div class="dw-shell"><div class="dw-article">
+    {%- if section.content %}<div class="dw-prose">{{ section.content | safe }}</div>{% endif %}
+    {%- if paginator %}{% set listed = paginator.pages %}{% else %}{% set listed = section.pages %}{% endif %}
+    <ol class="dw-catalog">
+    {%- for item in listed %}
+        <li class="dw-catalog__row">
+            <h2 class="dw-catalog__name"><a href="{{ item.permalink | safe }}">{{ item.title }}</a></h2>
+            <p class="dw-catalog__summary">{{ item.description | default(value="") }}</p>
+            <div class="dw-catalog__facts">{% if item.date %}{{ item.date | date(format="%Y-%m-%d") }}{% endif %}</div>
+        </li>
+    {%- endfor %}
+    {%- for subsection_path in section.subsections %}
+        {%- set subsection = get_section(path=subsection_path, metadata_only=true) %}
+        <li class="dw-catalog__row">
+            <h2 class="dw-catalog__name"><a href="{{ subsection.permalink | safe }}">{{ subsection.title }}</a></h2>
+            <p class="dw-catalog__summary">{{ subsection.description | default(value="") }}</p>
+            <div class="dw-catalog__facts"><span class="dw-badge">section</span></div>
+        </li>
+    {%- endfor %}
+    </ol>
+    {%- if paginator %}
+    <nav class="dw-pagination" aria-label="Pages">
+        {%- if paginator.previous %}<a class="dw-button dw-button--small" href="{{ paginator.previous | safe }}" rel="prev">← Previous</a>{% else %}<span></span>{% endif %}
+        <span>{{ paginator.current_index }} / {{ paginator.number_pagers }}</span>
+        {%- if paginator.next %}<a class="dw-button dw-button--small" href="{{ paginator.next | safe }}" rel="next">Next →</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {%- endif %}
+</div></div>
+{%- endblock content %}

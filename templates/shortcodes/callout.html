@@ -1,0 +1,7 @@
+{#- {% callout(kind="note|tip|warning|danger", title="Optional title") %}Markdown{% end %} -#}
+{%- set callout_kind = kind | default(value="note") -%}
+{%- if callout_kind not in ["note", "tip", "warning", "danger"] %}{% set callout_kind = "note" %}{% endif -%}
+<aside class="dw-callout dw-callout--{{ callout_kind }}" role="note">
+  <p class="dw-callout__title">{{ title | default(value=callout_kind | capitalize) }}</p>
+  {{ body | markdown | safe }}
+</aside>

@@ -1,0 +1,96 @@
+// A giscus theme in DreamWeave colors. giscus draws comments in an iframe that cannot see the site's
+// custom properties, so each palette compiles to its own stylesheet under /giscus/<palette>.css.
+// Variable names are GitHub Primer's, as in giscus's own themes (MIT, Copyright (c) 2018 GitHub Inc.).
+
+=giscus-theme($bg-0, $bg-1, $bg-2, $bg-3, $line, $line-strong, $accent, $text: #e7dfef, $muted: #b6a9c6, $faint: #8d809f)
+  $strong: mix($accent, #3a1066, 62%)
+
+  main
+    --color-prettylights-syntax-comment: #{$faint}
+    --color-prettylights-syntax-constant: #9cc7ff
+    --color-prettylights-syntax-entity: #{$accent}
+    --color-prettylights-syntax-storage-modifier-import: #{$text}
+    --color-prettylights-syntax-entity-tag: #8fdcb0
+    --color-prettylights-syntax-keyword: #ffaea2
+    --color-prettylights-syntax-string: #ecd18f
+    --color-prettylights-syntax-variable: #ff9d7a
+    --color-prettylights-syntax-brackethighlighter-unmatched: #ffaea2
+    --color-prettylights-syntax-invalid-illegal-text: #{$text}
+    --color-prettylights-syntax-invalid-illegal-bg: #7a2a24
+    --color-prettylights-syntax-carriage-return-text: #{$text}
+    --color-prettylights-syntax-carriage-return-bg: #7a2a24
+    --color-prettylights-syntax-string-regexp: #8fdcb0
+    --color-prettylights-syntax-markup-list: #ecd18f
+    --color-prettylights-syntax-markup-heading: #{$accent}
+    --color-prettylights-syntax-markup-italic: #{$text}
+    --color-prettylights-syntax-markup-bold: #{$text}
+    --color-prettylights-syntax-markup-deleted-text: #ffd8d3
+    --color-prettylights-syntax-markup-deleted-bg: #5c1f1b
+    --color-prettylights-syntax-markup-inserted-text: #c8f2d9
+    --color-prettylights-syntax-markup-inserted-bg: #1d4630
+    --color-prettylights-syntax-markup-changed-text: #ffe2b8
+    --color-prettylights-syntax-markup-changed-bg: #5a3514
+    --color-prettylights-syntax-markup-ignored-text: #{$text}
+    --color-prettylights-syntax-markup-ignored-bg: #{$bg-3}
+    --color-prettylights-syntax-meta-diff-range: #{$accent}
+    --color-prettylights-syntax-brackethighlighter-angle: #{$faint}
+    --color-prettylights-syntax-sublimelinter-gutter-mark: #{$line-strong}
+    --color-prettylights-syntax-constant-other-reference-link: #9cc7ff
+    --color-btn-text: #{$text}
+    --color-btn-bg: #{$bg-2}
+    --color-btn-border: #{$line-strong}
+    --color-btn-shadow: 0 0 transparent
+    --color-btn-inset-shadow: 0 0 transparent
+    --color-btn-hover-bg: #{$bg-3}
+    --color-btn-hover-border: #{$accent}
+    --color-btn-active-bg: #{$bg-3}
+    --color-btn-active-border: #{$accent}
+    --color-btn-selected-bg: #{$bg-2}
+    --color-btn-primary-text: #fff
+    --color-btn-primary-bg: #{$strong}
+    --color-btn-primary-border: #{rgba($accent, .35)}
+    --color-btn-primary-shadow: 0 0 transparent
+    --color-btn-primary-inset-shadow: 0 0 transparent
+    --color-btn-primary-hover-bg: #{mix($strong, #ffffff, 85%)}
+    --color-btn-primary-hover-border: #{rgba($accent, .6)}
+    --color-btn-primary-selected-bg: #{$strong}
+    --color-btn-primary-selected-shadow: 0 0 transparent
+    --color-btn-primary-disabled-text: #{rgba(#fff, .5)}
+    --color-btn-primary-disabled-bg: #{rgba($strong, .6)}
+    --color-btn-primary-disabled-border: #{rgba($accent, .2)}
+    --color-action-list-item-default-hover-bg: #{rgba($accent, .12)}
+    --color-segmented-control-bg: #{$bg-2}
+    --color-segmented-control-button-bg: #{$bg-1}
+    --color-segmented-control-button-selected-border: #{$line-strong}
+    --color-fg-default: #{$text}
+    --color-fg-muted: #{$muted}
+    --color-fg-subtle: #{$faint}
+    --color-canvas-default: #{$bg-1}
+    --color-canvas-overlay: #{$bg-2}
+    --color-canvas-inset: #{$bg-0}
+    --color-canvas-subtle: #{$bg-2}
+    --color-border-default: #{$line-strong}
+    --color-border-muted: #{$line}
+    --color-neutral-muted: #{rgba($faint, .4)}
+    --color-accent-fg: #{$accent}
+    --color-accent-emphasis: #{$strong}
+    --color-accent-muted: #{rgba($accent, .4)}
+    --color-accent-subtle: #{rgba($accent, .1)}
+    --color-success-fg: #8fdcb0
+    --color-attention-fg: #ecd18f
+    --color-attention-muted: #{rgba(#ecd18f, .4)}
+    --color-attention-subtle: #{rgba(#ecd18f, .15)}
+    --color-danger-fg: #ffaea2
+    --color-danger-muted: #{rgba(#ffaea2, .4)}
+    --color-danger-subtle: #{rgba(#ffaea2, .1)}
+    --color-primer-shadow-inset: 0 0 transparent
+    --color-scale-gray-7: #{$bg-3}
+    --color-scale-blue-8: #{$strong}
+    --color-social-reaction-bg-hover: #{$bg-3}
+    --color-social-reaction-bg-reacted-hover: #{rgba($accent, .25)}
+
+  main .pagination-loader-container
+    background-image: url(https://github.com/images/modules/pulls/progressive-disclosure-line-dark.svg)
+
+  main .gsc-loading-image
+    background-image: url(https://github.githubassets.com/images/mona-loading-dimmed.gif)

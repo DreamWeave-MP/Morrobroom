@@ -1,0 +1,65 @@
+{#- Compatibility: hard requirements, optional integrations, known-good, conflicts. Never merged. -#}
+{%- set content_requirements = [] -%}
+{%- if project.openmw %}{% set content_requirements = project.openmw.requires_content %}{% endif -%}
+{%- set has_any = project.runtimes | length > 0 or content_requirements | length > 0 or relationships.requires | length > 0 or relationships.recommends | length > 0 or relationships.conflicts | length > 0 or relationships.compatible | length > 0 -%}
+{%- if has_any %}
+<section class="dw-section" id="compatibility" aria-labelledby="compatibility-title">
+    <div class="dw-section__head"><h2 id="compatibility-title">Compatibility</h2><p>Anything not listed here is untested.</p></div>
+    <div class="dw-matrix">
+        {%- if project.runtimes | length > 0 or content_requirements | length > 0 %}
+        <div class="dw-matrix__cell dw-matrix__cell--requires">
+            <h3>Runs on</h3>
+            <ul>
+                {%- for runtime, requirement in project.runtimes %}
+                <li>{{ dw_macros::runtime_label(runtime=runtime) }}<span class="dw-constraint">{{ dw_macros::constraint(text=requirement) }}</span></li>
+                {%- endfor %}
+                {%- if project.openmw and project.openmw.lua_api is defined %}
+                <li>OpenMW Lua API<span class="dw-constraint">{{ project.openmw.lua_api }}</span></li>
+                {%- endif %}
+                {%- for platform in project.platforms %}
+                <li>{{ dw_macros::platform_label(os=platform.os, arch=platform.arch) }}</li>
+                {%- endfor %}
+                {%- for file in content_requirements %}
+                <li><code>{{ file }}</code> <span class="dw-method__hint">active in the load order</span></li>
+                {%- endfor %}
+            </ul>
+        </div>
+        {%- endif %}
+
+        {%- if relationships.requires | length > 0 %}
+        <div class="dw-matrix__cell dw-matrix__cell--requires">
+            <h3>Requires</h3>
+            <ul>{% for item in relationships.requires %}<li>{{ dw_macros::relationship(item=item) }}{% if item.reason is defined %}<p>{{ item.reason }}</p>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {%- endif %}
+
+        {%- if relationships.recommends | length > 0 %}
+        <div class="dw-matrix__cell dw-matrix__cell--recommends">
+            <h3>Works better with</h3>
+            <ul>{% for item in relationships.recommends %}<li>{{ dw_macros::relationship(item=item) }}{% if item.reason is defined %}<p>{{ item.reason }}</p>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {%- endif %}
+
+        {%- if relationships.conflicts | length > 0 %}
+        <div class="dw-matrix__cell dw-matrix__cell--conflicts">
+            <h3>Conflicts with</h3>
+            <ul>{% for item in relationships.conflicts %}<li>{{ dw_macros::relationship(item=item) }}{% if item.reason is defined %}<p>{{ item.reason }}</p>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {%- endif %}
+
+        {%- if relationships.compatible | length > 0 %}
+        <div class="dw-matrix__cell dw-matrix__cell--compatible">
+            <h3>Known compatible</h3>
+            <ul>{% for item in relationships.compatible %}<li>{{ dw_macros::relationship(item=item) }}{% if item.reason is defined %}<p>{{ item.reason }}</p>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {%- endif %}
+
+        {%- if relationships.replaces | length > 0 %}
+        <div class="dw-matrix__cell">
+            <h3>Replaces</h3>
+            <ul>{% for item in relationships.replaces %}<li>{{ dw_macros::relationship(item=item) }}{% if item.reason is defined %}<p>{{ item.reason }}</p>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {%- endif %}
+    </div>
+</section>
+{%- endif %}

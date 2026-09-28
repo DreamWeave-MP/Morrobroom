@@ -1,0 +1,934 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dreamweave-mp.github.io/DreamWeave-Mod-Template/schemas/modManifest-2.schema.json",
+  "title": "DreamWeave project manifest (schema_version 2)",
+  "description": "One project's identity, releases, artifacts and install semantics. Published at <site>/dreamweave/projects/<id>.json and found through <site>/dreamweave.json. Core fields are frozen for schema_version 2: an unknown core field is an error, new data goes in namespaced extensions.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "document",
+    "project",
+    "channels",
+    "releases"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2"
+    },
+    "document": {
+      "const": "project"
+    },
+    "generator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "channels": {
+      "description": "Each channel's head: its highest-precedence release that is neither yanked nor deprecated.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "$ref": "#/$defs/version"
+          }
+        }
+      }
+    },
+    "releases": {
+      "description": "Newest first by precedence. Yanked and deprecated releases stay listed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/release"
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "A project id: an RFC 9562 UUID in canonical lowercase form. Chosen once by the author; never derived from a name, host or URL.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "version": {
+      "description": "Dot-separated release numbers (1 to 6), optional -prerelease and +build. How release numbers compare depends on the project's versioning scheme (numeric or decimal); pre-releases follow SemVer 2.0.0; build metadata is ignored.",
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "constraint": {
+      "description": "* or comma-separated comparators (=, !=, >, >=, <, <=) that must all hold, evaluated with the target project's versioning scheme.",
+      "type": "string",
+      "pattern": "^\\s*(?:\\*|(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\s*,\\s*(?:>=|<=|!=|=|>|<)\\s*(?:0|[1-9][0-9]*)(?:\\.[0-9]+){0,5}(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)*)\\s*$"
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "person": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      }
+    },
+    "notes": {
+      "type": "object",
+      "required": [],
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "highlights": {
+          "type": "string",
+          "description": "CommonMark. Treat embedded HTML as untrusted."
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fixed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "breaking": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "migration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "known_issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "replacement": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "requires",
+            "recommends",
+            "conflicts",
+            "compatible",
+            "replaces"
+          ]
+        },
+        "project": {
+          "$ref": "#/$defs/uuid"
+        },
+        "capability": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*(:[a-z0-9][a-z0-9.-]*)?$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/constraint"
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "path",
+        "required",
+        "default",
+        "requires",
+        "conflicts",
+        "suggested_with"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/token"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Directory inside the archive, or \".\" for its root. Forward slashes, no . or .. segments.",
+          "type": "string",
+          "pattern": "^(\\.|[^/\\\\]+(/[^/\\\\]+)*)$"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "boolean"
+        },
+        "group": {
+          "$ref": "#/$defs/token"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/token"
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/token"
+          }
+        },
+        "suggested_with": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "select"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/token"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "select": {
+          "enum": [
+            "exactly-one",
+            "at-most-one",
+            "at-least-one",
+            "any"
+          ]
+        }
+      }
+    },
+    "openmw_component": {
+      "type": "object",
+      "required": [
+        "data_directories",
+        "content_files",
+        "groundcover_files",
+        "fallback_archives",
+        "fallback_entries",
+        "config",
+        "requires_content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "data_directories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "content_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "groundcover_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fallback_archives": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fallback_entries": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "config": {
+          "type": "boolean"
+        },
+        "requires_content": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "openmw": {
+      "type": "object",
+      "required": [
+        "components",
+        "requires_content",
+        "settings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/openmw_component"
+          }
+        },
+        "requires_content": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "lua_api": {
+          "$ref": "#/$defs/constraint"
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "category",
+              "key",
+              "value"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "extensions": {
+      "description": "Namespaced extension data. `openmw` is defined here; any other namespace is dotted (org.tes3mp) and opaque to clients that do not know it.",
+      "type": "object",
+      "properties": {
+        "openmw": {
+          "$ref": "#/$defs/openmw"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^(openmw|[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+)$"
+      },
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "url",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "kind": {
+          "enum": [
+            "publisher",
+            "mirror"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "required": [
+        "format",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "sigstore-bundle"
+          ]
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "issuer": {
+          "$ref": "#/$defs/url"
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "id",
+        "format",
+        "filename",
+        "media_type",
+        "size",
+        "digests",
+        "sources",
+        "signatures"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/token"
+        },
+        "format": {
+          "enum": [
+            "flat",
+            "bain",
+            "fomod",
+            "binary"
+          ],
+          "description": "How the archive is laid out. flat, bain and fomod hold data for the game; binary holds a program built for one platform."
+        },
+        "filename": {
+          "type": "string",
+          "pattern": "^[^/\\\\]+$"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digests": {
+          "type": "object",
+          "required": [
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "platform": {
+          "type": "object",
+          "required": [
+            "os",
+            "arch"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "os": {
+              "enum": [
+                "windows",
+                "macos",
+                "linux"
+              ]
+            },
+            "arch": {
+              "enum": [
+                "x86_64",
+                "aarch64"
+              ]
+            }
+          },
+          "description": "For a binary artifact: the one platform it runs on. Clients pick the artifact for their own."
+        },
+        "layout": {
+          "type": "object",
+          "required": [],
+          "additionalProperties": false,
+          "properties": {
+            "release_document": {
+              "type": "string",
+              "minLength": 1
+            },
+            "documentation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "installer": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "signatures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signature"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "binary"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "required": [
+              "platform"
+            ]
+          }
+        }
+      ]
+    },
+    "release": {
+      "type": "object",
+      "required": [
+        "version",
+        "channel",
+        "status",
+        "source",
+        "runtimes",
+        "platforms",
+        "provides",
+        "relationships",
+        "components",
+        "groups",
+        "extensions",
+        "critical_extensions",
+        "artifacts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "channel": {
+          "$ref": "#/$defs/token"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "yanked",
+            "deprecated"
+          ]
+        },
+        "yanked": {
+          "$ref": "#/$defs/notice"
+        },
+        "deprecated": {
+          "$ref": "#/$defs/notice"
+        },
+        "source": {
+          "type": "object",
+          "required": [
+            "repository"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "$ref": "#/$defs/url"
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 1
+            },
+            "release": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+            }
+          }
+        },
+        "notes": {
+          "$ref": "#/$defs/notes"
+        },
+        "runtimes": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/constraint"
+          }
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "os",
+              "arch"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "os": {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "linux"
+                ]
+              },
+              "arch": {
+                "enum": [
+                  "x86_64",
+                  "aarch64"
+                ]
+              }
+            }
+          }
+        },
+        "provides": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relationship"
+          }
+        },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/group"
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        },
+        "critical_extensions": {
+          "description": "Extensions a client must implement before it may claim to have installed this release. It may still download and verify the artifact.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "type",
+        "status",
+        "game",
+        "tags",
+        "maintainers",
+        "links",
+        "integrations",
+        "media",
+        "credits",
+        "versioning"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "mod",
+            "library",
+            "framework",
+            "tool",
+            "assets",
+            "total-conversion",
+            "documentation"
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "maintenance",
+            "experimental",
+            "deprecated",
+            "archived"
+          ]
+        },
+        "game": {
+          "$ref": "#/$defs/token"
+        },
+        "license": {
+          "description": "An SPDX license expression.",
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "maintainers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/person"
+          }
+        },
+        "links": {
+          "type": "object",
+          "required": [
+            "page",
+            "source",
+            "issues"
+          ],
+          "additionalProperties": {
+            "$ref": "#/$defs/url"
+          }
+        },
+        "integrations": {
+          "type": "object",
+          "required": [],
+          "additionalProperties": false,
+          "properties": {
+            "nexusmods": {
+              "type": "object",
+              "required": [
+                "game",
+                "mod_id"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "game": {
+                  "$ref": "#/$defs/token"
+                },
+                "mod_id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "media": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "alt",
+              "url"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "image",
+                  "video"
+                ]
+              },
+              "alt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "$ref": "#/$defs/url"
+              },
+              "thumbnail": {
+                "$ref": "#/$defs/url"
+              },
+              "caption": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "featured": {
+                "const": true
+              }
+            }
+          }
+        },
+        "credits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "$ref": "#/$defs/url"
+              }
+            }
+          }
+        },
+        "versioning": {
+          "description": "How this project's release numbers compare. numeric: as integers (0.9 < 0.82). decimal: after the first, like digits after a decimal point (0.82 < 0.9).",
+          "enum": [
+            "numeric",
+            "decimal"
+          ]
+        }
+      }
+    }
+  }
+}

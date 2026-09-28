@@ -1,0 +1,140 @@
+// The multi-project catalog and the network diagnostics page.
+
+.dw-catalog__intro
+  max-width: var(--dw-width-prose)
+  color: var(--dw-text-muted)
+
+.dw-catalog
+  margin: 1.2rem 0 0
+  padding: 0
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius)
+  list-style: none
+  background: var(--dw-bg-1)
+
+.dw-catalog__row
+  display: grid
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto
+  gap: .35rem 1.5rem
+  align-items: baseline
+  padding: .8rem 1rem
+
+  + .dw-catalog__row
+    border-top: 1px solid var(--dw-line)
+
+  &:hover
+    background: var(--dw-bg-2)
+
+.dw-catalog__name
+  margin: 0
+  font-size: 1.02rem
+
+  a
+    color: var(--dw-text)
+    text-decoration: none
+
+    &::after
+      content: ""
+      position: absolute
+      inset: 0
+
+    &:hover
+      color: var(--dw-accent)
+
+.dw-catalog__row
+  position: relative
+
+.dw-catalog__summary
+  margin: 0
+  color: var(--dw-text-muted)
+  font-size: .9rem
+
+.dw-catalog__facts
+  display: flex
+  flex-wrap: wrap
+  gap: .35rem
+  justify-content: flex-end
+  font-family: var(--dw-font-mono)
+  font-size: .76rem
+  white-space: nowrap
+
+.dw-catalog__meta
+  grid-column: 1 / -1
+  display: flex
+  flex-wrap: wrap
+  gap: .2rem 1rem
+  position: relative
+  z-index: 1
+
+@media (max-width: 760px)
+  .dw-catalog__row
+    grid-template-columns: minmax(0, 1fr)
+
+  .dw-catalog__facts
+    justify-content: flex-start
+
+// Network diagnostics ---------------------------------------------------------------------
+
+.dw-checks
+  margin: 0
+  padding: 0
+  list-style: none
+
+  li
+    display: grid
+    grid-template-columns: 8.5rem 11rem minmax(0, 1fr)
+    gap: .2rem 1rem
+    align-items: baseline
+    border-top: 1px dashed var(--dw-line)
+    padding: .45em 0
+    font-size: .88rem
+
+    &:first-child
+      border-top: 0
+
+  .dw-status
+    font-size: .76rem
+    text-transform: uppercase
+    letter-spacing: .08em
+
+.dw-checks__label
+  font-family: var(--dw-font-mono)
+  font-size: .82rem
+
+.dw-checks__detail
+  color: var(--dw-text-muted)
+  overflow-wrap: anywhere
+
+@media (max-width: 760px)
+  .dw-checks li
+    grid-template-columns: minmax(0, 1fr)
+
+.dw-network-project
+  margin-top: 2.2rem
+  scroll-margin-top: 1rem
+
+.dw-endpoints
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr))
+  gap: .75rem
+  margin: 1rem 0
+
+  .dw-panel__body
+    font-family: var(--dw-font-mono)
+    font-size: .82rem
+    overflow-wrap: anywhere
+
+// Comments ----------------------------------------------------------------------------------
+
+.dw-comments
+  margin-top: 3rem
+
+  .giscus, noscript
+    display: block
+
+.dw-comments__preview
+  margin: 0 0 .8rem
+  border-left: 2px solid var(--dw-info)
+  padding: .2em .7em
+  color: var(--dw-text-faint)
+  font-size: .8rem
