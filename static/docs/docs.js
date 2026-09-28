@@ -4,18 +4,22 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
-  const sidebarPanel = docsShell.querySelector('.docs-sidebar__panel');
+  // On a narrow screen both panels sit above the article, so they start closed: the page's own
+  // title and text come first.
+  const panels = docsShell.querySelectorAll('.docs-sidebar__panel, .docs-toc__panel');
   const narrowScreen = window.matchMedia('(max-width: 1100px)');
-  const syncSidebar = function() {
-    if (narrowScreen.matches) {
-      sidebarPanel?.removeAttribute('open');
-    } else {
-      sidebarPanel?.setAttribute('open', '');
-    }
+  const syncPanels = function() {
+    panels.forEach(function(panel) {
+      if (narrowScreen.matches) {
+        panel.removeAttribute('open');
+      } else {
+        panel.setAttribute('open', '');
+      }
+    });
   };
 
-  syncSidebar();
-  narrowScreen.addEventListener?.('change', syncSidebar);
+  syncPanels();
+  narrowScreen.addEventListener?.('change', syncPanels);
 
   const tocLinks = Array.from(docsShell.querySelectorAll('.docs-toc a'));
   const headings = tocLinks.map(function(link) {
