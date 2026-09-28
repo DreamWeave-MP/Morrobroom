@@ -130,7 +130,7 @@ fn compile_map(
     );
     assert!(
         !map_data.geomap.entity_brushes.is_empty(),
-        "No brushes found in map! You probably used an apostrophe in worldspawn properties."
+        "No brushes found in map!"
     );
     if let Some(lightmap) = map_data.lightmap() {
         let path = work_dir
@@ -991,6 +991,34 @@ mod nif_semantic_compile_tests {
         let error = nif_markers_for_group(Some(&"asset".to_owned()), &geomap)
             .expect_err("duplicate names in a group must fail");
         assert!(error.contains("duplicate Nif_LinkName"));
+    }
+
+    #[test]
+    fn apostrophes_in_property_values_keep_the_rest_of_the_map() {
+        let map = r#"// Game: Morrowind
+// Format: Valve
+{
+"classname" "worldspawn"
+"ESM3_Name" "Balmora, Caius Cosades' House"
+{
+( -16 -16 -16 ) ( -16 -15 -16 ) ( -16 -16 -15 ) skip [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -16 -16 -15 ) ( -15 -16 -16 ) skip [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -15 -16 -16 ) ( -16 -15 -16 ) skip [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 16 17 16 ) ( 17 16 16 ) skip [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 17 16 16 ) ( 16 16 17 ) skip [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 16 16 16 ) ( 16 16 17 ) ( 16 17 16 ) skip [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+}
+}
+"#
+        .parse::<Map>()
+        .expect("an apostrophe inside a double-quoted value should parse");
+        let geomap = MapGeometry::from_map_without_occlusion(map).geomap;
+        let worldspawn = entity_properties(&geomap, EntityId(0));
+        assert_eq!(
+            worldspawn.get(&"ESM3_Name".to_string()).map(|name| name.as_str()),
+            Some("Balmora, Caius Cosades' House")
+        );
+        assert!(!geomap.entity_brushes.is_empty());
     }
 
     #[test]

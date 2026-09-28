@@ -64,11 +64,19 @@ pub fn parse_float(input: &str) -> IResult<&str, &str> {
 ///
 /// Returns a parser error when the input is not a quoted string.
 pub fn parse_string(input: &str) -> IResult<&str, &str> {
-    let esc = escaped(none_of("\"\'"), '\\', one_of("\"\'"));
-    let esc_or_empty = alt((esc, tag("")));
-    let res = delimited(one_of("\"\'"), esc_or_empty, one_of("\"\'")).parse(input)?;
-
-    Ok(res)
+    // Each quote style is closed only by its own quote, so `"Caius Cosades' House"` keeps its
+    // apostrophe instead of ending the value there.
+    let double_quoted = delimited(
+        char('"'),
+        alt((escaped(none_of("\""), '\\', one_of("\"\'")), tag(""))),
+        char('"'),
+    );
+    let single_quoted = delimited(
+        char('\''),
+        alt((escaped(none_of("\'"), '\\', one_of("\"\'")), tag(""))),
+        char('\''),
+    );
+    alt((double_quoted, single_quoted)).parse(input)
 }
 
 /// Parse a comment beginning with `//` and terminating at end-of-line, not including end-of-line characters.
@@ -106,6 +114,11 @@ mod tests {
             parse_string("\"Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0.\""),
             Ok(("", "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0."))
         );
+        assert_eq!(
+            parse_string("\"Caius Cosades' House\""),
+            Ok(("", "Caius Cosades' House"))
+        );
+        assert_eq!(parse_string("'Say \"hi\"'"), Ok(("", "Say \"hi\"")));
     }
 
     #[test]
