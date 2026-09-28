@@ -22,12 +22,6 @@ Confirm that the configured Morrowind game directory contains `Data Files/`, and
 exists under its `textures/` path as `.tga`, `.png`, `.dds` or `.webp`. Missing textures in the
 editor are a TrenchBroom search-path problem, not a plugin problem.
 
-## "No brushes found in map! You probably used an apostrophe in worldspawn properties"
-
-The compiler means it. A property value containing `'` stops the map parser, and nothing after it
-is read. Remove the apostrophe; for a cell named after Caius Cosades, `Caius Cosades House` will
-have to do.
-
 ## OpenMW launches the old map
 
 Save the `.map` before compiling. The compiler reads the saved file, not TrenchBroom's unsaved

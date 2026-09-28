@@ -60,13 +60,11 @@ the compiler. The compiler is many things, but it is not a texture diviner.
 | Texture or flag | Effect |
 | --- | --- |
 | `skip`, or any texture with `skip_` in its name | The face is not built: no mesh, no collision. For faces nobody will ever see. |
+| `clip` | Not drawn, but collides. For invisible walls. |
 | A texture with `water`, `slime`, `lava` or `mwat` in its name | Drawn, but never collides, so the player can wade into it. |
 | **NoClip** surface flag | Drawn, but never collides. |
 | **Invert Faces** surface flag | Drawn inside out, for fake skyboxes and other things seen from within. |
 | **Smooth Shading** surface flag | Not implemented yet; faces are flat shaded. |
-
-`clip` is drawn transparent in TrenchBroom, but the compiler builds it like any other face. It is
-not an invisible collision material.
 
 ## Groups and layers
 

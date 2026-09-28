@@ -33,10 +33,6 @@ describe the cell the map compiles into.
 | `ESM3_Ambient_color`, `ESM3_Sun_color`, `ESM3_Fog_color` | `15 15 15` | The cell's lighting colors. |
 | `ESM3_FogDensity` | `0` | Fog from `0` to `1`. |
 
-A property value must not contain an apostrophe. The map parser stops at it, and the compiler
-then finds no brushes and panics with `No brushes found in map! You probably used an apostrophe in
-worldspawn properties`. Mind this in cell names: `Caius Cosades' House` will not compile.
-
 ## Built from brushes
 
 Select brushes, right-click, and pick one of these under **Create Brush Entity**. Each brush entity
@@ -72,7 +68,7 @@ static, one placement.
 
 | Entity | Compiles into |
 | --- | --- |
-| `Light_Point64` … `Light_Point1024` | A light record and a placement, and light in the baked lightmap. The number is the radius; `ESM3_Radius` overrides it for the record. Also takes `ESM3_light_color`, `ESM3_LightFlags`, `ESM3_Sound` and `ESM3_Script`. |
+| `Light_Point64` … `Light_Point1024` | A light record and a placement, and light in the baked lightmap. The number is the radius; `ESM3_Radius` overrides it for both the record and the bake. Also takes `ESM3_light_color`, `ESM3_LightFlags`, `ESM3_Sound` and `ESM3_Script`. |
 | `world_CreatureList` | A leveled creature list, placed where you put it. Needs `ESM3_RefId`. Up to ten `ESM3_Creature_<n>_Id` with `ESM3_Creature_<n>_PlayerLevel`, plus `ESM3_Chance_None` and `ESM3_Spawn_From_All_Levels`. |
 | `world_ItemList` | A leveled item list record, not placed: put its id in a container. Needs `ESM3_RefId`. Items are `ESM3_Item_<n>_Id` with `ESM3_Item_<n>_PlayerLevel`. |
 | `info_player_start` | Nothing. It is a player-sized box for judging scale in the editor. |
