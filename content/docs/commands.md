@@ -1,24 +1,29 @@
 +++
-title = "Tools and Command Line"
-description = "Use Morrobroom directly when TrenchBroom's compile profile is not enough."
-weight = 40
+title = "Command line"
+description = "Every Morrobroom command and option, for when TrenchBroom's compile profile is not enough."
+weight = 45
 
 [extra]
 kind = "reference"
 +++
 
-## Compile a map
+Morrobroom has three commands. `morrobroom --help`, or `--help` after any command, prints the
+same options from the program itself.
 
-The normal command is:
+| Command | Does |
+| --- | --- |
+| [`compile`](#compile) | Compile a TrenchBroom map into meshes, a lightmap and a plugin. |
+| [`nif2map`](#nif2map) | Reverse-compile NIF visual geometry into editable maps. |
+| [`fgd`](#fgd) | Generate a TrenchBroom entity catalog from an OpenMW load order. |
+
+## compile
 
 ```bash
-morrobroom compile \
-  --map my_level.map \
-  --output my_level.omwaddon
+morrobroom compile --map my_level.map --output my_level.omwaddon
 ```
 
-Lightmapping is enabled by default. To keep generated meshes, lightmaps, and
-the plugin in one project-local directory:
+To keep the generated meshes, lightmap and plugin together in one project-local directory, the way
+the TrenchBroom profile does:
 
 ```bash
 morrobroom compile \
@@ -27,37 +32,16 @@ morrobroom compile \
   --output build/my_level/my_level.omwaddon
 ```
 
-Useful compile options:
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--map PATH` | | **Required.** The `.map` file to compile. It must exist and end in `.map`. |
+| `-o`, `--output PATH` | `<map>.omwaddon` beside the map | The plugin: `.esp`, `.esm`, `.omwaddon` or `.omwgame`. An existing plugin is updated, not replaced; see [OpenMW integration](@/docs/openmw.md#compiling-into-an-existing-plugin). |
+| `--output-dir PATH` | the map's folder | Where `Meshes/` and `Textures/` are written. Created if needed. |
+| `-c`, `--config PATH` | `openmw-config` discovery, then the user config | The OpenMW config file or directory whose data provides textures. |
+| `-s`, `--scale NUMBER` | `2.0` | Scale the generated meshes. Quake-scale maps need `2.0` to match Morrowind. |
+| `--no-lightmaps` | | Skip lightmap UVs and baking. |
 
-| Option | Purpose |
-| --- | --- |
-| `--map PATH` | Required input `.map` file. |
-| `--config PATH` | OpenMW config file or directory. Defaults to `openmw-config` discovery with a user-config fallback. |
-| `--output PATH` | Plugin output: `.esp`, `.esm`, `.omwaddon`, or `.omwgame`. |
-| `--output-dir PATH` | Root for generated meshes and lightmaps. |
-| `--scale NUMBER` | Scale generated meshes; defaults to `2.0` for Morrowind-sized content. |
-| `--no-lightmaps` | Disable lightmap UVs and baking. |
-
-The input map must exist and use the `.map` extension. Output directories are
-created when necessary. Use `--config /path/to/openmw.cfg` when the desired
-OpenMW loadout is not the one discovered from the environment/platform defaults.
-
-## Generate an FGD
-
-```bash
-morrobroom FGD \
-  --config /path/to/openmw.cfg
-```
-
-The catalog is written to TrenchBroom's standard per-user Morrowind directory
-and includes `Morrowind.fgd`. Use `--output <path>` to override the location.
-See [OpenMW integration](@/docs/openmw.md#regenerate-the-fgd) for details.
-
-## Import NIF geometry
-
-See the dedicated [NIF Import](@/docs/nif-import.md) page for the structural
-versus surface reconstruction model, output files, brush limits, and import
-options. The short command is:
+## nif2map
 
 ```bash
 morrobroom nif2map meshes/ \
@@ -67,5 +51,20 @@ morrobroom nif2map meshes/ \
   --output-dir nif2map-out
 ```
 
-Run `morrobroom --help` or a subcommand's `--help` for the complete option
-list.
+Every option, and the model behind them, is on [NIF import](@/docs/nif-import.md#options-that-matter).
+
+## fgd
+
+```bash
+morrobroom fgd --config /path/to/openmw.cfg
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `-c`, `--config PATH` | | The `openmw.cfg` whose load order to catalog. |
+| `-o`, `--output PATH` | TrenchBroom's `Morrowind` game directory | Where to write `MorrowindObjects.fgd`. |
+| `-t`, `--types TAGS` | every placeable type | TES3 record tags separated by `;`, like `"stat;door;ligh"`. Placeable objects only: `acti`, `alch`, `appa`, `armo`, `book`, `clot`, `door`, `ingr`, `levc`, `levi`, `ligh`, `lock`, `misc`, `prob`, `repa`, `scpt`, `stat`, `weap`. |
+| `-s`, `--scale NUMBER` | `2.0` | Scale for the catalog's bounding boxes. Keep it the same as `compile --scale`. |
+
+[OpenMW integration](@/docs/openmw.md#the-entity-catalog-for-your-load-order) explains where the
+catalog goes and what it is for.

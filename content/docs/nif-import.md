@@ -1,10 +1,10 @@
 +++
-title = "NIF Import"
+title = "NIF import"
 description = "Reverse-compile visual NIF geometry into editable Valve 220 brush geometry."
-weight = 35
+weight = 40
 
 [extra]
-kind = "workflow"
+kind = "guide"
 +++
 
 `nif2map` reverse-compiles reconstructible visual NIF geometry into editable
@@ -85,19 +85,20 @@ an existing asset, or produce a blockout for further brush authoring.
 
 ## Options that matter
 
-| Option | Purpose |
-| --- | --- |
-| `--recursive` | Scan input directories recursively and preserve their relative subdirectories in the output. |
-| `--output-dir PATH` | Write `.map` and `.nif2map.json` files there. |
-| `--texture-root PATH` | **Required.** Add an ordered data directory or `.bsa`, `.ba2`, or `.zip` archive to the OpenMW-style texture VFS; repeatable. |
-| `--fallback MODE` | Choose `planar-prisms` surface reconstruction or `skip` for structural-only output. |
-| `--max-brushes N` | Stop if one input would generate more than `N` brushes. |
-| `--shell-thickness N` | Backing thickness for open swept architectural shells. |
-| `--fallback-thickness N` | Thickness used by planar-prism surface reconstruction. |
-| `--include-collision` | Emit `RootCollisionNode` descendants in a separate Collision group. |
-| `--overwrite` | Permit existing outputs to be replaced. |
-| `--dry-run` | Analyze without writing map files. |
-| `--verbose` | Print recognizer details and warnings. |
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--texture-root PATH` | | **Required.** Add an ordered data directory or `.bsa`, `.ba2` or `.zip` archive to the OpenMW-style texture VFS; repeatable. |
+| `-r`, `--recursive` | | Scan input directories recursively and preserve their relative subdirectories in the output. |
+| `-o`, `--output-dir PATH` | `nif2map-out` | Write `.map` and `.nif2map.json` files there. |
+| `--fallback MODE` | `planar-prisms` | `planar-prisms` surface reconstruction, or `skip` for structural-only output. |
+| `--max-brushes N` | `20000` | Stop if one input would generate more than `N` brushes. |
+| `--shell-thickness N` | `16` | Backing thickness for open swept architectural shells. |
+| `--fallback-thickness N` | `2` | Thickness used by planar-prism surface reconstruction. |
+| `--skip-material NAME` | `skip` | The material for the closing and partition faces reconstruction adds, which were never visible in the NIF. |
+| `--include-collision` | | Emit `RootCollisionNode` descendants in a separate Collision group. |
+| `--overwrite` | | Permit existing outputs to be replaced. |
+| `--dry-run` | | Analyze without writing map files. |
+| `-v`, `--verbose` | | Print recognizer details and warnings. |
 
 `--no-validate` disables generated-brush validation and is intended for
 diagnosing converter problems, not normal imports. Validation is one of the
