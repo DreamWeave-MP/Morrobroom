@@ -242,15 +242,20 @@ fn collect_point_lights(geomap: &GeoMap) -> Vec<LightDefinition> {
             if !classname.contains("Light_Point") {
                 return None;
             }
-            let radius = classname
-                .chars()
-                .skip_while(|character| !character.is_ascii_digit())
-                .take_while(char::is_ascii_digit)
-                .collect::<String>()
-                .parse::<f32>()
-                .ok()?;
+            // Match the light record: an `ESM3_Radius` override wins over the class name.
+            let radius = property(properties, "ESM3_Radius")
+                .and_then(|radius| radius.parse::<f32>().ok())
+                .or_else(|| {
+                    classname
+                        .chars()
+                        .skip_while(|character| !character.is_ascii_digit())
+                        .take_while(char::is_ascii_digit)
+                        .collect::<String>()
+                        .parse::<f32>()
+                        .ok()
+                })?;
             let position = parse_vector3(property(properties, "origin")?)?;
-            let color = parse_color(property(properties, "light_color").unwrap_or("255 255 255"));
+            let color = parse_color(property(properties, "ESM3_light_color").unwrap_or("255 255 255"));
             Some(LightDefinition::Point(
                 lightmap::light::PointLightDefinition {
                     intensity: 1.0,
@@ -271,7 +276,7 @@ fn collect_ambient_color(geomap: &GeoMap) -> [u8; 3] {
         .find_map(|entity_id| {
             let properties = geomap.entity_properties.get(*entity_id)?;
             (property(properties, "classname") == Some("worldspawn")).then(|| {
-                parse_byte_color(property(properties, "Ambient_color").unwrap_or("15 15 15"))
+                parse_byte_color(property(properties, "ESM3_Ambient_color").unwrap_or("15 15 15"))
             })
         })
         .unwrap_or([15, 15, 15])

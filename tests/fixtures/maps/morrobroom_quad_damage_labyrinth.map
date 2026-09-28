@@ -6,7 +6,7 @@
 "classname" "worldspawn"
 "mapversion" "220"
 "message" "MORROBROOM QUAD DAMAGE LABYRINTH"
-"Ambient_color" "32 32 32"
+"ESM3_Ambient_color" "32 32 32"
 "_generator" "GPT-5.6 Sol"
 // floor_0_0
 {
@@ -5358,130 +5358,130 @@
 {
 "classname" "Light_Point1024"
 "origin" "-1440 -1440 184"
-"light_color" "255 156 96"
+"ESM3_light_color" "255 156 96"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-1440 -672 184"
-"light_color" "144 255 160"
+"ESM3_light_color" "144 255 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-1440 96 184"
-"light_color" "255 228 160"
+"ESM3_light_color" "255 228 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-1440 864 184"
-"light_color" "128 176 255"
+"ESM3_light_color" "128 176 255"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-1440 1632 184"
-"light_color" "255 128 192"
+"ESM3_light_color" "255 128 192"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-672 -1440 184"
-"light_color" "128 176 255"
+"ESM3_light_color" "128 176 255"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-672 -672 184"
-"light_color" "255 128 192"
+"ESM3_light_color" "255 128 192"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-672 96 184"
-"light_color" "255 156 96"
+"ESM3_light_color" "255 156 96"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-672 864 184"
-"light_color" "144 255 160"
+"ESM3_light_color" "144 255 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "-672 1632 184"
-"light_color" "255 228 160"
+"ESM3_light_color" "255 228 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "96 -1440 184"
-"light_color" "144 255 160"
+"ESM3_light_color" "144 255 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "96 -672 184"
-"light_color" "255 228 160"
+"ESM3_light_color" "255 228 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "96 96 184"
-"light_color" "128 176 255"
+"ESM3_light_color" "128 176 255"
 }
 {
 "classname" "Light_Point1024"
 "origin" "96 864 184"
-"light_color" "255 128 192"
+"ESM3_light_color" "255 128 192"
 }
 {
 "classname" "Light_Point1024"
 "origin" "96 1632 184"
-"light_color" "255 156 96"
+"ESM3_light_color" "255 156 96"
 }
 {
 "classname" "Light_Point1024"
 "origin" "864 -1440 184"
-"light_color" "255 128 192"
+"ESM3_light_color" "255 128 192"
 }
 {
 "classname" "Light_Point1024"
 "origin" "864 -672 184"
-"light_color" "255 156 96"
+"ESM3_light_color" "255 156 96"
 }
 {
 "classname" "Light_Point1024"
 "origin" "864 96 184"
-"light_color" "144 255 160"
+"ESM3_light_color" "144 255 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "864 864 184"
-"light_color" "255 228 160"
+"ESM3_light_color" "255 228 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "864 1632 184"
-"light_color" "128 176 255"
+"ESM3_light_color" "128 176 255"
 }
 {
 "classname" "Light_Point1024"
 "origin" "1632 -1440 184"
-"light_color" "255 228 160"
+"ESM3_light_color" "255 228 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "1632 -672 184"
-"light_color" "128 176 255"
+"ESM3_light_color" "128 176 255"
 }
 {
 "classname" "Light_Point1024"
 "origin" "1632 96 184"
-"light_color" "255 128 192"
+"ESM3_light_color" "255 128 192"
 }
 {
 "classname" "Light_Point1024"
 "origin" "1632 864 184"
-"light_color" "255 156 96"
+"ESM3_light_color" "255 156 96"
 }
 {
 "classname" "Light_Point1024"
 "origin" "1632 1632 184"
-"light_color" "144 255 160"
+"ESM3_light_color" "144 255 160"
 }
 {
 "classname" "Light_Point1024"
 "origin" "0 0 220"
-"light_color" "255 196 96"
+"ESM3_light_color" "255 196 96"
 }

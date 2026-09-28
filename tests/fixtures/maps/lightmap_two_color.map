@@ -6,7 +6,7 @@
 // entity 0
 {
 "classname" "worldspawn"
-"Ambient_color" "0 0 0"
+"ESM3_Ambient_color" "0 0 0"
 // brush 0: floor
 {
 ( -128 -128 0 ) ( -128 -127 0 ) ( -128 -128 1 ) tx_wood_dark 0 0 0 1 1
@@ -66,11 +66,11 @@
 {
 "classname" "Light_Point1024"
 "origin" "-64 0 72"
-"light_color" "255 0 0"
+"ESM3_light_color" "255 0 0"
 }
 // entity 2: blue light on the right
 {
 "classname" "Light_Point1024"
 "origin" "64 0 72"
-"light_color" "0 0 255"
+"ESM3_light_color" "0 0 255"
 }
