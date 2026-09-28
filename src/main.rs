@@ -1015,7 +1015,9 @@ mod nif_semantic_compile_tests {
         let geomap = MapGeometry::from_map_without_occlusion(map).geomap;
         let worldspawn = entity_properties(&geomap, EntityId(0));
         assert_eq!(
-            worldspawn.get(&"ESM3_Name".to_string()).map(|name| name.as_str()),
+            worldspawn
+                .get(&"ESM3_Name".to_string())
+                .map(|name| name.as_str()),
             Some("Balmora, Caius Cosades' House")
         );
         assert!(!geomap.entity_brushes.is_empty());

@@ -255,7 +255,8 @@ fn collect_point_lights(geomap: &GeoMap) -> Vec<LightDefinition> {
                         .ok()
                 })?;
             let position = parse_vector3(property(properties, "origin")?)?;
-            let color = parse_color(property(properties, "ESM3_light_color").unwrap_or("255 255 255"));
+            let color =
+                parse_color(property(properties, "ESM3_light_color").unwrap_or("255 255 255"));
             Some(LightDefinition::Point(
                 lightmap::light::PointLightDefinition {
                     intensity: 1.0,
