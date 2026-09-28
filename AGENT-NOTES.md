@@ -14,6 +14,15 @@ promised. Nothing below has been changed.
   has the right color in game but bakes white, and the baked ambient is always 15 15 15. The bake
   also takes a light's radius from its class name only; the record honors an `ESM3_Radius`
   override. The lightmap test fixtures pass because they were written by hand with the bare keys.
+- **`clip` faces are built like any other face.** `GameConfig.cfg` tags `clip` transparent and the
+  old manual called it collision-only, but only the lightmap's render mesh drops it
+  (`render_mesh.rs:87`); NIF generation drops `skip` alone (`brush_ni_node.rs:459`), so a `clip`
+  face is drawn, with a texture called `clip`, and collides.
+- **An apostrophe in a property value breaks the map.** The parser stops at it, and `compile_map`
+  panics with "No brushes found in map! You probably used an apostrophe in worldspawn properties"
+  (`main.rs:131`). Verified with `"ESM3_Name" "Caius Cosades' House"`. `Morrowind.fgd`'s own
+  default for worldspawn `ESM3_Name` is `"Balmora, Caius Cosades' House"`, and `GameConfig.cfg`
+  sets `setDefaultProperties`.
 - **`ESM3_Model` does the opposite of what the FGD says.** `Morrowind.fgd` describes it as the
   model the object uses, with brush geometry only when it is empty. `process_brush_entity`
   (`main.rs:239`) uses it as the path the *generated* mesh is written to, relative to `Meshes/`.
@@ -30,6 +39,8 @@ Each of these appears in TrenchBroom's entity browser, and placing one compiles 
 - **`nif_fx_fire`** and the **VFX catalog** (`VFX.fgd`, Kurpulio's meshbank previews).
 - **`Nif_UV_Mode` Oscillate.** Only Scroll is built (`mesh.rs:629`); Oscillate prints a warning and
   `Nif_UV_Period` is unused.
+- **`Nif_Billboard_Mode` other than 0.** `insert_render_marker` (`mesh.rs:237`) prints "cannot store
+  billboard mode" and writes the default NiBillboardNode; the FGD offers seven modes.
 - **Armor and clothing.** `item_Armor` is commented out in `Morrowind.fgd`.
 - **Smooth Shading**, the face attribute `GameConfig.cfg` itself marks "not yet implemented".
 
