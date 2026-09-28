@@ -659,10 +659,7 @@ fn point_entity_position(scale_mode: f32, prop_map: &HashMap<&String, &String>) 
         .iter()
         .find(|(key, _)| key.as_str() == "origin")
         .map_or_else(
-            || {
-                eprintln!("All point entities must have an origin!");
-                std::process::exit(256);
-            },
+            || panic!("All point entities must have an origin!"),
             |(_, value)| {
                 value
                     .split_whitespace()
@@ -902,6 +899,7 @@ mod nif_semantic_compile_tests {
 }
 {
 "classname" "nif_node_billboard"
+"origin" "0 0 0"
 "_tb_group" "akulakhan"
 "Nif_LinkName" "head"
 }
@@ -917,6 +915,7 @@ mod nif_semantic_compile_tests {
 }
 {
 "classname" "nif_node_sort_adjust"
+"origin" "0 0 0"
 "_tb_group" "dwemer-statue"
 "Nif_LinkName" "head"
 }
@@ -975,11 +974,13 @@ mod nif_semantic_compile_tests {
 }
 {
 "classname" "nif_node_billboard"
+"origin" "0 0 0"
 "_tb_group" "asset"
 "Nif_LinkName" "head"
 }
 {
 "classname" "nif_node_sort_adjust"
+"origin" "0 0 0"
 "_tb_group" "asset"
 "Nif_LinkName" "head"
 }
