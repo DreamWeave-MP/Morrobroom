@@ -335,7 +335,7 @@ impl TryFrom<(&str, &[&'static str])> for ConfigurationManager {
     type Error = ConfigManagerError;
 
     fn try_from((config_path, object_types): (&str, &[&'static str])) -> Result<Self, Self::Error> {
-        Self::try_from_with_scale(config_path, object_types, 1.0)
+        Self::try_from_with_scale(config_path, object_types, 2.0)
     }
 }
 

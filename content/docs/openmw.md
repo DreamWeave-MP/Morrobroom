@@ -68,8 +68,8 @@ when a map does not need it.
 ## Scale and plugins
 
 Morrowind assets and Quake-style maps do not always use the same practical
-scale. The compiler defaults to `1.0`; use `--scale` when importing maps
-authored at another scale. The TrenchBroom profile uses `1.0`.
+scale. The compiler defaults to `2.0` for Morrowind-sized content; use `--scale`
+when importing maps authored at another scale.
 
 The output plugin can be an `.esp`, `.esm`, `.omwaddon`, or `.omwgame`. For
 normal TrenchBroom iteration, `.omwaddon` in the project-local build directory

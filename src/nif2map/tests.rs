@@ -1056,6 +1056,10 @@ fn authored_map_separates_collision_and_nif_state() {
         key: "Material_Alpha".into(),
         value: "0.5".into(),
     });
+    state.properties.push(NifProperty {
+        key: "Nif_LinkName".into(),
+        value: "animated-surface".into(),
+    });
     let result = Reconstruction {
         brushes: vec![
             Brush {
@@ -1111,6 +1115,7 @@ fn authored_map_separates_collision_and_nif_state() {
     );
     assert!(text.contains("\"classname\" \"nif_geometry\""));
     assert!(text.contains("\"Material_Alpha\" \"0.5\""));
+    assert!(text.contains("\"Nif_LinkName\" \"animated-surface\""));
     assert!(text.contains("\"classname\" \"nif_node_collision_root\""));
     assert!(text.contains("\"_tb_name\" \"Collision: Collision Root\""));
 }

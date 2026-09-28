@@ -300,6 +300,17 @@ pub(super) fn add_scope(
     id
 }
 
+fn node_link_properties(name: &str) -> Vec<NifProperty> {
+    if name.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![NifProperty {
+            key: "Nif_LinkName".into(),
+            value: name.to_owned(),
+        }]
+    }
+}
+
 fn node_is_named(name: &str) -> bool {
     !name.trim().is_empty()
 }
@@ -371,7 +382,7 @@ where
                 name: root.name.clone(),
                 origin: marker_origin(self.transform_for, key, root.transform()),
                 scope,
-                properties: Vec::new(),
+                properties: node_link_properties(&root.name),
             });
         } else if let Some(node) = self
             .stream
@@ -395,7 +406,7 @@ where
                 name: node.name.clone(),
                 origin: marker_origin(self.transform_for, key, node.transform()),
                 scope,
-                properties: Vec::new(),
+                properties: node_link_properties(&node.name),
             });
             self.context.diagnostics.push(format!(
                 "node {:?}: billboard mode is not encoded by the supported NIF version",
@@ -423,10 +434,22 @@ where
                 name: node.name.clone(),
                 origin: marker_origin(self.transform_for, key, node.transform()),
                 scope,
-                properties: vec![NifProperty {
-                    key: "Nif_Sort_Mode".into(),
-                    value: (node.sorting_mode as i32).to_string(),
-                }],
+                properties: {
+                    let mut properties = node_link_properties(&node.name);
+                    let mode = node.sorting_mode as i32;
+                    if mode == 64 {
+                        self.context.diagnostics.push(format!(
+                            "node {:?}: Grouped sort-adjust mode (64) is unsupported by the current Morrobroom authoring schema and will import as Inherit",
+                            node.name
+                        ));
+                    } else {
+                        properties.push(NifProperty {
+                            key: "Nif_Sort_Mode".into(),
+                            value: mode.to_string(),
+                        });
+                    }
+                    properties
+                },
             });
         } else if let Some(node) = self.stream.get_as::<_, NiNode>(NiLink::<()>::new(key)) {
             properties.extend(node.properties.iter().map(|link| link.key));
@@ -544,6 +567,26 @@ pub(super) fn linear_uv_rate(data: &NiFloatData) -> Option<f32> {
     Some((last.value - first.value) / duration)
 }
 
+fn linear_uv_period(data: &NiFloatData) -> Option<f32> {
+    let NiFloatKey::LinKey(keys) = &data.keys else {
+        return None;
+    };
+    if keys.len() != 2
+        || keys
+            .iter()
+            .any(|key| !key.time.is_finite() || !key.value.is_finite())
+    {
+        return None;
+    }
+    let first = keys.first()?;
+    let last = keys.last()?;
+    if first.time.abs() > STATE_FLOAT_EPSILON {
+        return None;
+    }
+    let duration = last.time - first.time;
+    (duration > STATE_FLOAT_EPSILON).then_some(duration)
+}
+
 pub(super) fn uv_data_has_keys(data: &NiFloatData) -> bool {
     match &data.keys {
         NiFloatKey::LinKey(keys) => !keys.is_empty(),
@@ -577,7 +620,9 @@ pub(super) fn import_uv_state(
             || !approximately(controller.frequency, 1.0)
             || !approximately(controller.phase, 0.0)
             || !approximately(controller.start_time, 0.0)
-            || !approximately(controller.stop_time, 0.0)
+            || (!approximately(controller.stop_time, 0.0)
+                && (!controller.stop_time.is_finite()
+                    || controller.stop_time <= STATE_FLOAT_EPSILON))
         {
             diagnostics.push(
                 "NiUVController timing/cycle settings do not prove indefinite scrolling; animation was not represented"
@@ -592,6 +637,21 @@ pub(super) fn import_uv_state(
         };
         let u_rate = linear_uv_rate(&data.u_offset_data);
         let v_rate = linear_uv_rate(&data.v_offset_data);
+        if controller.stop_time > STATE_FLOAT_EPSILON
+            && [
+                linear_uv_period(&data.u_offset_data),
+                linear_uv_period(&data.v_offset_data),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|period| !approximately(period, controller.stop_time))
+        {
+            diagnostics.push(
+                "NiUVController key data does not span its cycle interval; animation was not represented"
+                    .into(),
+            );
+            continue;
+        }
         if uv_data_has_keys(&data.u_tiling_data) || uv_data_has_keys(&data.v_tiling_data) {
             diagnostics
                 .push("NiUVController changes UV tiling; animation was not represented".into());
@@ -729,6 +789,9 @@ where
     let provenance = shape_provenance(context.stream, shape);
     let mut diagnostics = shape_diagnostics(data, texture.as_ref(), &provenance);
     let mut nif_state = shape_nif_state(context.stream, context.properties);
+    if !shape.name.trim().is_empty() {
+        push_nif_property(&mut nif_state, "Nif_LinkName", shape.name.clone());
+    }
     import_uv_state(
         context.stream,
         link,
@@ -862,8 +925,14 @@ pub(super) fn nif_meshes(
 
 #[cfg(test)]
 mod tests {
-    use super::semantic_context;
-    use tes3::nif::{NiAVObject, NiNode, NiObjectNET, NiStream, NiTriShape};
+    use std::collections::HashMap;
+
+    use super::{NifProperty, NifState, import_uv_state, semantic_context};
+    use tes3::nif::{
+        NiAVObject, NiBSAnimationNode, NiFloatData, NiFloatKey, NiLinFloatKey, NiNode, NiObjectNET,
+        NiSortAdjustNode, NiStream, NiTimeController, NiTriShape, NiUVController, NiUVData,
+        SortingMode,
+    };
 
     fn node(name: &str) -> NiNode {
         NiNode {
@@ -932,5 +1001,125 @@ mod tests {
             context.shape_scopes.get(&unnamed_shape.key),
             Some(&body_scope.id)
         );
+    }
+
+    #[test]
+    fn grouped_sort_mode_is_diagnosed_and_not_emitted_as_authoring_state() {
+        let mut stream = NiStream::default();
+        let sort_adjust = stream.insert(NiSortAdjustNode {
+            sorting_mode: SortingMode::Grouped,
+            ..Default::default()
+        });
+        stream.roots.push(sort_adjust.cast());
+
+        let context = semantic_context(&stream, &|_, transform| transform);
+        let marker = context
+            .markers
+            .iter()
+            .find(|marker| marker.classname == "nif_node_sort_adjust")
+            .expect("sort-adjust node should import");
+        assert!(
+            marker
+                .properties
+                .iter()
+                .all(|property| property.key != "Nif_Sort_Mode")
+        );
+        assert!(context.diagnostics.iter().any(|diagnostic| {
+            diagnostic.contains("Grouped sort-adjust mode (64) is unsupported")
+        }));
+    }
+
+    #[test]
+    fn cyclic_uv_keys_import_as_scroll_rates() {
+        let mut stream = NiStream::default();
+        let shape_link = stream.insert(NiTriShape::default());
+        let uv_data = stream.insert(NiUVData {
+            u_offset_data: NiFloatData {
+                keys: NiFloatKey::LinKey(vec![
+                    NiLinFloatKey {
+                        time: 0.0,
+                        value: 0.0,
+                    },
+                    NiLinFloatKey {
+                        time: 8.0,
+                        value: 1.0,
+                    },
+                ]),
+                ..Default::default()
+            },
+            v_offset_data: NiFloatData {
+                keys: NiFloatKey::LinKey(vec![
+                    NiLinFloatKey {
+                        time: 0.0,
+                        value: 0.0,
+                    },
+                    NiLinFloatKey {
+                        time: 8.0,
+                        value: -2.0,
+                    },
+                ]),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let controller_link = stream.insert(NiUVController {
+            base: NiTimeController {
+                flags: 0x0008,
+                stop_time: 8.0,
+                target: shape_link.cast(),
+                ..Default::default()
+            },
+            texture_set: 0,
+            data: uv_data,
+        });
+        stream.get_mut(shape_link).unwrap().controller = controller_link.cast();
+
+        let controllers: HashMap<_, Vec<_>> = stream
+            .objects_of_type_with_link::<NiUVController>()
+            .fold(HashMap::new(), |mut controllers, (_, controller)| {
+                controllers
+                    .entry(controller.target.key)
+                    .or_default()
+                    .push(controller);
+                controllers
+            });
+        let mut state = NifState::default();
+        let mut diagnostics = Vec::new();
+        import_uv_state(
+            &stream,
+            shape_link.key,
+            Some(0),
+            &controllers,
+            &mut state,
+            &mut diagnostics,
+        );
+
+        assert!(diagnostics.is_empty());
+        assert!(state.properties.contains(&NifProperty {
+            key: "Nif_UV_Mode".into(),
+            value: "1".into(),
+        }));
+        assert!(state.properties.contains(&NifProperty {
+            key: "Nif_UV_U".into(),
+            value: "0.125".into(),
+        }));
+        assert!(state.properties.contains(&NifProperty {
+            key: "Nif_UV_V".into(),
+            value: "-0.25".into(),
+        }));
+    }
+
+    #[test]
+    fn auto_play_root_keeps_descendant_shapes_in_the_imported_graph() {
+        let mut stream = NiStream::default();
+        let mut root = node("");
+        root.flags |= 0x0020;
+        let shape = stream.insert(NiTriShape::default());
+        root.children.push(shape.cast());
+        let animation_root = stream.insert(NiBSAnimationNode { base: root });
+        stream.roots.push(animation_root.cast());
+
+        let context = semantic_context(&stream, &|_, transform| transform);
+        assert!(context.shape_scopes.contains_key(&shape.key));
     }
 }

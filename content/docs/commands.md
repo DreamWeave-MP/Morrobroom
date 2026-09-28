@@ -32,13 +32,15 @@ Useful compile options:
 | Option | Purpose |
 | --- | --- |
 | `--map PATH` | Required input `.map` file. |
+| `--config PATH` | OpenMW config file or directory. Defaults to `openmw-config` discovery with a user-config fallback. |
 | `--output PATH` | Plugin output: `.esp`, `.esm`, `.omwaddon`, or `.omwgame`. |
 | `--output-dir PATH` | Root for generated meshes and lightmaps. |
-| `--scale NUMBER` | Scale generated meshes; defaults to `1.0`. |
+| `--scale NUMBER` | Scale generated meshes; defaults to `2.0` for Morrowind-sized content. |
 | `--no-lightmaps` | Disable lightmap UVs and baking. |
 
 The input map must exist and use the `.map` extension. Output directories are
-created when necessary.
+created when necessary. Use `--config /path/to/openmw.cfg` when the desired
+OpenMW loadout is not the one discovered from the environment/platform defaults.
 
 ## Generate an FGD
 

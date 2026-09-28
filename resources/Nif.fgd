@@ -138,7 +138,7 @@
 
     Nif_UV_U(float) : "U movement per second, or oscillation amplitude"
     Nif_UV_V(float) : "V movement per second, or oscillation amplitude"
-    Nif_UV_Period(float) : "Oscillation period in seconds"
+    Nif_UV_Period(float) : "Oscillation period in seconds. Scroll timing is derived from U and V so each cycle ends on whole texture tiles."
 ]
 
 // Optional authoring links between NIF elements. TrenchBroom understands
@@ -156,7 +156,7 @@
 
 @BaseClass = NifTransformable
 [
-    mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
+    mangle(string) : "TrenchBroom Y-up ZYX Euler rotation in degrees; Morrobroom converts it to TES3's Z-up reference rotation. Normally maintained by the editor/compiler."
 ]
 
 // Generic authored geometry when no TES3 record semantics are required.
@@ -194,7 +194,6 @@
         0 : "Inherit"
         1 : "Off"
         2 : "Subsort"
-        64 : "Grouped"
     ]
 ]
 

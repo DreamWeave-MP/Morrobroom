@@ -15,7 +15,7 @@
     ESM3_Name(string) : "Optional in-game display name."
     ESM3_Plugin(string) : "Source plugin for the indexed TES3 record."
     ESM3_ObjectFlags(string) : "TES3 record flags."
-    mangle(string) : "Object rotation in Morrobroom's TES3-oriented representation. Normally maintained by the editor/compiler."
+    mangle(string) : "TrenchBroom Y-up ZYX Euler rotation in degrees; Morrobroom converts it to TES3's Z-up reference rotation. Normally maintained by the editor/compiler."
 ]
 
 @SolidClass base(GameObject, NifGeometry) = world_Detail : "Brush-authored GameObject"

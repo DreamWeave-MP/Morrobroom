@@ -46,7 +46,11 @@ pub struct MapData {
 }
 
 impl MapData {
-    pub fn new(map_name: &String, lightmaps_enabled: bool) -> Self {
+    pub fn new(
+        map_name: &String,
+        lightmaps_enabled: bool,
+        openmw_config: &OpenMWConfiguration,
+    ) -> Self {
         // First load the map from the filesystem and parse it using Slipgate.
         let map = fs::read_to_string(map_name)
             .expect("Reading file failed. Bad news! Does it exist?")
@@ -57,8 +61,6 @@ impl MapData {
         // scans. Keep construction in MapGeometry so there is one dataflow.
         let geometry = MapGeometry::from_map_without_occlusion(map);
 
-        let openmw_config = OpenMWConfiguration::from_env()
-            .expect("Openmw.cfg not detected! Please ensure you have a valid OpenMW configuration file in the canonical system directory.");
         let fallback_archives: Vec<&str> = openmw_config
             .fallback_archives_iter()
             .map(|archive| archive.value().as_str())

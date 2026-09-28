@@ -162,6 +162,10 @@ morrobroom compile \
   --output my_level.omwaddon
 ```
 
+By default, Morrobroom uses `openmw-config` root discovery and falls back to
+the user config when no root config is found. Pass `--config /path/to/openmw.cfg`
+to select a specific OpenMW loadout.
+
 To stage all generated assets in a project-local directory:
 
 ```bash

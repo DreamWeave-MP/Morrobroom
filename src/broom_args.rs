@@ -104,7 +104,7 @@ fn validate_openmw_config_path(s: &str) -> Result<PathBuf, String> {
 }
 
 const fn default_scale() -> &'static str {
-    "1.0"
+    "2.0"
 }
 
 pub const fn default_object_types() -> [TES3ObjectType; 18] {
@@ -152,10 +152,15 @@ pub enum BroomCommand {
         #[arg(long = "map", required = true, value_parser = validate_input_map )]
         map_path: PathBuf,
 
-        /// Scales generated meshes by this value. Defaults to 1.0, but can be useful when working with Quake maps
+        /// Scales generated meshes by this value. Defaults to 2.0, but can be useful when working with Quake maps
         /// which are approximately 50% the scale of Morrowind assets.
         #[arg(long = "scale", short = 's', value_parser = validate_scale, default_value = default_scale())]
         object_scale: f32,
+
+        /// `OpenMW` root or user configuration file/directory. When omitted, use
+        /// `openmw-config` root discovery with its user-config fallback.
+        #[arg(long = "config", short = 'c', value_parser = validate_openmw_config_path)]
+        openmw_config: Option<PathBuf>,
 
         /// Name of the plugin used when serializing.
         /// If not present, defaults to the name of the map file used in generation.
@@ -454,6 +459,7 @@ mod tests {
     fn clap_compile_subcommand_parses() {
         let map_file = temp_file("map", b"dummy");
         let tmp_out = temp_file("esp", b"").with_extension("esp");
+        let config_file = temp_file("cfg", b"");
 
         let args = MorrobroomArgs::parse_from([
             "morrobroom",
@@ -462,6 +468,8 @@ mod tests {
             map_file.to_str().unwrap(),
             "--scale",
             "2.0",
+            "--config",
+            config_file.to_str().unwrap(),
             "--output",
             tmp_out.to_str().unwrap(),
         ]);
@@ -470,6 +478,7 @@ mod tests {
             BroomCommand::Compile {
                 map_path,
                 object_scale,
+                openmw_config,
                 output_path,
                 output_dir,
                 no_lightmaps,
@@ -482,6 +491,7 @@ mod tests {
                 );
 
                 assert_eq!(output_path, Some(tmp_out.canonicalize().unwrap()));
+                assert_eq!(openmw_config, Some(config_file.canonicalize().unwrap()));
                 assert!(output_dir.is_none());
                 assert!(!no_lightmaps);
             }
@@ -489,6 +499,22 @@ mod tests {
                 panic!("expected compile subcommand")
             }
         }
+    }
+
+    #[test]
+    fn compile_defaults_to_morrowind_scale() {
+        let map_file = temp_file("map", b"dummy");
+        let args = MorrobroomArgs::parse_from([
+            "morrobroom",
+            "compile",
+            "--map",
+            map_file.to_str().unwrap(),
+        ]);
+
+        let BroomCommand::Compile { object_scale, .. } = args.command else {
+            panic!("expected compile subcommand");
+        };
+        assert!((object_scale - 2.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -503,7 +529,14 @@ mod tests {
         ]);
 
         match args.command {
-            BroomCommand::Compile { no_lightmaps, .. } => assert!(no_lightmaps),
+            BroomCommand::Compile {
+                no_lightmaps,
+                openmw_config,
+                ..
+            } => {
+                assert!(no_lightmaps);
+                assert!(openmw_config.is_none());
+            }
             BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
                 panic!("expected compile subcommand")
             }

@@ -5,7 +5,7 @@ use morrobroom::slipgate::repr;
 use morrobroom::slipgate::{
     Vector2 as SV2, Vector3 as SV3, brush::BrushId, entity::EntityId, face::FaceId,
 };
-use tes3::nif::{NiTriShape, NiTriShapeData};
+use tes3::nif::{ApplyMode, ClampMode, FilterMode, NiTriShape, NiTriShapeData};
 
 use crate::{Mesh, lightmap_bake::BakedPart, map_data::MapData, surfaces};
 
@@ -115,7 +115,7 @@ define_enum_with_fromstr! {
     #[allow(clippy::upper_case_acronyms, reason = "These names are part of the NIF material flag vocabulary.")]
     pub enum BrushNoSort {
         OFF = 0,
-        ON = 8196,
+        ON = 8192,
     }
     default = OFF
 }
@@ -148,23 +148,74 @@ pub struct BrushNiColorProps {
     pub emissive: Option<[f32; 3]>,
     pub ambient: Option<[f32; 3]>,
     pub diffuse: Option<[f32; 3]>,
+    pub specular: Option<[f32; 3]>,
 }
 
-#[derive(PartialEq)]
+#[derive(Default, PartialEq)]
+pub struct BrushNiTextureProps {
+    pub apply_mode: Option<ApplyMode>,
+    pub clamp_mode: Option<ClampMode>,
+    pub filter_mode: Option<FilterMode>,
+    pub dark_map: Option<String>,
+    pub detail_map: Option<String>,
+    pub gloss_map: Option<String>,
+    pub glow_map: Option<String>,
+    pub bump_map: Option<String>,
+}
+
+#[derive(Default, PartialEq)]
+pub struct BrushNiUvProps {
+    pub mode: Option<u32>,
+    pub u_rate: Option<f32>,
+    pub v_rate: Option<f32>,
+    pub period: Option<f32>,
+}
+
+#[derive(Default, PartialEq)]
 pub struct BrushNiMatProps {
     pub color: BrushNiColorProps,
     pub alpha: BrushNiAlphaProps,
+    pub glossiness: Option<f32>,
+    pub texturing: BrushNiTextureProps,
+    pub uv: BrushNiUvProps,
+    pub link_name: Option<String>,
+    pub target: Option<String>,
 }
 
-impl BrushNiMatProps {
-    pub fn default() -> BrushNiMatProps {
-        BrushNiMatProps {
-            color: BrushNiColorProps::default(),
-            alpha: BrushNiAlphaProps::default(),
-        }
+fn apply_mode(value: &str) -> Option<ApplyMode> {
+    match value.parse::<i32>().ok()? {
+        0 => Some(ApplyMode::Replace),
+        1 => Some(ApplyMode::Decal),
+        2 => Some(ApplyMode::Modulate),
+        3 => Some(ApplyMode::Hilight),
+        4 => Some(ApplyMode::Hilight2),
+        _ => None,
     }
 }
 
+fn clamp_mode(value: &str) -> Option<ClampMode> {
+    match value.parse::<i32>().ok()? {
+        0 => Some(ClampMode::ClampSClampT),
+        1 => Some(ClampMode::ClampSWrapT),
+        2 => Some(ClampMode::WrapSClampT),
+        3 => Some(ClampMode::WrapSWrapT),
+        _ => None,
+    }
+}
+
+fn filter_mode(value: &str) -> Option<FilterMode> {
+    match value.parse::<i32>().ok()? {
+        0 => Some(FilterMode::Nearest),
+        1 => Some(FilterMode::Bilerp),
+        2 => Some(FilterMode::Trilerp),
+        3 => Some(FilterMode::NearestMipNearest),
+        4 => Some(FilterMode::NearestMipLerp),
+        5 => Some(FilterMode::BilerpMipNearest),
+        _ => None,
+    }
+}
+
+#[derive(Default)]
 pub struct BrushNiNode {
     pub vis_shape: NiTriShape,
     pub vis_data: NiTriShapeData,
@@ -186,17 +237,6 @@ pub struct BrushNiNode {
 }
 
 impl BrushNiNode {
-    pub fn from_brushes(
-        brushes: &[BrushId],
-        map_data: &MapData,
-        entity_id: EntityId,
-    ) -> Vec<BrushNiNode> {
-        brushes
-            .iter()
-            .flat_map(|brush_id| BrushNiNode::from_brush(*brush_id, entity_id, map_data))
-            .collect()
-    }
-
     /// The name of this function might be a bit confusing, as it returns a set of nodes
     /// But one brush may have multiple textures, whereas one `TriShape` should only
     /// ever have one texture. So even though we are requesting information for one brush,
@@ -234,6 +274,19 @@ impl BrushNiNode {
             .expect("Color props value was invalid!")
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "The FGD property is a float for editor convenience, while NiAlphaProperty stores an 8-bit threshold."
+    )]
+    fn alpha_threshold(value: &str) -> Option<u8> {
+        let value = value.parse::<f32>().ok()?;
+        if !value.is_finite() || !(0.0..=f32::from(u8::MAX)).contains(&value) {
+            return None;
+        }
+        Some(value.round() as u8)
+    }
+
     // Given a set of faces, expressed by a brush (or brush entity), create a corresponding BrushNiNode
     // BrushNiNodes contain all the relevant data for a NIF, but aren't quite the nif-ready format
     fn node_from_faces(
@@ -255,19 +308,40 @@ impl BrushNiNode {
         entity_props: &std::collections::HashMap<&String, &String>,
     ) -> BrushNiMatProps {
         let mut props = BrushNiMatProps::default();
+        Self::material_color_props(entity_props, &mut props);
+        Self::material_alpha_props(entity_props, &mut props);
+        Self::texturing_props(entity_props, &mut props);
+        Self::uv_props(entity_props, &mut props);
+        Self::link_props(entity_props, &mut props);
+        props
+    }
 
-        for color_type in ["Ambient", "Diffuse", "Emissive"] {
+    fn material_color_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+        props: &mut BrushNiMatProps,
+    ) {
+        for color_type in ["Ambient", "Diffuse", "Emissive", "Specular"] {
             if let Some(color) = entity_props.get(&format!("Material_{color_type}_color")) {
-                let color_value = Some(Self::get_color(color));
+                let color_value = Self::get_color(color);
                 match color_type {
-                    "Ambient" => props.color.ambient = color_value,
-                    "Diffuse" => props.color.diffuse = color_value,
-                    "Emissive" => props.color.emissive = color_value,
+                    "Ambient" => props.color.ambient = Some(color_value),
+                    "Diffuse" => props.color.diffuse = Some(color_value),
+                    "Emissive" => props.color.emissive = Some(color_value),
+                    "Specular" => props.color.specular = Some(color_value),
                     _ => unreachable!(),
                 }
             }
         }
 
+        props.glossiness = entity_props
+            .get(&"Material_Glossiness".to_string())
+            .and_then(|value| value.parse::<f32>().ok());
+    }
+
+    fn material_alpha_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+        props: &mut BrushNiMatProps,
+    ) {
         for alpha_prop in [
             "UseBlend",
             "BlendSourceMode",
@@ -286,7 +360,7 @@ impl BrushNiNode {
                     }
                     "TestEnable" => props.alpha.use_test = prop.parse().ok(),
                     "TestFunction" => props.alpha.test_function = prop.parse().ok(),
-                    "TestThreshold" => props.alpha.test_threshold = prop.parse().ok(),
+                    "TestThreshold" => props.alpha.test_threshold = Self::alpha_threshold(prop),
                     "NoSort" => props.alpha.no_sort = prop.parse().ok(),
                     _ => unreachable!(),
                 }
@@ -300,7 +374,66 @@ impl BrushNiNode {
                     .expect("Failed to parse float value from material properties!"),
             );
         }
-        props
+    }
+
+    fn texturing_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+        props: &mut BrushNiMatProps,
+    ) {
+        props.texturing.apply_mode = entity_props
+            .get(&"Nif_Texture_ApplyMode".to_string())
+            .and_then(|value| apply_mode(value));
+        props.texturing.clamp_mode = entity_props
+            .get(&"Nif_Texture_ClampMode".to_string())
+            .and_then(|value| clamp_mode(value));
+        props.texturing.filter_mode = entity_props
+            .get(&"Nif_Texture_FilterMode".to_string())
+            .and_then(|value| filter_mode(value));
+        props.texturing.dark_map = entity_props
+            .get(&"Nif_Texture_DarkMap".to_string())
+            .map(|value| (*value).clone());
+        props.texturing.detail_map = entity_props
+            .get(&"Nif_Texture_DetailMap".to_string())
+            .map(|value| (*value).clone());
+        props.texturing.gloss_map = entity_props
+            .get(&"Nif_Texture_GlossMap".to_string())
+            .map(|value| (*value).clone());
+        props.texturing.glow_map = entity_props
+            .get(&"Nif_Texture_GlowMap".to_string())
+            .map(|value| (*value).clone());
+        props.texturing.bump_map = entity_props
+            .get(&"Nif_Texture_BumpMap".to_string())
+            .map(|value| (*value).clone());
+    }
+
+    fn uv_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+        props: &mut BrushNiMatProps,
+    ) {
+        props.uv.mode = entity_props
+            .get(&"Nif_UV_Mode".to_string())
+            .and_then(|value| value.parse::<u32>().ok());
+        props.uv.u_rate = entity_props
+            .get(&"Nif_UV_U".to_string())
+            .and_then(|value| value.parse::<f32>().ok());
+        props.uv.v_rate = entity_props
+            .get(&"Nif_UV_V".to_string())
+            .and_then(|value| value.parse::<f32>().ok());
+        props.uv.period = entity_props
+            .get(&"Nif_UV_Period".to_string())
+            .and_then(|value| value.parse::<f32>().ok());
+    }
+
+    fn link_props(
+        entity_props: &std::collections::HashMap<&String, &String>,
+        props: &mut BrushNiMatProps,
+    ) {
+        props.link_name = entity_props
+            .get(&"Nif_LinkName".to_string())
+            .map(|value| (*value).clone());
+        props.target = entity_props
+            .get(&"Nif_Target".to_string())
+            .map(|value| (*value).clone());
     }
 
     fn append_faces(
@@ -507,24 +640,86 @@ panic!("Critical error: Missing inverted face triangle indices for face_id: {fac
     }
 }
 
-impl Default for BrushNiNode {
-    fn default() -> BrushNiNode {
-        BrushNiNode {
-            vis_shape: NiTriShape::default(),
-            vis_data: NiTriShapeData::default(),
-            vis_verts: Vec::new(),
-            vis_tris: Vec::new(),
-            use_emissive: false,
-            normals: Vec::new(),
-            texture: String::new(),
-            uv_sets: Vec::new(),
-            lightmap_uv_sets: Vec::new(),
-            col_shape: NiTriShape::default(),
-            col_data: NiTriShapeData::default(),
-            col_verts: Vec::new(),
-            col_tris: Vec::new(),
-            distance_from_origin: SV3::default(),
-            mat_props: BrushNiMatProps::default(),
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_render_properties_and_uv_scroll_from_map_properties() {
+        let owned = [
+            ("Material_Emissive_color", "0.1 0.2 0.3"),
+            ("Material_Specular_color", "0.4 0.5 0.6"),
+            ("Material_Glossiness", "24"),
+            ("Material_Alpha", "0.75"),
+            ("Material_Alpha_UseBlend", "1"),
+            ("Material_Alpha_BlendSourceMode", "12"),
+            ("Material_Alpha_BlendDestinationMode", "224"),
+            ("Material_Alpha_TestEnable", "512"),
+            ("Material_Alpha_TestFunction", "4096"),
+            ("Material_Alpha_TestThreshold", "127.6"),
+            ("Material_Alpha_NoSort", "8192"),
+            ("Nif_Texture_ApplyMode", "1"),
+            ("Nif_Texture_FilterMode", "4"),
+            ("Nif_Texture_ClampMode", "1"),
+            ("Nif_Texture_DarkMap", "textures/dark.dds"),
+            ("Nif_Texture_DetailMap", "textures/detail.dds"),
+            ("Nif_Texture_GlossMap", "textures/gloss.dds"),
+            ("Nif_Texture_GlowMap", "textures/glow.dds"),
+            ("Nif_Texture_BumpMap", "textures/bump.dds"),
+            ("Nif_UV_Mode", "1"),
+            ("Nif_UV_U", "0.25"),
+            ("Nif_UV_V", "-0.5"),
+            ("Nif_LinkName", "surface"),
+            ("Nif_Target", "billboard"),
+        ];
+        let owned = owned.map(|(key, value)| (key.to_owned(), value.to_owned()));
+        let properties: std::collections::HashMap<_, _> =
+            owned.iter().map(|(key, value)| (key, value)).collect();
+
+        let parsed = BrushNiNode::material_props(&properties);
+        assert_eq!(parsed.color.emissive, Some([0.1, 0.2, 0.3]));
+        assert_eq!(parsed.color.specular, Some([0.4, 0.5, 0.6]));
+        assert_eq!(parsed.glossiness, Some(24.0));
+        assert_eq!(parsed.alpha.opacity, Some(0.75));
+        assert_eq!(parsed.alpha.test_threshold, Some(128));
+        assert_eq!(parsed.texturing.apply_mode, Some(ApplyMode::Decal));
+        assert_eq!(
+            parsed.texturing.filter_mode,
+            Some(FilterMode::NearestMipLerp)
+        );
+        assert_eq!(parsed.texturing.clamp_mode, Some(ClampMode::ClampSWrapT));
+        assert_eq!(
+            parsed.texturing.dark_map.as_deref(),
+            Some("textures/dark.dds")
+        );
+        assert_eq!(
+            parsed.texturing.detail_map.as_deref(),
+            Some("textures/detail.dds")
+        );
+        assert_eq!(
+            parsed.texturing.gloss_map.as_deref(),
+            Some("textures/gloss.dds")
+        );
+        assert_eq!(
+            parsed.texturing.glow_map.as_deref(),
+            Some("textures/glow.dds")
+        );
+        assert_eq!(
+            parsed.texturing.bump_map.as_deref(),
+            Some("textures/bump.dds")
+        );
+        assert_eq!(parsed.uv.mode, Some(1));
+        assert_eq!(parsed.uv.u_rate, Some(0.25));
+        assert_eq!(parsed.uv.v_rate, Some(-0.5));
+        assert_eq!(parsed.link_name.as_deref(), Some("surface"));
+        assert_eq!(parsed.target.as_deref(), Some("billboard"));
+    }
+
+    #[test]
+    fn rejects_alpha_thresholds_outside_the_nif_byte_range() {
+        assert_eq!(BrushNiNode::alpha_threshold("255"), Some(u8::MAX));
+        assert_eq!(BrushNiNode::alpha_threshold("-1"), None);
+        assert_eq!(BrushNiNode::alpha_threshold("256"), None);
+        assert_eq!(BrushNiNode::alpha_threshold("NaN"), None);
     }
 }
