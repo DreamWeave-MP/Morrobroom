@@ -248,7 +248,7 @@ pub enum BroomCommand {
         /// <https://en.uesp.net/wiki/Morrowind_Mod:Mod_File_Format>
         ///  for more specific examples of what types to use. Does not support cells or dialogues,
         /// only objects which are otherwise placeable in the game world.
-        #[arg(long = "types", short = 't', value_delimiter = ';')]
+        #[arg(long = "types", short = 't', value_delimiter = ';', ignore_case = true)]
         object_types: Option<Vec<TES3ObjectType>>,
 
         /// Output path for the generated object catalog. Defaults to the installed
@@ -585,6 +585,16 @@ mod tests {
         assert!(!help.contains("Path/to/Map_Name.map"));
         assert!(help.contains("Usage: morrobroom <COMMAND>"));
         assert!(help.contains("compile"));
+    }
+
+    #[test]
+    fn fgd_types_accept_record_tags_in_either_case() {
+        let args = MorrobroomArgs::parse_from(["morrobroom", "fgd", "--types", "STAT;door;LiGh"]);
+
+        let BroomCommand::FGD { object_types, .. } = args.command else {
+            panic!("expected FGD subcommand");
+        };
+        assert_eq!(object_types.expect("types were given").len(), 3);
     }
 
     #[test]
