@@ -77,7 +77,7 @@ fn main() -> io::Result<()> {
             validate: !no_validate,
             max_brushes,
         }),
-        BroomCommand::FGD {
+        BroomCommand::Fgd {
             object_scale,
             object_types,
             output_path,

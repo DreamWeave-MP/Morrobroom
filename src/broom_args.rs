@@ -142,10 +142,6 @@ pub struct MorrobroomArgs {
 }
 
 #[derive(Debug, Subcommand)]
-#[allow(
-    clippy::upper_case_acronyms,
-    reason = "FGD is the established command spelling and appears in the CLI contract."
-)]
 pub enum BroomCommand {
     #[command(
         about = "Compile a TrenchBroom map into NIF meshes, a baked lightmap and a TES3 plugin"
@@ -244,7 +240,7 @@ pub enum BroomCommand {
     #[command(
         about = "Generate a TrenchBroom entity catalog, MorrowindObjects.fgd, from an OpenMW load order"
     )]
-    FGD {
+    Fgd {
         /// Scale to use when generating object bounding boxes.
         /// Useful if authoring at a different scale, for one or another reason.
         #[arg(long = "scale", short = 's', value_parser = validate_scale, default_value = default_scale())]
@@ -503,7 +499,7 @@ mod tests {
                 assert!(output_dir.is_none());
                 assert!(!no_lightmaps);
             }
-            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+            BroomCommand::Fgd { .. } | BroomCommand::Nif2Map { .. } => {
                 panic!("expected compile subcommand")
             }
         }
@@ -545,7 +541,7 @@ mod tests {
                 assert!(no_lightmaps);
                 assert!(openmw_config.is_none());
             }
-            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+            BroomCommand::Fgd { .. } | BroomCommand::Nif2Map { .. } => {
                 panic!("expected compile subcommand")
             }
         }
@@ -570,7 +566,7 @@ mod tests {
             BroomCommand::Compile { map_path, .. } => {
                 assert_eq!(map_path, expected_map_path);
             }
-            BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
+            BroomCommand::Fgd { .. } | BroomCommand::Nif2Map { .. } => {
                 panic!("expected compile subcommand")
             }
         }
@@ -619,17 +615,23 @@ mod tests {
     fn fgd_types_accept_record_tags_in_either_case() {
         let args = MorrobroomArgs::parse_from(["morrobroom", "fgd", "--types", "STAT;door;LiGh"]);
 
-        let BroomCommand::FGD { object_types, .. } = args.command else {
+        let BroomCommand::Fgd { object_types, .. } = args.command else {
             panic!("expected FGD subcommand");
         };
         assert_eq!(object_types.expect("types were given").len(), 3);
     }
 
     #[test]
+    fn catalog_command_is_spelled_fgd() {
+        assert!(MorrobroomArgs::try_parse_from(["morrobroom", "fgd"]).is_ok());
+        assert!(MorrobroomArgs::try_parse_from(["morrobroom", "FGD"]).is_err());
+    }
+
+    #[test]
     fn clap_fgd_defaults() {
         let args = MorrobroomArgs::parse_from(["morrobroom", "fgd", "--scale", "3.5"]);
 
-        if let BroomCommand::FGD {
+        if let BroomCommand::Fgd {
             object_scale,
             object_types,
             output_path,
@@ -656,7 +658,7 @@ mod tests {
             "portable/MorrowindObjects.fgd",
         ]);
 
-        let BroomCommand::FGD { output_path, .. } = args.command else {
+        let BroomCommand::Fgd { output_path, .. } = args.command else {
             panic!("expected FGD subcommand");
         };
         assert_eq!(
