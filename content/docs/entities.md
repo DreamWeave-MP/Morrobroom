@@ -22,7 +22,8 @@ with no properties compiles to something sensible.
 
 Every map has exactly one worldspawn. Its brushes become one static mesh, and its properties
 describe the cell the map compiles into. It needs no brushes of its own: a map built only from
-brush entities and placed records, like the ones `nif2map` writes, still compiles into its cell.
+brush entities and placed records, like the ones `nif2map` writes, still compiles into its cell,
+and so does a map with no brushes anywhere, a room furnished entirely from the catalog.
 
 | Property | Default | Effect |
 | --- | --- | --- |

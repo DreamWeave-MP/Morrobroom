@@ -125,14 +125,9 @@ fn compile_map(
     }
     .map_err(|error| io::Error::other(format!("failed to load OpenMW configuration: {error}")))?;
     let map_data = MapData::new(&map_name, lightmaps_enabled, &openmw_config);
-    assert_eq!(
-        map_data.lightmap_geometry().is_some(),
-        lightmaps_enabled,
-        "lightmap preparation did not honor the compiler option"
-    );
     assert!(
-        !map_data.geomap.entity_brushes.is_empty(),
-        "No brushes found in map!"
+        lightmaps_enabled || map_data.lightmap_geometry().is_none(),
+        "lightmap preparation did not honor --no-lightmaps"
     );
     if let Some(lightmap) = map_data.lightmap() {
         let path = work_dir
@@ -1763,5 +1758,99 @@ mod nif2map_round_trip_tests {
                 "the source corner {corner} is missing from the compiled box"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod brushless_map_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// A room furnished entirely from the catalog: worldspawn, a placed record
+    /// and a light, and not one brush.
+    const PLACED_ONLY_MAP: &str = r#"// Game: Morrowind
+// Format: Valve
+{
+"classname" "worldspawn"
+"ESM3_Name" "Furnished Void"
+}
+{
+"classname" "static_ex_common_house_01"
+"origin" "64 0 0"
+"ESM3_RefId" "ex_common_house_01"
+}
+{
+"classname" "Light_Point128"
+"origin" "0 0 64"
+}
+"#;
+
+    /// A scratch directory that is removed however the test ends.
+    struct ScratchDir(PathBuf);
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn compile_placed_only_map(lightmaps_enabled: bool) -> Plugin {
+        let scratch = ScratchDir(std::env::temp_dir().join(format!(
+            "morrobroom-placed-only-{}-{lightmaps_enabled}",
+            std::process::id()
+        )));
+        std::fs::create_dir_all(&scratch.0).expect("create the scratch directory");
+        let map_path = scratch.0.join("void.map");
+        let config_path = scratch.0.join("openmw.cfg");
+        let plugin_path = scratch.0.join("build/void.omwaddon");
+        std::fs::write(&map_path, PLACED_ONLY_MAP).expect("write the map");
+        std::fs::write(&config_path, "").expect("write an empty openmw.cfg");
+        std::fs::create_dir_all(scratch.0.join("build")).expect("create the build directory");
+
+        compile_map(
+            &map_path,
+            2.0,
+            Some(&config_path),
+            Some(&plugin_path),
+            Some(&scratch.0.join("build")),
+            lightmaps_enabled,
+        )
+        .expect("a map of placed records should compile");
+
+        assert!(
+            !scratch.0.join("build/Textures/void/lightmap.dds").exists(),
+            "there is nothing to bake a lightmap for"
+        );
+        Plugin::from_path(&plugin_path).expect("read the compiled plugin")
+    }
+
+    fn assert_cell_holds_the_placements(plugin: &Plugin) {
+        let cell = plugin
+            .objects_of_type::<Cell>()
+            .next()
+            .expect("the plugin should have the map's cell");
+        assert_eq!(cell.name, "Furnished Void");
+        let placed: Vec<_> = cell
+            .references
+            .values()
+            .map(|reference| reference.id.as_str())
+            .collect();
+        assert!(placed.contains(&"ex_common_house_01"));
+        assert!(placed.iter().any(|id| id.starts_with("void-PL-")));
+        assert_eq!(
+            plugin.objects_of_type::<Static>().count(),
+            0,
+            "a worldspawn without brushes has no mesh"
+        );
+    }
+
+    #[test]
+    fn a_map_without_brushes_compiles_with_lightmaps() {
+        assert_cell_holds_the_placements(&compile_placed_only_map(true));
+    }
+
+    #[test]
+    fn a_map_without_brushes_compiles_without_lightmaps() {
+        assert_cell_holds_the_placements(&compile_placed_only_map(false));
     }
 }

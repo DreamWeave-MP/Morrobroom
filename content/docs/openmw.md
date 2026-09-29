@@ -45,7 +45,8 @@ attached through Morrowind's existing dark map slot.
 OpenMW loads it without an engine patch. It is a static bake, not global illumination: actors and
 anything else that moves are still lit by OpenMW's ordinary lights, which the compiled light
 records provide. Turn the bake off with `--no-lightmaps` while iterating on geometry, or when a map
-does not need it.
+does not need it. A map without visible brush faces, such as one built only from placed records,
+has nothing to bake onto, so the compiler says so and skips the bake.
 
 An entity with its own `Nif_Texture_DarkMap` keeps it, instead of the lightmap. See
 [NIF authoring](@/docs/nif-authoring.md#texturing).

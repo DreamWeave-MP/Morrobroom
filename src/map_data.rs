@@ -103,7 +103,13 @@ impl MapData {
                 .expect("map faces should compile into render geometry");
         let lights = collect_point_lights(&geometry.geomap);
         let ambient = collect_ambient_color(&geometry.geomap);
-        let lightmap_geometry = lightmaps_enabled.then(|| {
+        // A map without visible brush faces, such as one built only from placed
+        // records, has nothing to bake a lightmap onto.
+        let bake_lightmap = lightmaps_enabled && !render_mesh.parts.is_empty();
+        if lightmaps_enabled && !bake_lightmap {
+            println!("The map has no visible brush faces to light; skipping the lightmap bake.");
+        }
+        let lightmap_geometry = bake_lightmap.then(|| {
             BakedRenderMesh::from_render_mesh(&render_mesh, 0.005)
                 .expect("render mesh should support lightmap UV generation")
         });

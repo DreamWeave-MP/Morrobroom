@@ -2,7 +2,7 @@
 
 What is still open after the 2026-09-29 round of fixes. Everything else these notes used to list is
 fixed, with a test, in the commits of that day, including how brush entities read `mangle`, maps
-whose worldspawn has no brushes, and the units nif2map writes.
+whose worldspawn has no brushes or that have no brushes at all, and the units nif2map writes.
 
 ## Declared in the FGDs, not compiled
 
@@ -29,8 +29,3 @@ compiled)", and the compiler prints `<class> is an editor preview and is not com
   `Caius_x20_Cosades`. The compiler never reads them for catalog placements, so this is cosmetic.
 - **Placed records do not add masters.** A catalog placement references a record from another
   plugin without listing that plugin in the header. OpenMW resolves it by ID; the manual says so.
-- **A map with no brushes at all does not compile.** With `--no-lightmaps`, `compile_map` asserts
-  "No brushes found in map!"; with lightmaps on, `MapData` panics first, in `constrain_lightmap`,
-  on the zero-sized atlas of an empty mesh. Since the cell no longer needs worldspawn brushes, a
-  map of nothing but placed records is otherwise compilable; both would have to allow an empty
-  render mesh.
