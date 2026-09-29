@@ -33,19 +33,27 @@ PROJECT_STATUSES = ("active", "maintenance", "experimental", "deprecated", "arch
 PACKAGE_FORMATS = ("flat", "bain", "fomod", "binary", "crate")
 # Built by StroggForge's Rust workflows rather than zipped from the project directory.
 RUST_FORMATS = ("binary", "crate")
+# Where a crate artifact is served: crates.io keeps every published version, byte for byte.
+CRATE_DOWNLOAD_URL = "https://static.crates.io/crates/{crate}/{crate}-{version}.crate"
 GROUP_SELECTIONS = ("exactly-one", "at-most-one", "at-least-one", "any")
 LINK_KEYS = ("source", "issues", "documentation", "support", "donate", "nexusmods", "homepage")
 RELATIONSHIP_KINDS = ("requires", "recommends", "conflicts", "compatible", "replaces")
-PLATFORM_SYSTEMS = ("windows", "macos", "linux")
+PLATFORM_SYSTEMS = ("windows", "macos", "linux", "android")
 PLATFORM_ARCHITECTURES = ("x86_64", "aarch64")
+# A release's platform list names desktop systems only; android and variants appear on artifacts.
+DESKTOP_SYSTEMS = ("windows", "macos", "linux")
+# A build for one handheld environment of a platform: PortMaster's framebuffer build, and the same
+# build packaged as a muOS app.
+PLATFORM_VARIANTS = ("portmaster", "muos")
 
 # A binary project's archives come from StroggForge's Rust workflow, one per platform, named
-# <binary>-<runner OS>-<runner architecture>.zip: morrobroom-Windows-X64.zip.
-BINARY_SYSTEM_NAMES = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
+# <binary>-<runner OS>-<runner architecture>.zip: morrobroom-Windows-X64.zip. A variant has its
+# own name in place of the OS, and muOS apps are .muxapp files.
+BINARY_SYSTEM_NAMES = {"windows": "Windows", "macos": "macOS", "linux": "Linux", "android": "Android"}
 BINARY_ARCHITECTURE_NAMES = {"x86_64": "X64", "aarch64": "ARM64"}
+BINARY_VARIANT_ARCHIVES = {"portmaster": ("Portmaster", ".zip"), "muos": ("Portmaster", ".muxapp")}
 BINARY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 CRATE_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
-GITHUB_REPOSITORY_NAME_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 
 # Extension namespaces this template defines. Anything else must be dotted (org.tes3mp).
 KNOWN_EXTENSION_NAMESPACES = ("openmw",)
@@ -190,11 +198,21 @@ class Mirror:
 class Platform:
     system: str
     architecture: str
+    variant: str | None = None
 
     @property
     def id(self) -> str:
-        """A token for artifact ids: linux-x64, macos-arm64."""
-        return f"{self.system}-{BINARY_ARCHITECTURE_NAMES[self.architecture].lower()}"
+        """A token for artifact ids: linux-x64, macos-arm64, linux-arm64-portmaster."""
+        base = f"{self.system}-{BINARY_ARCHITECTURE_NAMES[self.architecture].lower()}"
+        return f"{base}-{self.variant}" if self.variant else base
+
+    @property
+    def is_desktop(self) -> bool:
+        return self.variant is None and self.system in DESKTOP_SYSTEMS
+
+    def document(self) -> dict:
+        """The platform as an artifact describes it."""
+        return {"os": self.system, "arch": self.architecture, **({"variant": self.variant} if self.variant else {})}
 
 
 @dataclass
@@ -226,8 +244,6 @@ class Project:
     package_binary: str | None
     package_include: list[str]
     package_crate: str | None
-    build_dependents: list[str]
-    build_benchmarks: bool
     install_notes: dict[str, str]
     media: list[Media]
     credits: list[Credit]
@@ -244,13 +260,22 @@ class Project:
 
     def binary_archive(self, platform: Platform) -> str:
         """The archive StroggForge builds for one platform of a binary project."""
-        return f"{self.package_binary}-{BINARY_SYSTEM_NAMES[platform.system]}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}.zip"
+        if platform.variant:
+            system_name, suffix = BINARY_VARIANT_ARCHIVES[platform.variant]
+        else:
+            system_name, suffix = BINARY_SYSTEM_NAMES[platform.system], ".zip"
+        return f"{self.package_binary}-{system_name}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}{suffix}"
 
     def release_tag(self, version: Version) -> str:
-        # A crate keeps the plain version tags crates are released under; there is one per repository.
-        if self.package_format == "crate":
+        # A Rust project keeps the bare version tags StroggForge releases under; a repository has
+        # at most one, so the version alone says which project it is.
+        if self.package_format in RUST_FORMATS:
             return str(version)
         return f"{self.slug}-{version}"
+
+    def crate_file(self, version: Version) -> str:
+        """The .crate crates.io serves for one version of this project's crate."""
+        return f"{self.package_crate}-{version}.crate"
 
     def declared_release(self, version: Version) -> DeclaredRelease | None:
         for release in self.releases:
@@ -416,9 +441,14 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
 
     platforms = []
     for platform_table in table.table_list("platforms"):
+        variant = platform_table.raw("variant", None)
+        if variant is not None and variant not in PLATFORM_VARIANTS:
+            problems.error(platform_table.child_where("variant"), f"{variant!r} is not one of {', '.join(PLATFORM_VARIANTS)}")
+            variant = None
         platforms.append(Platform(
             system=platform_table.choice("os", PLATFORM_SYSTEMS, "linux"),
             architecture=platform_table.choice("arch", PLATFORM_ARCHITECTURES, "x86_64"),
+            variant=variant,
         ))
         platform_table.finish()
 
@@ -505,15 +535,8 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
             problems.error(package_table.child_where("development"), "a crate has no development build: its users depend on a published version, or on the repository itself")
         package_documentation = False
         package_development = False
-    elif package_crate:
-        problems.error(package_table.child_where("crate"), 'only format = "crate" packages have a crate')
-
-    build_table = table.table("build")
-    build_dependents = build_table.string_list("dependents", pattern=GITHUB_REPOSITORY_NAME_PATTERN, describe="a GitHub repository, owner/name")
-    build_benchmarks = build_table.boolean("benchmarks", False)
-    build_table.finish()
-    if (build_dependents or build_benchmarks) and package_format not in RUST_FORMATS:
-        problems.error(build_table.where, 'only projects StroggForge builds (format = "binary" or "crate") take [build] settings')
+    elif package_crate and package_format != "binary":
+        problems.error(package_table.child_where("crate"), 'only format = "crate" and "binary" packages have a crate')
     if package_format == "binary":
         if not package_binary:
             problems.error(package_table.child_where("binary"), 'a binary package names the Cargo binary its archives hold, like binary = "morrobroom"')
@@ -619,8 +642,6 @@ def read_project(table: Table, directory: str, name: str, summary: str | None, t
         package_binary=package_binary,
         package_include=package_include,
         package_crate=package_crate,
-        build_dependents=build_dependents,
-        build_benchmarks=build_benchmarks,
         install_notes=install_notes,
         media=media,
         credits=credits,
@@ -866,6 +887,10 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
     if project.package_format == "flat" and project.groups:
         problems.error(where, "a flat package has one component, so [[groups]] have nothing to choose between")
 
+    if project.sigstore and project.package_format in RUST_FORMATS:
+        problems.error(where, "[provenance] sigstore signs mod archives. StroggForge signs a program's binaries with its own Cosign bundles, and crates.io serves a crate; leave it out")
+    if project.package_format != "binary" and any(not platform.is_desktop for platform in project.platforms):
+        problems.error(where, "android and handheld variants are builds of a program; only format = \"binary\" packages list them")
     if project.package_format == "binary":
         check_binary_package(project, where, problems)
     if project.package_format == "crate":
@@ -888,6 +913,8 @@ def check_binary_package(project: Project, where: str, problems: Problems) -> No
         if platform.id in seen:
             problems.error(where, f"platform {platform.id} is listed twice")
         seen.add(platform.id)
+    if project.platforms and not any(platform.is_desktop for platform in project.platforms):
+        problems.error(where, "a binary package lists at least one desktop platform (windows, macos or linux, no variant); android and handheld variants come beside one")
     openmw = project.components[0].openmw if project.components else None
     if openmw and (openmw.content_files or openmw.groundcover_files or openmw.fallback_archives or openmw.fallback_entries or openmw.config or openmw.data_directories != ["."]):
         problems.error(where, "a binary package is a program, not data OpenMW loads; it has no [openmw] install data")

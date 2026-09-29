@@ -9,9 +9,8 @@
                 <dt>Type</dt><dd>{{ dw_macros::type_label(type=project.type) }}</dd>
                 <dt>Status</dt><dd>{{ dw_macros::status(state=project.status) }}</dd>
                 <dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}</dd>
-                {%- if project.format == "crate" %}
+                {%- if project.crate %}
                 <dt>Crate</dt><dd><code>{{ project.crate }}</code></dd>
-                {%- if project.crate_release and not dw_offline %}<dt>Stable</dt><dd>{{ project.crate_release.version }}</dd>{% endif %}
                 {%- endif %}
                 {%- if not dw_offline %}
                 {%- for channel in project.channel_order %}
@@ -22,7 +21,8 @@
         </div>
     </section>
 
-    {%- if not dw_offline and project.channel_order | length > 0 %}
+    {#- A crate's download is Cargo's job: its releases link to crates.io instead. -#}
+    {%- if not dw_offline and project.channel_order | length > 0 and project.format != "crate" %}
     <section class="dw-panel">
         <h2 class="dw-panel__title">Downloads</h2>
         <div class="dw-panel__body">

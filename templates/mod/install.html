@@ -3,18 +3,18 @@
 {%- set bain_like = project.format == "bain" or project.format == "fomod" -%}
 {%- set has_choices = optional_components | length > 0 -%}
 <section class="dw-section" id="install" aria-labelledby="install-title">
-    <div class="dw-section__head"><h2 id="install-title">Install</h2><p>{{ dw_macros::format_label(format=project.format) }}{% if not dw_offline and primary %} · {{ primary.version }}{% elif project.format == "crate" and project.crate_release %} · {{ project.crate_release.version }}{% endif %}</p></div>
+    <div class="dw-section__head"><h2 id="install-title">Install</h2><p>{{ dw_macros::format_label(format=project.format) }}{% if not dw_offline and primary %} · {{ primary.version }}{% endif %}</p></div>
 
     <div class="dw-methods">
     {%- if project.format == "crate" %}
         <details class="dw-method" name="dw-install-method" open>
-            <summary><span class="dw-method__name">Add it with Cargo</span><span class="dw-method__hint">from crates.io{% if project.crate_release %}, {{ project.crate_release.version }} today{% endif %}</span></summary>
+            <summary><span class="dw-method__name">Add it with Cargo</span><span class="dw-method__hint">from crates.io{% if stable %}, {{ stable.version }} today{% endif %}</span></summary>
             <div class="dw-method__body">
                 <p>From your project's directory:</p>
                 <pre data-lang="sh"><code>cargo add {{ project.crate }}</code></pre>
                 <p>Or by hand, in <code>Cargo.toml</code>:</p>
                 <pre data-lang="toml"><code>[dependencies]
-{{ project.crate }} = "{% if project.crate_release %}{{ project.crate_release.version }}{% else %}*{% endif %}"</code></pre>
+{{ project.crate }} = "{% if stable %}{{ stable.version }}{% else %}*{% endif %}"</code></pre>
                 <p class="dw-method__hint">Cargo reads a bare version as "this or any compatible newer release" and records the exact one in <code>Cargo.lock</code>.</p>
             </div>
         </details>
@@ -35,12 +35,13 @@
                 <div class="dw-actions dw-platforms">
                 {%- for artifact in primary.artifacts %}
                     {%- set platform_source = artifact.sources | filter(attribute="kind", value="publisher") | first %}
-                    <a class="dw-button dw-button--small" data-platform="{{ artifact.platform.os }}" href="{{ platform_source.url | safe }}">{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
+                    {%- set variant = "" %}{% if artifact.platform.variant is defined %}{% set variant = artifact.platform.variant %}{% endif %}
+                    <a class="dw-button dw-button--small" data-platform="{{ dw_macros::platform_key(platform=artifact.platform) }}" href="{{ platform_source.url | safe }}">{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch, variant=variant) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
                 {%- endfor %}
                 </div>
                 {%- endif %}
                 <ol class="dw-steps">
-                    <li>{% if dw_offline %}This is the archive for one platform{% elif primary %}Download the archive for your platform{% else %}Download the archive for your platform once a build is published{% endif %}{% if project.platforms | length > 0 %}: {% for platform in project.platforms %}{{ dw_macros::platform_label(os=platform.os, arch=platform.arch) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</li>
+                    <li>{% if dw_offline %}This is the archive for one platform{% elif primary %}Download the archive for your platform{% else %}Download the archive for your platform once a build is published{% endif %}{% if project.platforms | length > 0 %}: {% for platform in project.platforms %}{% set variant = "" %}{% if platform.variant is defined %}{% set variant = platform.variant %}{% endif %}{{ dw_macros::platform_label(os=platform.os, arch=platform.arch, variant=variant) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</li>
                     <li>Unzip it wherever you keep your tools. Nothing goes into the game's folders.</li>
                     <li>Run <code>{{ project.binary }}</code>, or <code>{{ project.binary }}.exe</code> on Windows. From a terminal, <code>{{ project.binary }} --help</code> lists what it can do.</li>
                 </ol>
@@ -49,6 +50,15 @@
                 {%- endif %}
             </div>
         </details>
+        {%- if project.crate %}
+        <details class="dw-method" name="dw-install-method">
+            <summary><span class="dw-method__name">Build it with Cargo</span><span class="dw-method__hint">from crates.io, for any platform Rust targets</span></summary>
+            <div class="dw-method__body">
+                <pre data-lang="sh"><code>cargo install {{ project.crate }}</code></pre>
+                <p class="dw-method__hint">Cargo builds the program from source and puts <code>{{ project.binary }}</code> on your <code>PATH</code>.</p>
+            </div>
+        </details>
+        {%- endif %}
     {%- endif %}
 
     {%- if project.format == "fomod" %}

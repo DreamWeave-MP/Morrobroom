@@ -5,7 +5,7 @@
 # Permanent identity. Never changes, whatever the program is called or wherever it is hosted.
 id = "015878d0-9501-4b1f-8453-7726bcccf860"
 
-# Release tags are morrobroom-<version>.
+# The slug names the project on this site. Release tags are bare versions, like Cargo's: 1.0.0.
 slug = "morrobroom"
 type = "tool"
 license = "AGPL-3.0"
@@ -18,8 +18,9 @@ url = "https://github.com/DreamWeave-MP"
 documentation = "@/docs/_index.md"
 support = "https://github.com/DreamWeave-MP/Morrobroom/discussions"
 
-# A program: StroggForge's Rust workflow builds it once per [[platforms]] entry, and packs
-# the files in include beside it. resources/ is the TrenchBroom game configuration.
+# A program: StroggForge's Rust workflow (.github/workflows/release.yaml) builds it once per
+# [[platforms]] entry, and packs the files in include beside it. resources/ is the TrenchBroom game
+# configuration.
 [package]
 format = "binary"
 binary = "morrobroom"
@@ -46,8 +47,8 @@ name = "Kurpulio"
 role = "VFX Meshbank, the source of the VFX catalog's editor previews"
 url = "https://www.nexusmods.com/morrowind/mods/49695"
 
-# Pushing the tag morrobroom-1.0.0 publishes this: CI builds every platform from the tag and
-# records it. Set the date to the day you push it.
+# Pushing the tag 1.0.0 publishes this: StroggForge builds every platform from the tag, publishes
+# them, and records them here. Set the date to the day you push it.
 [[releases]]
 version = "1.0.0"
 date = 2026-09-28

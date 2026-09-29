@@ -500,9 +500,10 @@
             "flat",
             "bain",
             "fomod",
-            "binary"
+            "binary",
+            "crate"
           ],
-          "description": "How the archive is laid out. flat, bain and fomod hold data for the game; binary holds a program built for one platform."
+          "description": "How the artifact is laid out. flat, bain and fomod hold data for the game; binary holds a program built for one platform; crate is a Rust crate as crates.io serves it."
         },
         "filename": {
           "type": "string",
@@ -540,7 +541,8 @@
               "enum": [
                 "windows",
                 "macos",
-                "linux"
+                "linux",
+                "android"
               ]
             },
             "arch": {
@@ -548,9 +550,16 @@
                 "x86_64",
                 "aarch64"
               ]
+            },
+            "variant": {
+              "enum": [
+                "portmaster",
+                "muos"
+              ],
+              "description": "A build for one handheld environment of the platform: portmaster, the PortMaster framebuffer build; muos, the same build as a muOS app. Clients that do not know a variant skip the artifact."
             }
           },
-          "description": "For a binary artifact: the one platform it runs on. Clients pick the artifact for their own."
+          "description": "For a binary artifact: the platform it runs on. Clients pick the artifact for their own, and skip variants they do not know."
         },
         "layout": {
           "type": "object",

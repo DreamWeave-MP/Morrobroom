@@ -62,8 +62,8 @@ def git(root: Path, *arguments: str) -> str:
     return process.stdout.strip()
 
 
-def build_site(root: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
-    process = subprocess.run([sys.executable, str(root / "buildSite"), *arguments], cwd=root, capture_output=True, text=True, env=scratch_environment())
+def build_site(root: Path, *arguments: str, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    process = subprocess.run([sys.executable, str(root / "buildSite"), *arguments], cwd=root, capture_output=True, text=True, env={**scratch_environment(), **(env or {})})
     if check and process.returncode != 0:
         raise AssertionError(f"buildSite {' '.join(arguments)} failed:\n{process.stdout}\n{process.stderr}")
     return process

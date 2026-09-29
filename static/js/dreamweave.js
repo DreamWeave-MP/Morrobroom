@@ -200,11 +200,13 @@
 
   // Platform downloads ------------------------------------------------------------------------
   // A program has one archive per platform. Mark the ones for the visitor's platform; hide none,
-  // because the guess can be wrong. Phones get no mark: no archive here runs on one.
+  // because the guess can be wrong. Handheld builds (PortMaster, muOS) are never marked: no
+  // browser says it is one. iPhones and iPads get no mark: no archive here runs on one.
 
   const platform = (() => {
     const hint = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent || ''}`.toLowerCase();
-    if (/android|iphone|ipad/.test(hint)) return null;
+    if (hint.includes('android')) return 'android';
+    if (/iphone|ipad/.test(hint)) return null;
     if (hint.includes('win')) return 'windows';
     if (hint.includes('mac')) return 'macos';
     if (/linux|x11/.test(hint)) return 'linux';

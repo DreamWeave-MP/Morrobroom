@@ -11,11 +11,20 @@
 {%- endmacro format_label %}
 
 {#- What a person calls a platform, not what a compiler does. -#}
-{% macro platform_label(os, arch) -%}
-{%- if os == "windows" %}Windows{% if arch == "aarch64" %} on Arm{% endif -%}
+{% macro platform_label(os, arch, variant="") -%}
+{%- if variant == "portmaster" %}PortMaster
+{%- elif variant == "muos" %}muOS
+{%- elif os == "android" %}Android
+{%- elif os == "windows" %}Windows{% if arch == "aarch64" %} on Arm{% endif -%}
 {%- elif os == "macos" %}macOS, {% if arch == "aarch64" %}Apple silicon{% else %}Intel{% endif -%}
 {%- else %}Linux{% if arch == "aarch64" %} on Arm{% endif %}{% endif -%}
 {%- endmacro platform_label %}
+
+{#- What the page script matches against the visitor's platform: a handheld variant is never the
+    visitor's desktop. -#}
+{% macro platform_key(platform) -%}
+{%- if platform.variant is defined %}{{ platform.variant }}{% else %}{{ platform.os }}{% endif -%}
+{%- endmacro platform_key %}
 
 {% macro runtime_label(runtime) -%}
 {%- if runtime == "openmw" %}OpenMW{% elif runtime == "mwse" %}MWSE{% elif runtime == "tes3mp" %}TES3MP{% elif runtime == "morrowind" %}Morrowind.exe{% else %}{{ runtime }}{% endif -%}
@@ -65,11 +74,11 @@
 <div class="dw-artifact">
     <div class="dw-artifact__head">
         <span class="dw-artifact__name">{{ artifact.filename }}</span>
-        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · {% if artifact.platform is defined %}{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }}{% else %}{{ artifact.format }}{% endif %}</span>
+        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · {% if artifact.platform is defined %}{% set variant = "" %}{% if artifact.platform.variant is defined %}{% set variant = artifact.platform.variant %}{% endif %}{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch, variant=variant) }}{% else %}{{ artifact.format }}{% endif %}</span>
     </div>
     <div class="dw-artifact__actions">
-        <a class="dw-button{% if primary %} dw-button--primary{% endif %} dw-button--small" href="{{ publisher.url | safe }}"{% if artifact.platform is defined %} data-platform="{{ artifact.platform.os }}"{% endif %}>Download {{ release.version }}</a>
-        {%- if artifact.format != "binary" %}
+        <a class="dw-button{% if primary %} dw-button--primary{% endif %} dw-button--small" href="{{ publisher.url | safe }}"{% if artifact.platform is defined %} data-platform="{{ dw_macros::platform_key(platform=artifact.platform) }}"{% endif %}>Download {{ release.version }}</a>
+        {%- if artifact.format != "binary" and artifact.format != "crate" %}
         <a class="dw-button dw-button--small" href="modl://{{ project.game }}/?url={{ publisher.url | safe }}" title="Hand this archive to umo or ModdingLinked MO2">Mod manager</a>
         {%- endif %}
     </div>
@@ -94,17 +103,29 @@
 </div>
 {%- endmacro artifact %}
 
-{#- A crate's release: crates.io serves and hashes it, so this names it and links there. -#}
-{% macro crate_version(project, version) -%}
+{#- A crate's release: crates.io serves it, so this links there, with the recorded digest of the
+    .crate it serves. -#}
+{% macro crate_version(project, version, artifact) -%}
 <div class="dw-artifact">
     <div class="dw-artifact__head">
         <span class="dw-artifact__name">{{ project.crate }} {{ version }}</span>
-        <span class="dw-artifact__meta">crates.io</span>
+        <span class="dw-artifact__meta">{{ artifact.size | filesizeformat }} · crates.io</span>
     </div>
     <div class="dw-artifact__actions">
         <a class="dw-button dw-button--small" href="{{ project.links.crate | safe }}/{{ version }}">View on crates.io</a>
         <button class="dw-copy" type="button" data-copy='{{ project.crate }} = "{{ version }}"'>Copy Cargo.toml line</button>
     </div>
+    <details>
+        <summary>Verify · sha256 {{ dw_macros::short_digest(digest=artifact.digests.sha256) }}</summary>
+        <div class="dw-artifact__verify">
+            <dl class="dw-record">
+                <dt>File</dt><dd>{{ artifact.filename }}</dd>
+                <dt>Size</dt><dd>{{ artifact.size }} bytes</dd>
+                <dt>SHA-256</dt><dd class="dw-digest">{{ artifact.digests.sha256 }} <button class="dw-copy" type="button" data-copy="{{ artifact.digests.sha256 }}">Copy</button></dd>
+            </dl>
+            <p class="dw-method__hint">The same digest as the crates.io index's checksum, which Cargo checks on every download.</p>
+        </div>
+    </details>
 </div>
 {%- endmacro crate_version %}
 
@@ -129,10 +150,11 @@
     {%- endif %}
     {%- if declared.notes.summary is defined %}<p class="dw-release__summary">{{ declared.notes.summary }}</p>{% endif %}
     {{ dw_macros::notes(notes=declared.notes) }}
-    {%- if published %}
+    {%- if project.format == "crate" and published %}
+    {%- set crate_artifact = published.artifacts | first %}
+    {{ dw_macros::crate_version(project=project, version=declared.version, artifact=crate_artifact) }}
+    {%- elif published %}
     {%- for artifact in published.artifacts %}{{ dw_macros::artifact(artifact=artifact, release=published, project=project) }}{% endfor %}
-    {%- elif project.format == "crate" and declared.state is defined and declared.state == "published" %}
-    {{ dw_macros::crate_version(project=project, version=declared.version) }}
     {%- endif %}
 </li>
 {%- endmacro release_entry %}

@@ -26,9 +26,12 @@
 {%- set slug = m.slug | default(value="") -%}
 {%- set game = m.game | default(value="morrowind") -%}
 {%- set format = m.package.format | default(value="flat") -%}
-{#- A crate is released to crates.io under plain version tags; it has no archives and no mod.lock. -#}
-{%- set is_crate = format == "crate" -%}
-{%- if is_crate %}{% set crate_name = m.package.crate | default(value="") %}{% set crate_url = "https://crates.io/crates/" ~ crate_name %}{% set tag_prefix = "" %}{% else %}{% set tag_prefix = slug ~ "-" %}{% endif -%}
+{#- A Rust project, a program or a crate, is released under bare version tags, and a crate's
+    releases are served by crates.io. -#}
+{%- set is_rust = format == "binary" or format == "crate" -%}
+{%- if is_rust %}{% set tag_prefix = "" %}{% else %}{% set tag_prefix = slug ~ "-" %}{% endif -%}
+{%- set crate_name = m.package.crate | default(value="") -%}
+{%- set crate_url = "https://crates.io/crates/" ~ crate_name -%}
 
 {#- The published releases: mod.lock, which CI writes when a release tag is pushed. Offline
     documentation never reads it, so an archive's bytes depend only on what its tag holds. -#}
@@ -44,17 +47,6 @@
 {%- set declared_versions = declared | map(attribute="version") -%}
 {%- set unverified = [] -%}
 {%- if ci and ci.unverified is defined %}{% set unverified = ci.unverified %}{% endif -%}
-{%- set planned = [] -%}
-{%- if ci and ci.planned is defined %}{% set planned = ci.planned %}{% endif -%}
-{#- A crate's newest stable release: without records, every declared release counts as published
-    unless CI saw no tag for it. -#}
-{%- set_global crate_release = false -%}
-{%- if is_crate -%}
-{%- for release in declared -%}
-{%- set channel = release.channel | default(value="stable") -%}
-{%- if not crate_release and channel == "stable" and release.yanked is not defined and release.deprecated is not defined and release.version not in planned %}{% set_global crate_release = release %}{% endif -%}
-{%- endfor -%}
-{%- endif -%}
 {%- set mirrors = m.mirrors | default(value=[]) -%}
 {%- set sigstore = m.provenance.sigstore | default(value=false) -%}
 
@@ -76,10 +68,9 @@
  "manifest_url": {{ get_url(path="dreamweave/projects/" ~ id ~ ".json", trailing_slash=false) | json_encode | safe }},
  "format": {{ format | json_encode | safe }},
  "tag_prefix": {{ tag_prefix | json_encode | safe }},
- {%- if is_crate %}
- "documentation_packaged": false,
  "crate": {{ crate_name | json_encode | safe }},
- "crate_release": {% if crate_release %}{% set crate_release_url = crate_url ~ "/" ~ crate_release.version %}{"version": {{ crate_release.version | json_encode | safe }}, "date": {{ crate_release.date | json_encode | safe }}, "url": {{ crate_release_url | json_encode | safe }}}{% else %}false{% endif %},
+ {%- if format == "crate" %}
+ "documentation_packaged": false,
  {%- elif format == "binary" %}
  "documentation_packaged": false,
  "binary": {{ m.package.binary | default(value="") | json_encode | safe }},
@@ -101,7 +92,7 @@
   "source": {% if m.links.source is defined %}{{ m.links.source | json_encode | safe }}{% else %}{{ repository | json_encode | safe }}{% endif %},
   {%- set issues = repository ~ "/issues" %}
   "issues": {% if m.links.issues is defined %}{{ m.links.issues | json_encode | safe }}{% else %}{{ issues | json_encode | safe }}{% endif %}
-  {%- if is_crate %}, "crate": {{ crate_url | json_encode | safe }}{% endif -%}
+  {%- if crate_name %}, "crate": {{ crate_url | json_encode | safe }}{% endif -%}
   {%- if m.links.documentation is defined -%}
     {%- if m.links.documentation is starting_with("@/") %}{% set documentation = get_url(path=m.links.documentation) %}{% else %}{% set documentation = m.links.documentation %}{% endif -%}
     , "documentation": {{ documentation | json_encode | safe }}
@@ -127,7 +118,7 @@
  "runtimes": {% if m.runtimes is defined %}{{ m.runtimes | json_encode | safe }}{% else %}{}{% endif %},
  "platforms": [
   {%- for platform in m.platforms | default(value=[]) -%}
-  {%- if not loop.first %},{% endif %}{"os": {{ platform.os | default(value="linux") | json_encode | safe }}, "arch": {{ platform.arch | default(value="x86_64") | json_encode | safe }}}
+  {%- if not loop.first %},{% endif %}{"os": {{ platform.os | default(value="linux") | json_encode | safe }}, "arch": {{ platform.arch | default(value="x86_64") | json_encode | safe }}{% if platform.variant is defined %}, "variant": {{ platform.variant | json_encode | safe }}{% endif %}}
   {%- endfor -%}
  ],
  "provides": {{ m.provides | default(value=[]) | json_encode | safe }},
@@ -177,7 +168,7 @@
    {%- if release.deprecated is defined %}, "deprecated": {{ release.deprecated | json_encode | safe }}{% endif -%}
    {%- if release.replacement is defined %}, "replacement": {{ release.replacement | json_encode | safe }}{% endif -%}
    {%- if not offline -%}
-   , "state": {% if is_crate %}{% if release.version in planned %}"planned"{% else %}"published"{% endif %}{% elif release.version in recorded_versions %}"published"{% elif release.version in unverified %}"unverified"{% else %}"planned"{% endif %}
+   , "state": {% if release.version in recorded_versions %}"published"{% elif release.version in unverified %}"unverified"{% else %}"planned"{% endif %}
    {%- endif %}}
   {%- endif -%}
   {%- endfor -%}
@@ -192,7 +183,7 @@
   {%- set release = all_declared | filter(attribute="version", value=record.version) | first -%}
   {%- if release -%}
   {%- if emitted > 0 %},{% endif %}{% set_global emitted = emitted + 1 -%}
-  {{ project_model::release(record=record, declared=release, slug=slug, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
+  {{ project_model::release(record=record, declared=release, slug=slug, tag_prefix=tag_prefix, crate_name=crate_name, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
   {%- endif -%}
   {%- endfor -%}
   {%- if ci and ci.development is defined %}{% if emitted > 0 %},{% endif %}{{ ci.development | json_encode | safe }}{% endif -%}
@@ -205,7 +196,7 @@
   {%- set channel = release.channel | default(value="stable") -%}
   {%- if release.yanked is not defined and release.deprecated is not defined and channel not in channels -%}
   {%- if channels | length > 0 %},{% endif -%}
-  {{ channel | json_encode | safe }}: {{ project_model::release(record=record, declared=release, slug=slug, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
+  {{ channel | json_encode | safe }}: {{ project_model::release(record=record, declared=release, slug=slug, tag_prefix=tag_prefix, crate_name=crate_name, repository=repository, mirrors=mirrors, sigstore=sigstore) }}
   {%- set_global channels = channels | concat(with=channel) -%}
   {%- endif -%}
   {%- endif -%}
@@ -290,8 +281,8 @@
 
 {#- One published release as the manifest describes it: its record in mod.lock, plus the date,
     channel, status and notes mod.toml still owns. -#}
-{% macro release(record, declared, slug, repository, mirrors, sigstore) -%}
-{%- set tag = slug ~ "-" ~ record.version -%}
+{% macro release(record, declared, slug, tag_prefix, crate_name, repository, mirrors, sigstore) -%}
+{%- set tag = tag_prefix ~ record.version -%}
 {%- if declared.yanked is defined %}{% set status = "yanked" %}{% elif declared.deprecated is defined %}{% set status = "deprecated" %}{% else %}{% set status = "available" %}{% endif -%}
 {"version": {{ record.version | json_encode | safe }},
  "channel": {{ declared.channel | default(value="stable") | json_encode | safe }},
@@ -301,7 +292,11 @@
  "artifacts": [
  {%- for artifact in record.artifacts -%}
  {%- if not loop.first %},{% endif -%}
+ {%- if artifact.format == "crate" -%}
+ {%- set download = "https://static.crates.io/crates/" ~ crate_name ~ "/" ~ artifact.filename -%}
+ {%- else -%}
  {%- set download = repository ~ "/releases/download/" ~ tag ~ "/" ~ artifact.filename -%}
+ {%- endif -%}
  {%- set bundle = download ~ ".sigstore.json" -%}
  {"id": {{ artifact.id | json_encode | safe }}, "format": {{ artifact.format | json_encode | safe }}, "filename": {{ artifact.filename | json_encode | safe }}, "size": {{ artifact.size | json_encode | safe }}, "digests": {{ artifact.digests | json_encode | safe }},
   {%- if artifact.platform is defined %} "platform": {{ artifact.platform | json_encode | safe }},{% endif %}
@@ -311,7 +306,7 @@
   , {"url": {{ mirror_url | json_encode | safe }}, "kind": "mirror"{% if mirror.name is defined %}, "name": {{ mirror.name | json_encode | safe }}{% endif %}}
   {%- endfor -%}
   ],
-  "signatures": [{% if sigstore %}{"format": "sigstore-bundle", "url": {{ bundle | json_encode | safe }}}{% endif %}]}
+  "signatures": [{% if sigstore and artifact.format != "crate" %}{"format": "sigstore-bundle", "url": {{ bundle | json_encode | safe }}}{% endif %}]}
  {%- endfor -%}
  ]}
 {%- endmacro release %}

@@ -27,8 +27,6 @@ def diagnostic_checks(repository: Repository, project: Project, state, manifest:
     check("identity", "Stable identity", "pass", f"id {project.id}; survives renames and host moves")
     check("discovery", "Discovery", "pass", "listed in dreamweave.json and linked from every page with <link rel=\"alternate\">")
     check("manifest", "Manifest", "pass", f"schema_version {manifest['schema_version']}, {len(manifest['releases'])} release(s) published")
-    if project.package_format == "crate":
-        return checks + crate_checks(project, state, manifest)
 
     stable = [release for release in state.published]
     if stable:
@@ -87,29 +85,12 @@ def diagnostic_checks(repository: Repository, project: Project, state, manifest:
     return checks
 
 
-def crate_checks(project: Project, state, manifest: dict) -> list[dict]:
-    """A crate is distributed by crates.io, which hashes and serves it; the manifest names it with
-    links.crate and lists no releases of its own."""
-    crate_url = manifest["project"]["links"]["crate"]
-    checks = []
-    if state.on_registry:
-        checks.append({"id": "releases", "label": "Released to crates.io", "state": "pass", "detail": f"{', '.join(state.on_registry)}: tagged, or older than a tagged version; StroggForge publishes each tag"})
-    else:
-        checks.append({"id": "releases", "label": "Released to crates.io", "state": "warn", "detail": "no version is tagged yet; the crate is not on crates.io"})
-    if state.planned:
-        checks.append({"id": "planned", "label": "Declared, not tagged", "state": "info", "detail": f"{', '.join(state.planned)}: push the tag {state.planned[0]} to publish"})
-    checks.append({"id": "channels", "label": "Distribution", "state": "info", "detail": f"crates.io serves and hashes each version: {crate_url}. DreamWeave clients install game data and programs, not libraries"})
-    identified = [relationship for relationship in project.relationships if relationship.project_id or relationship.capability]
-    checks.append({"id": "relationships", "label": "Relationships", "state": "pass" if identified else "info", "detail": f"{len(identified)} machine-resolvable" if identified else "none declared"})
-    return checks
-
-
 def project_facts(repository: Repository, project: Project, offline_mode: bool, packaged: Version | None, archives_built: bool) -> dict:
     if offline_mode:
         return {"packaged_version": str(packaged)} if packaged else {}
 
     state = release_state(repository, project)
-    facts: dict = {"unverified": state.unverified, "planned": state.planned}
+    facts: dict = {"unverified": state.unverified}
     manifest_path = repository.root / GENERATED_ROOT / "projects" / f"{project.id}.json"
     if not manifest_path.is_file():
         return facts

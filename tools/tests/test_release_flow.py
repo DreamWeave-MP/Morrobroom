@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -90,11 +91,27 @@ arch = "x86_64"
 os = "windows"
 arch = "x86_64"
 
+[[platforms]]
+os = "android"
+arch = "aarch64"
+
+[[platforms]]
+os = "linux"
+arch = "aarch64"
+variant = "portmaster"
+
+[[platforms]]
+os = "linux"
+arch = "aarch64"
+variant = "muos"
+
 [[releases]]
 version = "1.0.0"
 date = 2026-01-02
 summary = "First."
 """
+# What StroggForge's Rust workflow stages for Broom's platforms, in [[platforms]] order.
+BROOM_ARCHIVES = ("Linux-X64.zip", "Windows-X64.zip", "Android-ARM64.zip", "Portmaster-ARM64.zip", "Portmaster-ARM64.muxapp")
 LEDGER_ID = "9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b"
 # A Rust library: released to crates.io by StroggForge under plain version tags.
 LEDGER = """
@@ -105,10 +122,6 @@ type = "library"
 [package]
 format = "crate"
 crate = "ledger-rs"
-
-[build]
-dependents = ["someone/abacus"]
-benchmarks = true
 
 [[releases]]
 version = "0.9.0"
@@ -224,6 +237,24 @@ class ReleaseLifecycle(unittest.TestCase):
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
             self.assertEqual(schema_errors(load(self.root, "static/dreamweave.json"), "dreamweave-index-2.schema.json"), [])
 
+    def test_a_release_keeps_the_identity_that_signed_it(self):
+        mod_toml = self.root / "content/lantern/mod.toml"
+        mod_toml.write_text(mod_toml.read_text().replace("[[releases]]", "[provenance]\nsigstore = true\n\n[[releases]]", 1))
+        self.scratch.commit("Sign Lantern")
+        signer = "https://github.com/DreamWeave-MP/StroggForge/.github/workflows/modGlobalBuild.yml@refs/tags/v{}"
+        git(self.root, "tag", "lantern-1.0.0")
+        git(self.root, "checkout", "-q", "lantern-1.0.0")
+        build_site(self.root, "release", "lantern-1.0.0", env={"DREAMWEAVE_SIGNING_IDENTITY": signer.format(49)})
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        self.scratch.commit("RELEASE: Lantern 1.0.0")
+        self.assertEqual(load(self.root, "content/lantern/mod.lock")["releases"][0]["signing_identity"], signer.format(49))
+
+        build_site(self.root, "build", env={"DREAMWEAVE_SIGNING_IDENTITY": signer.format(50)})
+        releases = {release["channel"]: release for release in self.manifest()["releases"]}
+        self.assertEqual(releases["stable"]["artifacts"][0]["signatures"][0]["identity"], signer.format(49), "the pin moved after 1.0.0 was signed")
+        self.assertEqual(releases["development"]["artifacts"][0]["signatures"][0]["identity"], signer.format(50))
+
     def test_extension_data_reaches_the_manifest_unchanged(self):
         mod_toml = (self.root / "content/lantern/mod.toml").read_text()
         extension = '[extensions."org.tes3mp"]\nserver_side = true\nsync = ["time", "weather"]\n\n'
@@ -258,49 +289,64 @@ class ReleaseLifecycle(unittest.TestCase):
         self.scratch.add_project("broom", BROOM, title="Broom", description="Sweeps maps.")
         self.scratch.commit("Add Broom")
 
-    def stage_binaries(self, build: str, platforms=("Linux-X64", "Windows-X64")) -> None:
+    def stage_binaries(self, build: str, archives=BROOM_ARCHIVES) -> None:
         """What the workflow's download step leaves in dist/binaries/."""
         binaries = self.root / "dist/binaries"
         binaries.mkdir(parents=True, exist_ok=True)
-        for platform in platforms:
-            (binaries / f"broom-{platform}.zip").write_bytes(f"broom {platform} {build}".encode())
+        for archive in archives:
+            (binaries / f"broom-{archive}").write_bytes(f"broom {archive} {build}".encode())
 
     def test_a_binary_release_records_every_platform_the_rust_workflow_built(self):
         self.add_broom()
-        git(self.root, "tag", "broom-1.0.0")
-        git(self.root, "checkout", "-q", "broom-1.0.0")
-        process = build_site(self.root, "release", "broom-1.0.0", check=False)
+        git(self.root, "tag", "1.0.0")
+        git(self.root, "checkout", "-q", "1.0.0")
+        process = build_site(self.root, "release", "1.0.0", check=False)
         self.assertIn("broom-Linux-X64.zip", process.stderr, "without the Rust workflow's archives there is nothing to release")
         self.stage_binaries("1.0.0")
-        build_site(self.root, "release", "broom-1.0.0")
-        self.assertTrue((self.root / "dist/broom-Windows-X64.zip").is_file(), "the hashed bytes are the published bytes")
+        build_site(self.root, "release", "1.0.0")
+        self.assertTrue((self.root / "dist/broom-Portmaster-ARM64.muxapp").is_file(), "the hashed bytes are the published bytes")
         git(self.root, "checkout", "-q", "main")
         build_site(self.root, "record")
         self.scratch.commit("RELEASE: Broom 1.0.0")
 
         locked = load(self.root, "content/broom/mod.lock")["releases"][0]
-        self.assertEqual([artifact["id"] for artifact in locked["artifacts"]], ["linux-x64", "windows-x64"])
-        windows = locked["artifacts"][1]
+        self.assertEqual(
+            [artifact["id"] for artifact in locked["artifacts"]],
+            ["linux-x64", "windows-x64", "android-arm64", "linux-arm64-portmaster", "linux-arm64-muos"],
+        )
+        windows, muos = locked["artifacts"][1], locked["artifacts"][4]
         self.assertEqual(windows["format"], "binary")
         self.assertEqual(windows["platform"], {"os": "windows", "arch": "x86_64"})
-        self.assertEqual(windows["digests"]["sha256"], hashlib.sha256(b"broom Windows-X64 1.0.0").hexdigest())
+        self.assertEqual(windows["digests"]["sha256"], hashlib.sha256(b"broom Windows-X64.zip 1.0.0").hexdigest())
+        self.assertEqual(muos["filename"], "broom-Portmaster-ARM64.muxapp")
+        self.assertEqual(muos["platform"], {"os": "linux", "arch": "aarch64", "variant": "muos"})
+        self.assertEqual(locked["platforms"], [{"os": "linux", "arch": "x86_64"}, {"os": "windows", "arch": "x86_64"}], "a release's platform list is desktop systems only")
 
         self.stage_binaries("dev")
         build_site(self.root, "build")
         manifest = load(self.root, f"static/dreamweave/projects/{BROOM_ID}.json")
         self.assertEqual(manifest["channels"]["stable"], {"version": "1.0.0"})
+        stable = next(release for release in manifest["releases"] if release["channel"] == "stable")
+        self.assertEqual(stable["source"]["tag"], "1.0.0")
+        self.assertEqual(stable["artifacts"][2]["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/1.0.0/broom-Android-ARM64.zip")
         development = next(release for release in manifest["releases"] if release["channel"] == "development")
         self.assertEqual(development["artifacts"][0]["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/development/broom-Linux-X64.zip")
-        self.assertEqual(development["artifacts"][0]["digests"]["sha256"], hashlib.sha256(b"broom Linux-X64 dev").hexdigest())
+        self.assertEqual(development["artifacts"][0]["digests"]["sha256"], hashlib.sha256(b"broom Linux-X64.zip dev").hexdigest())
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
 
-    def test_a_programs_page_offers_every_platform(self):
+    def test_a_rust_projects_tags_are_bare_versions(self):
         self.add_broom()
         git(self.root, "tag", "broom-1.0.0")
+        process = build_site(self.root, "release", "broom-1.0.0", check=False)
+        self.assertIn("a Rust project's tags are bare versions: 1.0.0", process.stderr)
+
+    def test_a_programs_page_offers_every_platform(self):
+        self.add_broom()
+        git(self.root, "tag", "1.0.0")
         self.stage_binaries("1.0.0")
-        git(self.root, "checkout", "-q", "broom-1.0.0")
-        build_site(self.root, "release", "broom-1.0.0")
+        git(self.root, "checkout", "-q", "1.0.0")
+        build_site(self.root, "release", "1.0.0")
         git(self.root, "checkout", "-q", "main")
         build_site(self.root, "record")
         self.scratch.commit("RELEASE: Broom 1.0.0")
@@ -308,58 +354,81 @@ class ReleaseLifecycle(unittest.TestCase):
         subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
         page = html.unescape((self.root / "public/broom/index.html").read_text())
         hero = re.search(r'<div class="dw-actions dw-platforms".*?</div>', page, re.S).group(0)
-        self.assertIn('data-platform="windows" href="https://github.com/someone/cool-mods/releases/download/broom-1.0.0/broom-Windows-X64.zip"', hero)
+        self.assertIn('data-platform="windows" href="https://github.com/someone/cool-mods/releases/download/1.0.0/broom-Windows-X64.zip"', hero)
         self.assertIn(">Linux <", hero)
+        self.assertIn('data-platform="android"', hero)
+        self.assertIn('data-platform="portmaster"', hero, "a handheld build is never marked as the visitor's desktop")
+        self.assertIn(">muOS <", hero)
         self.assertNotIn("Mod manager", page, "a program is not handed to a mod manager")
         self.assertNotIn("OpenMW, by hand", page)
         self.assertIn("broom-&lt;platform&gt;.zip", (self.root / "public/broom/index.html").read_text())
-        self.assertIn("<dt>Package</dt><dd>Program <small>2 platforms</small>", page)
-
-    def test_stroggforge_is_told_what_to_build_and_publish(self):
-        self.assertEqual(
-            build_site(self.root, "stroggforge").stdout,
-            "binary_names=[]\ninclude_files=\ncrate_names=[]\ndependents=[]\nbenchmarks=false\n",
-        )
-        self.add_broom()
-        self.add_ledger()
-        self.assertEqual(
-            build_site(self.root, "stroggforge").stdout,
-            'binary_names=["broom"]\ninclude_files=README.md\ncrate_names=["ledger-rs"]\ndependents=["someone/abacus"]\nbenchmarks=true\n',
-        )
+        self.assertIn("<dt>Package</dt><dd>Program <small>5 platforms</small>", page)
 
     def add_ledger(self) -> None:
         self.scratch.add_project("ledger", LEDGER, title="Ledger", description="Counts things.")
         self.scratch.commit("Add Ledger")
 
-    def test_a_crate_is_released_by_its_plain_version_tag(self):
+    def fake_registry(self, crates: dict[str, bytes], corrupt: str | None = None) -> dict[str, str]:
+        """A crates.io sparse index and download tree on disk, and the environment that points
+        record-crates at them. `corrupt` names a version whose download does not match its index entry."""
+        registry = tempfile.TemporaryDirectory(prefix="dreamweave-registry-")
+        self.addCleanup(registry.cleanup)
+        root = Path(registry.name)
+        index = root / "index/le/dg"
+        index.mkdir(parents=True)
+        lines = [json.dumps({"name": "ledger-rs", "vers": version, "cksum": hashlib.sha256(data).hexdigest(), "deps": [], "features": {}, "yanked": False}) for version, data in crates.items()]
+        (index / "ledger-rs").write_text("\n".join(lines) + "\n")
+        downloads = root / "crates/ledger-rs"
+        downloads.mkdir(parents=True)
+        for version, data in crates.items():
+            (downloads / f"ledger-rs-{version}.crate").write_bytes(data + (b" tampered" if version == corrupt else b""))
+        return {"DREAMWEAVE_CRATES_INDEX": (root / "index").as_uri(), "DREAMWEAVE_CRATES_DOWNLOAD": (root / "crates").as_uri()}
+
+    def test_crate_releases_are_recorded_from_crates_io(self):
         self.add_ledger()
         git(self.root, "tag", "1.0.0")
-        git(self.root, "checkout", "-q", "1.0.0")
-        output = build_site(self.root, "release", "1.0.0").stdout
-        self.assertIn("StroggForge publishes it to crates.io", output)
-        self.assertFalse((self.root / "dist/release.json").exists(), "a crate has nothing for mod.lock")
-        git(self.root, "checkout", "-q", "main")
-        self.assertIn("a crate's tags are plain versions: 1.0.0", build_site(self.root, "release", "ledger-1.0.0", check=False).stderr)
+        self.assertIn("record-crates records it", build_site(self.root, "release", "1.0.0").stdout)
+        self.assertFalse((self.root / "dist/release.json").exists(), "nothing is recorded at tag time")
+        self.assertIn("a Rust project's tags are bare versions: 1.0.0", build_site(self.root, "release", "ledger-1.0.0", check=False).stderr)
+        build_site(self.root, "build")
+        self.assertEqual(load(self.root, "static/dreamweave/view.json")["projects"]["ledger/"]["unverified"], ["0.9.0", "1.0.0"], "0.9.0 has no tag, but 1.0.0 does: it was published before tagging began")
+        self.assertEqual(load(self.root, f"static/dreamweave/projects/{LEDGER_ID}.json")["releases"], [])
+
+        crates = {"0.9.0": b"ledger 0.9.0", "1.0.0": b"ledger 1.0.0"}
+        output = build_site(self.root, "record-crates", env=self.fake_registry(crates)).stdout
+        self.assertIn("ledger-rs 1.1.0 is not on crates.io yet", output)
+        lock = load(self.root, "content/ledger/mod.lock")
+        self.assertEqual([release["version"] for release in lock["releases"]], ["0.9.0", "1.0.0"])
+        self.assertEqual(lock["releases"][1]["artifacts"], [{
+            "id": "crate", "format": "crate", "filename": "ledger-rs-1.0.0.crate", "media_type": "application/gzip",
+            "size": len(crates["1.0.0"]), "digests": {"sha256": hashlib.sha256(crates["1.0.0"]).hexdigest()},
+        }])
+        self.assertEqual(lock["releases"][1]["locked_from"], git(self.root, "rev-parse", "1.0.0"))
+        self.assertEqual(lock["releases"][0]["locked_from"], "", "0.9.0 was never tagged")
+        self.scratch.commit("RELEASE: Record Ledger's crates")
 
         build_site(self.root, "build")
-        self.assertFalse((self.root / "content/ledger/mod.lock").exists())
         manifest = load(self.root, f"static/dreamweave/projects/{LEDGER_ID}.json")
-        self.assertEqual(manifest["releases"], [], "crates.io distributes a crate, not this site")
+        self.assertEqual(manifest["channels"], {"stable": {"version": "1.0.0"}})
+        release = next(release for release in manifest["releases"] if release["version"] == "1.0.0")
+        self.assertEqual(release["source"]["tag"], "1.0.0")
+        self.assertEqual(release["artifacts"][0]["sources"], [{"url": "https://static.crates.io/crates/ledger-rs/ledger-rs-1.0.0.crate", "kind": "publisher"}])
+        self.assertEqual(release["artifacts"][0]["signatures"], [])
         self.assertEqual(manifest["project"]["links"]["crate"], "https://crates.io/crates/ledger-rs")
-        entry = next(entry for entry in load(self.root, "static/dreamweave.json")["projects"] if entry["id"] == LEDGER_ID)
-        self.assertEqual(entry["updated"], "2026-01-02")
-        facts = load(self.root, "static/dreamweave/view.json")["projects"]["ledger/"]
-        self.assertEqual(facts["planned"], ["1.1.0"], "0.9.0 has no tag, but 1.0.0 does: it was published before tagging began")
-        checks = {check["id"]: check for check in facts["checks"]}
-        self.assertEqual(checks["releases"]["state"], "pass")
-        self.assertIn("0.9.0, 1.0.0", checks["releases"]["detail"])
-        self.assertIn("push the tag 1.1.0", checks["planned"]["detail"])
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
+
+    def test_a_crate_that_does_not_match_its_index_entry_is_not_recorded(self):
+        self.add_ledger()
+        process = build_site(self.root, "record-crates", env=self.fake_registry({"1.0.0": b"ledger 1.0.0"}, corrupt="1.0.0"), check=False)
+        self.assertIn("but the crates.io index says", process.stderr)
+        self.assertFalse((self.root / "content/ledger/mod.lock").exists())
 
     def test_a_crates_page_says_how_to_add_it(self):
         self.add_ledger()
         git(self.root, "tag", "1.0.0")
+        build_site(self.root, "record-crates", env=self.fake_registry({"0.9.0": b"ledger 0.9.0", "1.0.0": b"ledger 1.0.0"}))
+        self.scratch.commit("RELEASE: Record Ledger's crates")
         build_site(self.root, "build")
         subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
         page = html.unescape((self.root / "public/ledger/index.html").read_text())
@@ -368,7 +437,8 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn('href="https://crates.io/crates/ledger-rs/1.0.0"', page)
         self.assertIn("<dt>Package</dt><dd>Rust crate</dd>", page)
         self.assertIn('Pushing its tag, 1.1.0, publishes it">unreleased', page)
-        self.assertIn('<a href="#v1-0-0">1.0.0</a>', page, "the newest tagged stable release, not the planned one")
+        self.assertIn('<a href="#v1-0-0">1.0.0</a>', page)
+        self.assertIn(f"Verify · sha256 {hashlib.sha256(b'ledger 1.0.0').hexdigest()[:12]}", page)
         self.assertNotIn("What is in the archive", page)
         self.assertNotIn("DreamWeave clients", page)
         self.assertNotIn("Mod manager", page)

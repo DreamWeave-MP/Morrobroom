@@ -29,8 +29,7 @@
                 {%- if dw_offline %}
                 <div><dt>This archive</dt><dd>{% if ci and ci.packaged_version %}{{ ci.packaged_version }}{% else %}unversioned{% endif %}</dd></div>
                 {%- else %}
-                {%- if project.format == "crate" %}{% set stable_shown = project.crate_release %}{% else %}{% set stable_shown = stable %}{% endif %}
-                <div><dt>Stable</dt><dd>{% if stable_shown %}<a href="#v{{ stable_shown.version | slugify }}">{{ stable_shown.version }}</a> <small>{{ stable_shown.date }}</small>{% else %}not released{% endif %}</dd></div>
+                <div><dt>Stable</dt><dd>{% if stable %}<a href="#v{{ stable.version | slugify }}">{{ stable.version }}</a> <small>{{ stable.date }}</small>{% else %}not released{% endif %}</dd></div>
                 {%- if development %}
                 <div><dt>Development</dt><dd>{{ development.version }}</dd></div>
                 {%- endif %}
@@ -60,12 +59,13 @@
                 <span class="dw-actions__label">{% if stable %}Download {{ primary.version }}{% else %}Development build {{ primary.version }}{% endif %}</span>
                 {%- for artifact in primary.artifacts %}
                 {%- set platform_source = artifact.sources | filter(attribute="kind", value="publisher") | first %}
-                <a class="dw-button" data-platform="{{ artifact.platform.os }}" href="{{ platform_source.url | safe }}"{% if not stable %} title="There is no stable release yet. This is the latest build of the default branch."{% endif %}>{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
+                {%- set variant = "" %}{% if artifact.platform.variant is defined %}{% set variant = artifact.platform.variant %}{% endif %}
+                <a class="dw-button" data-platform="{{ dw_macros::platform_key(platform=artifact.platform) }}" href="{{ platform_source.url | safe }}"{% if not stable %} title="There is no stable release yet. This is the latest build of the default branch."{% endif %}>{{ dw_macros::platform_label(os=artifact.platform.os, arch=artifact.platform.arch, variant=variant) }} <span class="dw-button__meta">{{ artifact.size | filesizeformat }}</span></a>
                 {%- endfor %}
             </div>
             {%- endif %}
             <div class="dw-actions">
-                {%- if primary and not dw_offline and project.format != "binary" %}
+                {%- if primary and not dw_offline and project.format != "binary" and project.format != "crate" %}
                 {%- set primary_artifact = primary.artifacts | first %}
                 {%- set primary_source = primary_artifact.sources | filter(attribute="kind", value="publisher") | first %}
                 {%- if stable %}
@@ -75,7 +75,7 @@
                 {%- endif %}
                 <a class="dw-button" href="modl://{{ project.game }}/?url={{ primary_source.url | safe }}" title="Hand the archive to umo or ModdingLinked MO2">Mod manager</a>
                 {%- endif %}
-                {%- if project.format == "crate" and not dw_offline %}<a class="dw-button" href="{% if project.crate_release %}{{ project.crate_release.url | safe }}{% else %}{{ project.links.crate | safe }}{% endif %}">crates.io{% if project.crate_release %} <span class="dw-button__meta">{{ project.crate_release.version }}</span>{% endif %}</a>{% endif %}
+                {%- if project.crate and not dw_offline %}{% if stable %}{% set crate_page = project.links.crate ~ "/" ~ stable.version %}{% else %}{% set crate_page = project.links.crate %}{% endif %}<a class="dw-button" href="{{ crate_page | safe }}">crates.io{% if stable %} <span class="dw-button__meta">{{ stable.version }}</span>{% endif %}</a>{% endif %}
                 {%- if "install" in sections %}<a class="dw-button" href="#install">{% if project.format == "crate" %}Install{% else %}Install guide{% endif %}</a>{% endif %}
                 {%- if project.links.documentation is defined %}<a class="dw-button" href="{{ project.links.documentation | safe }}">Documentation</a>{% endif %}
                 <a class="dw-button dw-button--ghost" href="{{ project.links.source | safe }}">Source</a>
