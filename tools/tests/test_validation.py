@@ -229,8 +229,12 @@ class RepositoryRules(unittest.TestCase):
         self.assertError("is a symlink")
 
     def test_generated_archive_paths_cannot_be_shadowed(self):
-        self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "Documentation/readme.txt": "mine"})
+        self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "lantern-Documentation/readme.txt": "mine"})
         self.assertError("which DreamWeave generates inside the archive")
+
+    def test_a_file_cannot_take_the_archived_mod_toml_name(self):
+        self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "lantern-dwmod.toml": "mine"})
+        self.assertError("'lantern-dwmod.toml' collides with")
 
     def test_ids_and_slugs_are_unique_across_the_site(self):
         self.scratch.add_project("lantern", LANTERN, files=LANTERN_FILES)

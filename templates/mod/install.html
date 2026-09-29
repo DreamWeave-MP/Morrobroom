@@ -182,8 +182,9 @@
             {%- endfor %}
             {%- endif %}
             {%- if project.documentation_packaged %}
-                <li><span class="dw-tree__dir">Documentation/</span><span class="dw-tree__note">this page and its docs, readable offline</span></li>
+                <li><span class="dw-tree__dir">{{ project.slug }}-Documentation/</span><span class="dw-tree__note">this page and its docs, readable offline</span></li>
             {%- endif %}
+                <li>{{ project.slug }}-dwmod.toml<span class="dw-tree__note">the project's mod.toml</span></li>
             {%- if project.format == "fomod" %}
                 <li><span class="dw-tree__dir">fomod/</span><span class="dw-tree__note">installer for MO2 and Vortex</span></li>
             {%- endif %}

@@ -20,7 +20,6 @@ import tomllib
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-DOCUMENTATION_ROOT = "Documentation"
 SITE_ASSET_ROOT = "_site"
 ZOLA_VERSION = "0.22.1"
 TAG_PATTERN = re.compile(r"<[a-zA-Z][^>]*>")
@@ -195,7 +194,7 @@ class DocumentationCrawler:
                 data = self.rewrite_html(data.decode("utf-8"), site_path).encode("utf-8")
             elif site_path.endswith(".css"):
                 data = self.rewrite_css(data.decode("utf-8"), site_path).encode("utf-8")
-            self.files[f"{DOCUMENTATION_ROOT}/{self.archive_path(site_path)}"] = data
+            self.files[self.archive_path(site_path)] = data
         return self.files
 
     def rewrite_tag(self, tag: str, site_path: str) -> str:
@@ -249,7 +248,7 @@ def relative_path(target: PurePosixPath, directory: PurePosixPath) -> str:
 
 
 def build_documentation(root: Path, base_url: str, page_paths: list[str]) -> dict[str, dict[str, bytes]]:
-    """Render once, then return each project's Documentation/ tree keyed by page path."""
+    """Render once, then return each project's documentation files, relative to their folder, keyed by page path."""
     if not page_paths:
         return {}
     with tempfile.TemporaryDirectory(prefix="dreamweave-offline-") as workspace:

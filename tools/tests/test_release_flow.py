@@ -212,7 +212,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(locked["artifacts"][0]["digests"]["sha256"], built)
         self.assertIn("## Lantern 1.0.0", (self.root / "dist/release-notes.md").read_text())
         self.assertEqual((self.root / "dist/github-release").read_text(), "lantern-1.0.0\n")
-        self.assertIn("Documentation/changelog/index.html", zipfile.ZipFile(self.root / "dist/lantern.zip").namelist())
+        self.assertIn("lantern-Documentation/changelog/index.html", zipfile.ZipFile(self.root / "dist/lantern.zip").namelist())
 
         git(self.root, "checkout", "-q", "lantern-1.0.0")
         build_site(self.root, "release", "lantern-1.0.0")
@@ -613,11 +613,21 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertEqual(manifest["channels"]["stable"], {"version": "1.0.0"})
 
     def test_archive_contents(self):
+        self.scratch.write("content/lantern/docs/_index.md", '+++\ntitle = "Lantern docs"\n+++\nThe manual.\n')
+        self.scratch.write("content/lantern/docs/setup.md", '+++\ntitle = "Setup"\n+++\nSet it up.\n')
+        self.scratch.write("content/lantern/materials/index.md", '+++\ntitle = "Materials"\n+++\nGrains.\n')
+        self.scratch.write("content/lantern/.agents/helper.md", "Shipped as it is.\n")
+        self.scratch.write("config.toml", 'ignored_content = ["**/.agents/**"]\n' + (self.root / "config.toml").read_text())
+        self.scratch.commit("Add docs")
         build_site(self.root, "build")
         archive = zipfile.ZipFile(self.root / "dist/lantern.zip")
         names = set(archive.namelist())
-        for expected in ("Lantern.omwscripts", "scripts/lantern/player.lua", "index.md", "mod.toml", "dreamweave.release.json", "Documentation/index.html"):
+        for expected in ("Lantern.omwscripts", "scripts/lantern/player.lua", "lantern-dwmod.toml", "dreamweave.release.json", "lantern-Documentation/index.html"):
             self.assertIn(expected, names)
+        for rendered in ("index.md", "docs/_index.md", "docs/setup.md", "materials/index.md", "mod.toml", "Documentation/index.html"):
+            self.assertNotIn(rendered, names, "the documentation ships rendered, not as its Markdown")
+        self.assertIn(".agents/helper.md", names, "Markdown that is not a page is payload")
+        self.assertEqual(archive.read("lantern-dwmod.toml"), (self.root / "content/lantern/mod.toml").read_bytes())
         self.assertNotIn("mod.lock", names)
         self.assertFalse(any(name.startswith("_changelog") for name in names))
 
@@ -626,16 +636,28 @@ class ReleaseLifecycle(unittest.TestCase):
         if jsonschema:
             self.assertEqual(schema_errors(release, "dreamweave-release-payload-2.schema.json"), [])
 
-        page = archive.read("Documentation/index.html").decode()
+        artifact = next(release for release in self.manifest()["releases"] if release["channel"] == "development")["artifacts"][0]
+        self.assertEqual(artifact["layout"]["documentation"], "lantern-Documentation/index.html")
+        page = archive.read("lantern-Documentation/index.html").decode()
         project_links = re.findall(r'(?:href|src)="https://example\.github\.io/cool-mods/lantern/[^"]*"', page)
         self.assertEqual(len(project_links), 1, f"only the offline banner's live-page link may stay absolute: {project_links}")
         self.assertIn('data-dw-online', page)
         self.assertIn('href="changelog/index.html"', page)
         for reference in re.findall(r'(?:href|src)="(_site/[^"#]+)"', page):
-            self.assertIn(f"Documentation/{reference}", names, f"offline page references a file the archive lacks: {reference}")
+            self.assertIn(f"lantern-Documentation/{reference}", names, f"offline page references a file the archive lacks: {reference}")
         for info in archive.infolist():
             self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
             self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+
+    def test_without_documentation_the_sources_ship(self):
+        self.scratch.write("content/lantern/docs/_index.md", '+++\ntitle = "Lantern docs"\n+++\nThe manual.\n')
+        mod_toml = self.root / "content/lantern/mod.toml"
+        mod_toml.write_text(mod_toml.read_text() + "\n[package]\ndocumentation = false\n")
+        self.scratch.commit("Ship the sources")
+        build_site(self.root, "build")
+        names = set(zipfile.ZipFile(self.root / "dist/lantern.zip").namelist())
+        self.assertTrue({"index.md", "docs/_index.md", "lantern-dwmod.toml"} <= names, names)
+        self.assertFalse(any(name.startswith("lantern-Documentation/") for name in names))
 
     def test_fomod_installer_matches_the_component_model(self):
         self.scratch.add_project("hearth", HEARTH, title="Hearth", files=HEARTH_FILES)

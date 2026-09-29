@@ -28,7 +28,7 @@ from .model import (
     load_site_config,
     read_frontmatter,
 )
-from .payload import collect_payload
+from .payload import archive_path, collect_payload, documentation_root
 from .problems import Problems
 from .versions import Version, VersionError
 
@@ -284,7 +284,7 @@ def archive_entries(repository: Repository, project: Project, version: Version, 
 
     contents = gitrepo.read_blobs([file.blob for file in payload if file.blob])
     entries = [
-        ArchiveEntry(path=file.path, executable=file.executable, content=contents[file.blob] if file.blob else file.disk_path.read_bytes())
+        ArchiveEntry(path=archive_path(project, file.path), executable=file.executable, content=contents[file.blob] if file.blob else file.disk_path.read_bytes())
         for file in payload
     ]
     layout: dict = {"release_document": "dreamweave.release.json"}
@@ -292,8 +292,9 @@ def archive_entries(repository: Repository, project: Project, version: Version, 
     semantics = records.release_semantics(project)
     entries.append(ArchiveEntry("dreamweave.release.json", False, records.payload_release_document(project, version, semantics)))
     if project.package_documentation:
-        entries.extend(ArchiveEntry(path, False, data) for path, data in sorted(documentation.items()))
-        layout["documentation"] = f"{offline.DOCUMENTATION_ROOT}/index.html"
+        folder = documentation_root(project)
+        entries.extend(ArchiveEntry(f"{folder}/{path}", False, data) for path, data in sorted(documentation.items()))
+        layout["documentation"] = f"{folder}/index.html"
     if project.package_format == "fomod":
         website = f"{repository.site.base_url}/{project.page_path}"
         entries.append(ArchiveEntry("fomod/info.xml", False, fomod.info_xml(project, version, website)))

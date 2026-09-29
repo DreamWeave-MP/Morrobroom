@@ -1,7 +1,9 @@
 """A project's payload: every committed file under its directory, checked against mod.toml.
 
-Documentation sources (index.md, docs/) ship on purpose. mod.lock does not: it records the
-archive's own hash, so including it would be circular.
+mod.lock stays out: it records the archive's own hash, so including it would be circular. When the
+archive carries <slug>-Documentation/, the Markdown it was rendered from stays out too: every
+page's index.md and every docs section beneath the project. mod.toml ships as <slug>-dwmod.toml, and the documentation
+folder carries the slug as well, so mods extracted side by side keep their own.
 """
 
 import os
@@ -20,7 +22,9 @@ SYMLINK = "120000"
 SUBMODULE = "160000"
 WINDOWS_RESERVED_NAMES = {"con", "prn", "aux", "nul", *(f"com{number}" for number in range(1, 10)), *(f"lpt{number}" for number in range(1, 10))}
 WINDOWS_RESERVED_CHARACTERS = re.compile(r'[<>:"|?*\\\x00-\x1f]')
-GENERATED_ARCHIVE_ROOTS = ("Documentation", "fomod", "dreamweave.release.json")
+MOD_TOML = "mod.toml"
+INDEX = "index.md"
+SECTION_INDEX = "_index.md"
 
 
 @dataclass(frozen=True)
@@ -29,6 +33,32 @@ class PayloadFile:
     executable: bool
     blob: str | None
     disk_path: Path | None
+
+
+def documentation_root(project: Project) -> str:
+    return f"{project.slug}-Documentation"
+
+
+def manifest_name(project: Project) -> str:
+    return f"{project.slug}-dwmod.toml"
+
+
+def archive_path(project: Project, path: str) -> str:
+    """Where a payload file lands in the archive: where it is, except mod.toml."""
+    return manifest_name(project) if path == MOD_TOML else path
+
+
+def generated_archive_roots(project: Project) -> tuple[str, ...]:
+    return (documentation_root(project), manifest_name(project), "fomod", "dreamweave.release.json")
+
+
+def documentation_sources(paths: list[str]) -> set[str]:
+    """The Markdown <slug>-Documentation/ renders: each page's index.md, the project's own and any page
+    bundle's beneath it, and every docs section. Hidden directories hold payload, not pages."""
+    visible = [path for path in paths if not any(part.startswith(".") for part in PurePosixPath(path).parts)]
+    sections = {PurePosixPath(path).parent for path in visible if PurePosixPath(path).name == SECTION_INDEX}
+    sections.discard(PurePosixPath("."))
+    return {path for path in visible if PurePosixPath(path).name == INDEX or any(section in PurePosixPath(path).parents for section in sections)}
 
 
 def working_tree_entries(root: Path, directory: str) -> list[gitrepo.TreeEntry]:
@@ -76,6 +106,10 @@ def collect_payload(project: Project, revision: str | None, nested_project_direc
             disk_path=None if revision else (root or Path.cwd()) / entry.path,
         ))
 
+    if project.package_documentation:
+        rendered = documentation_sources([file.path for file in files])
+        files = [file for file in files if file.path not in rendered]
+
     by_folded_path: dict[str, list[str]] = {}
     for file in files:
         by_folded_path.setdefault(file.path.casefold(), []).append(file.path)
@@ -83,9 +117,10 @@ def collect_payload(project: Project, revision: str | None, nested_project_direc
         if len(paths) > 1:
             problems.error(where, f"{' and '.join(map(repr, sorted(paths)))} differ only by case; Windows and OpenMW's VFS treat them as one file")
 
+    generated = generated_archive_roots(project)
     for file in files:
         root = PurePosixPath(file.path).parts[0]
-        if root in GENERATED_ARCHIVE_ROOTS:
+        if root in generated:
             problems.error(where, f"{file.path!r} collides with {root!r}, which DreamWeave generates inside the archive")
 
     check_components_against_payload(project, files, where, problems)
