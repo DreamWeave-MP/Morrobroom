@@ -66,7 +66,7 @@ Every one of them also takes these:
 | `ESM3_Name` | The name shown in game. |
 | `ESM3_Model` | Where the generated mesh is written, under `Meshes/`. By default `<map name>/<id>.nif`. |
 | `ESM3_Script`, `ESM3_Value`, `ESM3_Weight`, `ESM3_Icon` | For items: what the record says. A script is shared by every placement of that id. |
-| `mangle` | Rotation, kept by TrenchBroom as you rotate the entity. |
+| `mangle` | Rotation as pitch, yaw and roll, kept by TrenchBroom as you rotate the entity. The object gets the same rotation in game, its own axes included. |
 
 Brushes in a TrenchBroom group or layer compile the same way as `world_Detail`: one mesh, one
 static, one placement.

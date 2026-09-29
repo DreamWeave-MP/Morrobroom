@@ -59,7 +59,7 @@ pub struct Mesh {
     pub stream: NiStream,
     pub base_index: NiLink<NiNode>,
     pub worldspace_position: SV3,
-    /// ESP reference rotations in radians, after TB-to-TES3 basis conversion.
+    /// TES3 reference angles in radians for the entity's `TrenchBroom` rotation.
     pub mangle: [f32; 3],
     collision_index: NiLink<RootCollisionNode>,
 }

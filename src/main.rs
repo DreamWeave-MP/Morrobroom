@@ -240,8 +240,7 @@ fn process_brush_entity(
         || format!("{}/{ref_id}.nif", state.map_dir),
         |name| (*name).clone(),
     );
-    mesh.mangle = get_prop("mangle", &prop_map)
-        .map_or_else(|| get_rotation("0 0 0"), |mangle| get_rotation(mangle));
+    mesh.mangle = entity_rotation(classname, &prop_map);
     let group_id = if classname == "func_group" {
         prop_map.get(&"_tb_id".to_string()).copied()
     } else {
@@ -683,7 +682,7 @@ fn process_point_entities(state: &mut CompileState<'_>) {
                 &mut state.cell,
                 &record_id,
                 point_entity_position(state.object_scale, &prop_map),
-                point_entity_rotation(class, &prop_map),
+                entity_rotation(class, &prop_map),
             ),
             PointEntity::Preview => {
                 println!("{class} is an editor preview and is not compiled yet; nothing placed");
@@ -749,35 +748,21 @@ fn append_cell_reference(
     }
 }
 
-/// Convert `TrenchBroom`'s Y-up, ZYX Euler `mangle` into TES3 reference angles.
+/// The attitude `TrenchBroom` shows for an entity, as TES3 reference angles.
 ///
-/// `TrenchBroom` describes rotations as `Rz * Ry * Rx`. `OpenMW` reconstructs a
-/// reference attitude as `Rx(-x) * Ry(-y) * Rz(-z)` around its negative axes.
-/// Convert the coordinate basis first, then decompose in `OpenMW`'s order.
-fn get_rotation(input: &str) -> [f32; 3] {
-    let mut angles = [0.0f32; 3];
-    for (index, token) in input.split_whitespace().take(3).enumerate() {
-        if let Ok(value) = token.parse::<f32>() {
-            angles[index] = value.to_radians();
-        }
-    }
-
-    let trenchbroom_rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), angles[2])
-        * Rotation3::from_axis_angle(&Vector3::y_axis(), angles[1])
-        * Rotation3::from_axis_angle(&Vector3::x_axis(), angles[0]);
-    let y_up_to_z_up = Rotation3::from_axis_angle(&Vector3::x_axis(), std::f32::consts::FRAC_PI_2);
-    tes3_reference_rotation(&(y_up_to_z_up * trenchbroom_rotation * y_up_to_z_up.inverse()))
-}
-
-/// The attitude `TrenchBroom` shows for a point entity, as TES3 reference angles.
+/// Rotating an entity in `TrenchBroom` writes its rotation into the first of
+/// `angles`, `mangle` and `angle` it has or its class declares, for brush
+/// entities as for point entities (`EntityRotation.cpp`). The first two hold
+/// pitch, yaw and roll in degrees, positive pitch down, applied as
+/// `Rz(yaw) * Ry(pitch) * Rx(roll)` in the map's own Z-up axes, which are
+/// Morrowind's; `angle` is a yaw, or -1 and -2 for straight up and down.
+/// Classes named `light…` follow Quake's lights instead: `mangle` first, as
+/// yaw, pitch and roll with positive pitch up.
 ///
-/// `TrenchBroom` keeps a point entity's rotation in the first of `angles`,
-/// `mangle` and `angle` it has. The first two hold pitch, yaw and roll in
-/// degrees, positive pitch down, applied as `Rz(yaw) * Ry(pitch) * Rx(roll)` in
-/// the map's own Z-up axes, which are Morrowind's; `angle` is a yaw, or -1 and
-/// -2 for straight up and down. Classes named `light…` follow Quake's lights
-/// instead: `mangle` first, as yaw, pitch and roll with positive pitch up.
-fn point_entity_rotation(class: &str, properties: &HashMap<&String, &String>) -> [f32; 3] {
+/// The reference gets exactly that attitude, and a brush entity's mesh is
+/// counter-rotated by it, so its own axes in `OpenMW` are the ones the editor
+/// shows.
+fn entity_rotation(class: &str, properties: &HashMap<&String, &String>) -> [f32; 3] {
     let angles = |key: &str| {
         nonempty_property(properties, key).map(|value| {
             let mut angles = [0.0f32; 3];
@@ -867,12 +852,20 @@ mod nif_semantic_compile_tests {
         }
     }
 
+    fn brush_rotation(mangle: &str) -> [f32; 3] {
+        let (key, value) = ("mangle".to_owned(), mangle.to_owned());
+        entity_rotation("world_Detail", &HashMap::from([(&key, &value)]))
+    }
+
     #[test]
-    fn mangle_converts_trenchbroom_y_up_zyx_to_tes3_rotation_order() {
-        let rotation = get_rotation("0 90 90");
-        assert_rotation_degrees(rotation, [90.0, 90.0, 0.0]);
-        assert_rotation_degrees(get_rotation("0 90 0"), [0.0, 0.0, -90.0]);
-        assert_rotation_degrees(get_rotation("0 0 90"), [0.0, 90.0, 0.0]);
+    fn mangle_converts_trenchbroom_pitch_yaw_roll_to_tes3_reference_angles() {
+        // "pitch yaw roll": yaw 90 and roll 90 give Rz(90) * Rx(90), which OpenMW
+        // rebuilds as Rx(90) * Ry(90) from the angles -90, -90, 0.
+        let rotation = brush_rotation("0 90 90");
+        assert_rotation_degrees(rotation, [-90.0, -90.0, 0.0]);
+        assert_rotation_degrees(brush_rotation("0 90 0"), [0.0, 0.0, -90.0]);
+        assert_rotation_degrees(brush_rotation("0 0 90"), [-90.0, 0.0, 0.0]);
+        assert_rotation_degrees(brush_rotation("90 0 0"), [0.0, -90.0, 0.0]);
 
         let mut cell = Some(Cell::default());
         let mut used_indices = BTreeSet::new();
@@ -890,7 +883,7 @@ mod nif_semantic_compile_tests {
             .values()
             .next()
             .expect("expected the compiled reference");
-        assert_rotation_degrees(reference.rotation, [90.0, 90.0, 0.0]);
+        assert_rotation_degrees(reference.rotation, [-90.0, -90.0, 0.0]);
     }
 
     #[test]
@@ -983,7 +976,11 @@ mod nif_semantic_compile_tests {
         let mangle = geometry_properties
             .get(&"mangle".to_string())
             .expect("torture brush should include its regression mangle");
-        assert_rotation_degrees(get_rotation(mangle), [90.0, 90.0, 0.0]);
+        assert_eq!(mangle.as_str(), "0 90 90");
+        assert_rotation_degrees(
+            entity_rotation("nif_geometry", &geometry_properties),
+            [-90.0, -90.0, 0.0],
+        );
 
         assert_eq!(markers.len(), 2);
         assert_eq!(markers[0].kind, NifStructuralKind::SortAdjust { mode: 2 });
@@ -1199,7 +1196,7 @@ mod point_entity_tests {
     fn rotation_of(class: &str, properties: &[(&str, &str)]) -> [f32; 3] {
         let owned = owned_properties(properties);
         let properties: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
-        point_entity_rotation(class, &properties)
+        entity_rotation(class, &properties)
     }
 
     /// The attitude `OpenMW` rebuilds from reference angles.
@@ -1313,5 +1310,144 @@ mod point_entity_tests {
 
         let up = openmw_attitude(rotation_of("static_x", &[("angle", "-1")]));
         assert!((up * Vector3::x() - Vector3::z()).norm() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod brush_rotation_tests {
+    use super::*;
+    use morrobroom::slipgate::repr::Map;
+    use tes3::nif::{NiStream, NiTriShapeData};
+
+    /// A box's faces as three points each, wound the way `TrenchBroom` writes them.
+    const BOX_FACES: [[[f32; 3]; 3]; 6] = [
+        [[-1.0, -1.0, -1.0], [-1.0, 0.0, -1.0], [-1.0, -1.0, 0.0]],
+        [[-1.0, -1.0, -1.0], [-1.0, -1.0, 0.0], [0.0, -1.0, -1.0]],
+        [[-1.0, -1.0, -1.0], [0.0, -1.0, -1.0], [-1.0, 0.0, -1.0]],
+        [[1.0, 1.0, 1.0], [1.0, 2.0, 1.0], [2.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0], [2.0, 1.0, 1.0], [1.0, 1.0, 2.0]],
+        [[1.0, 1.0, 1.0], [1.0, 1.0, 2.0], [1.0, 2.0, 1.0]],
+    ];
+    const HALF_EXTENTS: [f32; 3] = [32.0, 8.0, 4.0];
+    const CENTER: [f32; 3] = [96.0, 48.0, 24.0];
+
+    fn attitude(pitch: f32, yaw: f32, roll: f32) -> Rotation3<f32> {
+        Rotation3::from_axis_angle(&Vector3::z_axis(), yaw.to_radians())
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), pitch.to_radians())
+            * Rotation3::from_axis_angle(&Vector3::x_axis(), roll.to_radians())
+    }
+
+    /// The attitude `OpenMW` rebuilds from reference angles.
+    fn openmw_attitude(rotation: [f32; 3]) -> Rotation3<f32> {
+        Rotation3::from_axis_angle(&Vector3::x_axis(), -rotation[0])
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), -rotation[1])
+            * Rotation3::from_axis_angle(&Vector3::z_axis(), -rotation[2])
+    }
+
+    /// A `world_Detail` box, 64 by 16 by 8 along its own axes, as `TrenchBroom`
+    /// saves it after rotating it to `mangle`: brushes turned in the map, and
+    /// the rotation in `mangle`.
+    fn rotated_box_map(mangle: [f32; 3]) -> String {
+        let rotation = attitude(mangle[0], mangle[1], mangle[2]);
+        let place = |point: [f32; 3]| {
+            let local = Vector3::from_fn(|axis, _| point[axis] * HALF_EXTENTS[axis]);
+            let world = rotation * local + Vector3::from(CENTER);
+            format!("( {:.6} {:.6} {:.6} )", world.x, world.y, world.z)
+        };
+        let axis = |local: [f32; 3]| {
+            let world = rotation * Vector3::from(local);
+            format!("{:.6} {:.6} {:.6}", world.x, world.y, world.z)
+        };
+        let faces: Vec<String> = BOX_FACES
+            .iter()
+            .map(|points| {
+                format!(
+                    "{} {} {} mb/canonical [ {} 0 ] [ {} 0 ] 0 1 1",
+                    place(points[0]),
+                    place(points[1]),
+                    place(points[2]),
+                    axis([1.0, 0.0, 0.0]),
+                    axis([0.0, 0.0, -1.0]),
+                )
+            })
+            .collect();
+        format!(
+            "// Game: Morrowind\n// Format: Valve\n{{\n\"classname\" \"worldspawn\"\n}}\n{{\n\"classname\" \"world_Detail\"\n\"ESM3_RefId\" \"tilted\"\n\"mangle\" \"{} {} {}\"\n{{\n{}\n}}\n}}\n",
+            mangle[0],
+            mangle[1],
+            mangle[2],
+            faces.join("\n")
+        )
+    }
+
+    #[test]
+    fn a_rotated_brush_entity_keeps_its_own_axes_in_openmw() {
+        let mangle = [20.0, 30.0, 40.0];
+        let map = rotated_box_map(mangle)
+            .parse::<Map>()
+            .expect("rotated box map should parse");
+        let openmw_config = openmw_config::OpenMWConfiguration::new_empty("rotation-test-config")
+            .expect("construct in-memory empty OpenMW configuration");
+        let map_data = MapData::from_map(map, "tilt.map", false, &openmw_config);
+        let output_dir =
+            std::env::temp_dir().join(format!("morrobroom-brush-rotation-{}", std::process::id()));
+        let (work_dir, map_dir) = morrobroom::create_workdir_at(Path::new("tilt.map"), &output_dir)
+            .expect("create the generated-asset tree");
+        let mut state = CompileState {
+            map_data: &map_data,
+            work_dir: &work_dir,
+            map_dir: &map_dir,
+            object_scale: 2.0,
+            cell: Some(Cell::default()),
+            created_objects: Vec::new(),
+            processed_base_objects: HashSet::new(),
+            used_indices: BTreeSet::new(),
+        };
+        let (entity_id, brushes) = map_data
+            .geomap
+            .entity_brushes
+            .iter()
+            .find(|(entity_id, _)| {
+                map_data
+                    .get_entity_properties(**entity_id)
+                    .get(&"classname".to_string())
+                    .is_some_and(|classname| classname.as_str() == "world_Detail")
+            })
+            .expect("the map has one world_Detail");
+
+        process_brush_entity(&mut state, *entity_id, brushes).expect("compile the rotated box");
+
+        let nif = NiStream::from_path(work_dir.join("Meshes/tilt/tilted.nif"));
+        std::fs::remove_dir_all(&output_dir).expect("remove the generated-asset tree");
+        let reference = state
+            .cell
+            .expect("the test cell stays")
+            .references
+            .into_values()
+            .find(|reference| reference.id == "tilted")
+            .expect("the box should be placed");
+        let expected = attitude(mangle[0], mangle[1], mangle[2]);
+        assert!(
+            (openmw_attitude(reference.rotation).matrix() - expected.matrix()).norm() < 1e-4,
+            "OpenMW would turn the box by {:?}, TrenchBroom shows {expected:?}",
+            openmw_attitude(reference.rotation)
+        );
+
+        // Counter-rotated by the same attitude, the mesh is the box along its own
+        // axes: 64 by 16 by 8 around its center.
+        let nif = nif.expect("the compiled mesh should load");
+        let vertices: Vec<_> = nif
+            .objects_of_type::<NiTriShapeData>()
+            .flat_map(|data| data.vertices.iter().copied())
+            .collect();
+        assert!(!vertices.is_empty());
+        for vertex in vertices {
+            for (axis, coordinate) in vertex.to_array().into_iter().enumerate() {
+                assert!(
+                    (coordinate.abs() - HALF_EXTENTS[axis]).abs() < 0.01,
+                    "mesh vertex {vertex:?} is off the box's own axes"
+                );
+            }
+        }
     }
 }

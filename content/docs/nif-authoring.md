@@ -95,6 +95,13 @@ applies to all ungrouped geometry, since there is nothing else it could mean.
 
 ## Rotation
 
-`mangle` is TrenchBroom's rotation for an entity: Y-up ZYX Euler angles, in degrees. Morrobroom
-converts it to Morrowind's Z-up reference rotation. TrenchBroom keeps it up to date as
-you rotate things, so there is rarely a reason to type it.
+`mangle` is an entity's rotation: pitch, yaw and roll in degrees, which TrenchBroom writes as you
+rotate the entity, so there is rarely a reason to type it. The compiled reference gets the same
+rotation, and a brush entity's mesh is built along the entity's own axes, so the object faces the
+way it does in the editor and turns about the same axes in game. That matters to anything that
+uses its axes: a billboard inside it, a door from the catalog swinging on its hinge, an item picked
+up and dropped again.
+
+For TrenchBroom to keep `mangle`, leave **Update angle property after transform** on in the Rotate
+tool; it is on by default. Brushes rotated with it off are placed as they look, but the object's
+own axes stay the map's.

@@ -156,7 +156,7 @@
 
 @BaseClass = NifTransformable
 [
-    mangle(string) : "TrenchBroom Y-up ZYX Euler rotation in degrees; Morrobroom converts it to TES3's Z-up reference rotation. Normally maintained by the editor/compiler."
+    mangle(string) : "Rotation as pitch, yaw and roll in degrees, which TrenchBroom writes as you rotate the entity. The object gets the same rotation in game, its own axes included."
 ]
 
 // Generic authored geometry when no TES3 record semantics are required.
