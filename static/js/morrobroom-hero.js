@@ -27,9 +27,10 @@ import * as THREE from './vendor/three.module.min.js';
 const CRESCENT = { offset: 0.5217, inner: 1.113, ridge: 0.6, height: 0.17, edge: 0.014, rows: 180 };
 // TrenchBroom's crate, placed where the logo has it: in the crescent's opening, a little forward.
 export const CRATE = { size: 0.78, x: 0.1, y: -0.08, z: 0.2, tilt: 0.55 };
-// The mark spans x from -1 to 0.61 and y from -1 to 1; this is its middle.
+// The mark spans x from -1 to 0.61 and y from -1 to 1; this is its middle. Turning, the crate
+// reaches 0.14 further right.
 export const MARK_CENTER = new THREE.Vector2(-0.195, 0);
-const MARK_ASPECT = 1.61 / 2;
+const MARK_ASPECT = 1.75 / 2;
 const EMBERS = 240;
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -784,9 +785,13 @@ function textRects(text) {
 function placement(root) {
   const hero = root.closest('.dw-hero') || root.parentElement;
   const box = root.getBoundingClientRect();
-  const shell = (hero.querySelector('.dw-hero__grid') || hero.querySelector('.dw-shell') || hero).getBoundingClientRect();
   const text = hero.querySelector('.dw-hero__text') || hero.querySelector('.dw-shell');
   const strip = hero.querySelector('.dw-strip');
+  // The content's edges: the facts strip spans them; the shell's own box includes its gutters.
+  const shellElement = hero.querySelector('.dw-hero__grid') || hero.querySelector('.dw-shell') || hero;
+  const shellStyle = getComputedStyle(shellElement);
+  const shellBox = shellElement.getBoundingClientRect();
+  const shell = strip ? strip.getBoundingClientRect() : { left: shellBox.left + parseFloat(shellStyle.paddingLeft), right: shellBox.right - parseFloat(shellStyle.paddingRight) };
   const summary = hero.querySelector('.dw-hero__summary');
   const floor = strip ? strip.getBoundingClientRect().top : box.bottom - 24;
   const rects = text ? textRects(text) : [];
