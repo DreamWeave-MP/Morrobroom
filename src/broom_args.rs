@@ -147,6 +147,9 @@ pub struct MorrobroomArgs {
     reason = "FGD is the established command spelling and appears in the CLI contract."
 )]
 pub enum BroomCommand {
+    #[command(
+        about = "Compile a TrenchBroom map into NIF meshes, a baked lightmap and a TES3 plugin"
+    )]
     Compile {
         /// Input map file name.
         #[arg(long = "map", required = true, value_parser = validate_input_map )]
@@ -176,8 +179,10 @@ pub enum BroomCommand {
         #[arg(long = "no-lightmaps")]
         no_lightmaps: bool,
     },
-    /// Reverse-compile Morrowind `NetImmerse` visual geometry into Valve 220 maps.
-    #[command(name = "nif2map")]
+    #[command(
+        name = "nif2map",
+        about = "Reverse-compile Morrowind NetImmerse visual geometry into Valve 220 maps"
+    )]
     Nif2Map {
         /// NIF files or directories to convert.
         #[arg(required = true)]
@@ -236,6 +241,9 @@ pub enum BroomCommand {
         #[arg(long, default_value_t = 20_000)]
         max_brushes: usize,
     },
+    #[command(
+        about = "Generate a TrenchBroom entity catalog, MorrowindObjects.fgd, from an OpenMW load order"
+    )]
     FGD {
         /// Scale to use when generating object bounding boxes.
         /// Useful if authoring at a different scale, for one or another reason.
@@ -565,6 +573,26 @@ mod tests {
             BroomCommand::FGD { .. } | BroomCommand::Nif2Map { .. } => {
                 panic!("expected compile subcommand")
             }
+        }
+    }
+
+    #[test]
+    fn top_level_help_describes_every_command() {
+        let help = MorrobroomArgs::command().render_help().to_string();
+
+        for (command, description) in [
+            ("compile", "Compile a TrenchBroom map"),
+            ("nif2map", "Reverse-compile Morrowind"),
+            ("fgd", "Generate a TrenchBroom entity catalog"),
+        ] {
+            let line = help
+                .lines()
+                .find(|line| line.trim_start().starts_with(command))
+                .unwrap_or_else(|| panic!("help does not list {command}:\n{help}"));
+            assert!(
+                line.contains(description),
+                "help has no description for {command}: {line:?}"
+            );
         }
     }
 
