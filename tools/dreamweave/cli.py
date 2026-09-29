@@ -34,6 +34,7 @@ def command_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("schemas", help="validate the generated index and manifests against the published schemas")
     commands.add_parser("record-crates", help="on the default branch: record the declared crate versions crates.io has in mod.lock")
+    commands.add_parser("record-releases", help="on the default branch: record a program's tagged releases from their GitHub releases in mod.lock")
 
     commands.add_parser("zola-version", help="print the Zola version archives are rendered with")
     return parser
@@ -96,6 +97,10 @@ def main(arguments: list[str]) -> int:
             repository = build.load_repository(root, check_payloads=False)
             repository.problems.raise_if_any()
             build.record_crate_releases(repository)
+        elif options.command == "record-releases":
+            repository = build.load_repository(root, check_payloads=False)
+            repository.problems.raise_if_any()
+            build.record_github_releases(repository)
         elif options.command == "schemas":
             checked, errors = sitecheck.check_protocol_documents(root)
             if errors:

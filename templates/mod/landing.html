@@ -19,7 +19,9 @@
         <div>
             <p class="dw-kicker">
                 <span>{{ dw_macros::type_label(type=project.type) }}</span>
+                {%- if project.game_named %}
                 <span>{{ project.game | capitalize }}</span>
+                {%- endif %}
                 <span>{{ dw_macros::status(state=project.status) }}</span>
             </p>
             <h1 class="dw-hero__title">{{ page.title }}</h1>

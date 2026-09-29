@@ -21,11 +21,12 @@ MOD_LOCK = "mod.lock"
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 GITHUB_OWNER_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 GITHUB_REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
-PALETTES = ("purple", "teal", "gold", "ember", "moss", "umber")
+PALETTES = ("purple", "teal", "gold", "ember", "moss", "umber", "grove", "prism", "slate", "crimson", "indigo", "azure", "frost")
 DIRECTORY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 COMPONENT_ID_PATTERN = TOKEN_PATTERN
 CAPABILITY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]*(:[a-z0-9][a-z0-9.-]*)?$")
 CHANNEL_PATTERN = TOKEN_PATTERN
+GIT_TAG_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._+-]|/(?!/))*$")
 DEVELOPMENT_CHANNEL = "development"
 
 PROJECT_TYPES = ("mod", "library", "framework", "tool", "assets", "total-conversion", "documentation")
@@ -186,6 +187,8 @@ class DeclaredRelease:
     yanked: str | None
     deprecated: str | None
     replacement: Version | None
+    # The git tag it was published under, when that is not the project's usual spelling.
+    tag: str | None = None
 
 
 @dataclass
@@ -267,8 +270,11 @@ class Project:
         return f"{self.package_binary}-{system_name}-{BINARY_ARCHITECTURE_NAMES[platform.architecture]}{suffix}"
 
     def release_tag(self, version: Version) -> str:
-        # A Rust project keeps the bare version tags StroggForge releases under; a repository has
-        # at most one, so the version alone says which project it is.
+        declared = self.declared_release(version)
+        if declared and declared.tag:
+            return declared.tag
+        # A Rust project keeps the bare version tags StroggForge releases under. A repository has
+        # at most one program and one library, and a tag releases whichever declares its version.
         if self.package_format in RUST_FORMATS:
             return str(version)
         return f"{self.slug}-{version}"
@@ -765,6 +771,7 @@ def read_release(table: Table, problems: Problems, scheme: str) -> DeclaredRelea
     )
     yanked = table.string("yanked", None)
     deprecated = table.string("deprecated", None)
+    tag = table.string("tag", None, pattern=GIT_TAG_PATTERN, describe="a git tag name like v0.3.3")
 
     if channel == DEVELOPMENT_CHANNEL:
         problems.error(table.child_where("channel"), "the development channel is built from your default branch automatically; do not declare its releases")
@@ -777,7 +784,7 @@ def read_release(table: Table, problems: Problems, scheme: str) -> DeclaredRelea
 
     if not version or not date:
         return None
-    return DeclaredRelease(version=version, channel=channel or "stable", date=date, notes=notes, yanked=yanked, deprecated=deprecated, replacement=replacement)
+    return DeclaredRelease(version=version, channel=channel or "stable", date=date, notes=notes, yanked=yanked, deprecated=deprecated, replacement=replacement, tag=tag)
 
 
 def check_mirror_template(template: str, where: str, problems: Problems) -> None:
@@ -879,6 +886,9 @@ def check_project_structure(project: Project, where: str, problems: Problems) ->
         for other in versions[index + 1:]:
             if version == other:
                 problems.error(where, f"releases {version} and {other} have the same precedence; versions must be unique")
+    tags = [project.release_tag(release.version) for release in project.releases]
+    for tag in sorted({tag for tag in tags if tags.count(tag) > 1}):
+        problems.error(where, f"more than one release is tagged {tag}; each release has its own tag")
 
     for release in project.releases:
         if release.replacement and not any(release.replacement == other.version for other in project.releases):

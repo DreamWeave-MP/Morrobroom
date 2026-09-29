@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from pathlib import Path
 from . import comments, fomod, gitrepo, offline, records
 from .archive import ArchiveEntry, ArchiveResult, write_archive
 from .model import (
+    DESKTOP_SYSTEMS,
     DEVELOPMENT_CHANNEL,
     EXAMPLE_PROJECT_IDS,
     MEDIA_IMAGE_SUFFIXES,
@@ -105,9 +107,12 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
                 f"id {project.id} belongs to the template's example project {EXAMPLE_PROJECT_IDS[project.id]}. "
                 f"Every project needs its own identity: replace it with a fresh one, like {uuid.uuid4()}",
             )
-        for included in project.package_include:
-            if included.startswith("/") or ".." in included.split("/") or not (root / included).exists():
-                problems.error(f"{project.directory}/mod.toml [package] include", f"{included!r} is not a file or directory in the repository; include paths start at its root")
+        if project.package_include:
+            build_directory = binary_build_directory(root, project)
+            where = "the repository" if build_directory == root else f"{project.package_binary}/, the directory StroggForge builds the program in"
+            for included in project.package_include:
+                if included.startswith("/") or ".." in included.split("/") or not included_path_exists(build_directory, included):
+                    problems.error(f"{project.directory}/mod.toml [package] include", f"{included!r} is not a file or directory in {where}; include paths start there")
         if (root / project.directory / "changelog.md").is_file():
             problems.error(
                 f"{project.directory}/changelog.md",
@@ -120,9 +125,14 @@ def load_repository(root: Path, check_payloads: bool = True) -> Repository:
             if item.thumbnail:
                 check_media_file(root, project, item.thumbnail, problems)
 
-    rust = [project.directory for project in projects if project.package_format in RUST_FORMATS]
-    if len(rust) > 1:
-        problems.error(rust[1], f"a repository has one Rust project, released under bare version tags; {rust[0]} already is it")
+    for package_format, kind in (("binary", "program"), ("crate", "library")):
+        same = [project.directory for project in projects if project.package_format == package_format]
+        if len(same) > 1:
+            problems.error(
+                same[1],
+                f"a repository has at most one Rust program and one Rust library, which share its bare version tags; "
+                f"{same[0]} already is its {kind}",
+            )
 
     legacy_pages = check_legacy_pages(root, projects, problems)
     head = gitrepo.resolve_revision("HEAD")
@@ -168,6 +178,21 @@ def check_release_order(project: Project, locked: list[records.LockedRelease], p
                     f"{project.directory}/mod.toml",
                     f"{channel} release {later.version} ({later.date}) sorts below {earlier.version} ({earlier.date}) under {project.versioning} versioning. {hint}",
                 )
+
+
+def binary_build_directory(root: Path, project: Project) -> Path:
+    """Where StroggForge builds a program, and so where its include paths start: the directory
+    named after the binary when the repository has one, as a workspace member, else the root."""
+    candidate = root / project.package_binary if project.package_binary else root
+    return candidate if candidate.is_dir() else root
+
+
+def included_path_exists(base: Path, included: str) -> bool:
+    """As StroggForge finds it: the path as written, else an entry of that name in any case."""
+    path = base / included
+    if path.exists():
+        return True
+    return path.parent.is_dir() and any(entry.name.lower() == path.name.lower() for entry in path.parent.iterdir())
 
 
 def check_legacy_pages(root: Path, projects: list[Project], problems: Problems) -> list[Path]:
@@ -338,10 +363,84 @@ def crates_index_path(crate: str) -> str:
     return f"{name[:2]}/{name[2:4]}/{name}"
 
 
-def fetch(url: str, repository: Repository) -> bytes:
+def fetch(url: str, repository: Repository, token: str | None = None) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": f"DreamWeave Mod Template ({repository.site.repository_url})"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    if token:
+        # Only for the API request itself: a release asset redirects to storage that refuses it.
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(request, timeout=120) as response:
         return response.read()
+
+
+def is_not_found(error: urllib.error.URLError) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 404
+    return isinstance(error.reason, FileNotFoundError)
+
+
+def record_github_releases(repository: Repository) -> list[Path]:
+    """CI, on the default branch: record each tagged release of a program that mod.lock lacks, from
+    the archives its GitHub release holds. This catches up releases StroggForge published before
+    the repository was a site; GitHub keeps a published asset's bytes, and its digest is checked.
+    A release with no GitHub release, or none of the archives [[platforms]] names, is left alone.
+    Returns the locks that changed."""
+    api = os.environ.get("DREAMWEAVE_GITHUB_API", "https://api.github.com").rstrip("/")
+    token = os.environ.get("GITHUB_TOKEN") or None
+    changed = []
+    for project in repository.projects:
+        if project.package_format != "binary":
+            continue
+        locked = {release.version for release in repository.locks[project.id]}
+        missing = [declared for declared in project.releases if declared.version not in locked and gitrepo.tag_revision(project.release_tag(declared.version))]
+        recorded = []
+        for declared in missing:
+            tag = project.release_tag(declared.version)
+            try:
+                release = json.loads(fetch(f"{api}/repos/{repository.site.repository}/releases/tags/{urllib.parse.quote(tag, safe='')}", repository, token))
+            except urllib.error.URLError as error:
+                if is_not_found(error):
+                    print(f"note: {tag} has no GitHub release, so {project.name} {declared.version} stays unrecorded")
+                    continue
+                print(f"warning: could not read GitHub's release {tag} ({error}); nothing more recorded this time")
+                break
+            if release.get("draft"):
+                continue
+            assets = {asset["name"]: asset for asset in release.get("assets", [])}
+            artifacts, absent = [], []
+            for platform in project.platforms:
+                filename = project.binary_archive(platform)
+                asset = assets.get(filename)
+                if asset is None:
+                    absent.append(filename)
+                    continue
+                data = fetch(asset["browser_download_url"], repository)
+                sha256 = hashlib.sha256(data).hexdigest()
+                expected = (asset.get("digest") or "").removeprefix("sha256:")
+                if expected and expected != sha256:
+                    raise SystemExit(
+                        f"{tag}: the downloaded {filename} has sha256 {sha256}, but GitHub says {expected}. Nothing was "
+                        "recorded; run the job again, and report it to GitHub if it repeats."
+                    )
+                artifacts.append({
+                    "id": platform.id,
+                    "format": "binary",
+                    "filename": filename,
+                    "media_type": records.MEDIA_TYPE_ZIP,
+                    "size": len(data),
+                    "digests": {"sha256": sha256},
+                    "platform": platform.document(),
+                })
+            desktop = [artifact["platform"] for artifact in artifacts if "variant" not in artifact["platform"] and artifact["platform"]["os"] in DESKTOP_SYSTEMS]
+            if not desktop:
+                print(f"note: {tag}'s GitHub release has none of {project.name}'s desktop archives, so it stays unrecorded")
+                continue
+            semantics = records.release_semantics(project)
+            semantics["platforms"] = desktop
+            recorded.append(records.LockedRelease(version=declared.version, locked_from=gitrepo.tag_revision(tag) or "", artifacts=artifacts, semantics=semantics))
+            print(f"Recorded {project.name} {declared.version} from GitHub's release {tag}: {len(artifacts)} archive(s)" + (f"; it has no {', '.join(absent)}" if absent else ""))
+        if recorded:
+            changed.append(records.write_lock(project, repository.root, [*repository.locks[project.id], *recorded]))
+    return changed
 
 
 def record_crate_releases(repository: Repository) -> Path | None:
@@ -412,14 +511,22 @@ def render_documentation(repository: Repository, projects: list[Project], packag
 
 
 def parse_release_tag(repository: Repository, tag: str) -> tuple[Project, Version]:
-    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them. A Rust
-    project's tags are bare versions, and a repository has at most one Rust project."""
-    rust = next((project for project in repository.projects if project.package_format in RUST_FORMATS), None)
+    """<slug>-<version>. Slugs cannot contain '-', so the first one separates them.
+
+    Rust projects' tags are bare versions. A repository with a program and its library releases
+    both under one tag: it is the program's when the program declares that version, since the
+    program's archives are what the tag builds, and the library's otherwise."""
+    for project in repository.projects:
+        for declared in project.releases:
+            if declared.tag == tag:
+                return project, declared.version
+    rust = sorted((project for project in repository.projects if project.package_format in RUST_FORMATS), key=lambda project: project.package_format != "binary")
     if rust and tag[:1].isdigit():
         try:
-            return rust, Version.parse(tag, rust.versioning)
+            versions = [(project, Version.parse(tag, project.versioning)) for project in rust]
         except VersionError as error:
             raise SystemExit(f"Tag {tag!r}: {error}") from error
+        return next(((project, version) for project, version in versions if project.declared_release(version)), versions[0])
     slug, separator, version_text = tag.partition("-")
     project = next((project for project in repository.projects if project.slug == slug), None) if separator else None
     if project is None:
@@ -472,6 +579,9 @@ def build_release(repository: Repository, tag: str) -> Path | None:
     path.write_text(records.dumps({"project": project.id, "name": project.name, "tag": tag, "release": locked.to_document()}), encoding="utf-8")
     for artifact in artifacts:
         print(f"Built {tag}: {artifact['filename']} {artifact['size']} bytes sha256 {artifact['digests']['sha256']}")
+    for library in repository.projects:
+        if library.package_format == "crate" and library.declared_release(version):
+            print(f"{tag} also releases {library.package_crate} {version}: StroggForge publishes it to crates.io, and record-crates records it from there.")
     write_nexus_uploads(repository, project, version, artifacts)
     write_release_notes(repository, project, version, artifacts)
     write_signing_list(repository, [(project, artifact) for artifact in artifacts])

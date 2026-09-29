@@ -418,6 +418,106 @@ class ReleaseLifecycle(unittest.TestCase):
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
 
+    def test_a_program_and_its_library_share_a_tag(self):
+        self.add_broom()
+        self.add_ledger()
+        git(self.root, "tag", "1.0.0")
+        git(self.root, "checkout", "-q", "1.0.0")
+        self.stage_binaries("1.0.0")
+        output = build_site(self.root, "release", "1.0.0").stdout
+        self.assertIn("1.0.0 also releases ledger-rs 1.0.0", output)
+        self.assertEqual(load(self.root, "dist/release.json")["project"], BROOM_ID, "the tag builds the program")
+        git(self.root, "checkout", "-q", "main")
+        build_site(self.root, "record")
+        build_site(self.root, "record-crates", env=self.fake_registry({"0.9.0": b"ledger 0.9.0", "1.0.0": b"ledger 1.0.0"}))
+        self.assertEqual([release["version"] for release in load(self.root, "content/broom/mod.lock")["releases"]], ["1.0.0"])
+        self.assertEqual([release["version"] for release in load(self.root, "content/ledger/mod.lock")["releases"]], ["0.9.0", "1.0.0"])
+        self.scratch.commit("RELEASE: Broom and Ledger 1.0.0")
+
+        ledger = self.root / "content/ledger/mod.toml"
+        ledger.write_text(ledger.read_text() + '\n[[releases]]\nversion = "1.2.0"\ndate = 2026-03-01\nsummary = "Faster."\n')
+        self.scratch.commit("Declare Ledger 1.2.0")
+        git(self.root, "tag", "1.2.0")
+        self.assertIn("ledger-rs 1.2.0: StroggForge publishes it to crates.io", build_site(self.root, "release", "1.2.0").stdout, "a version only the library declares is the library's")
+
+    def fake_github(self, releases: dict[str, dict[str, bytes]], digests: dict[str, str] | None = None) -> dict[str, str]:
+        """GitHub's releases API and its assets on disk, and the environment that points
+        record-releases at them. `releases` maps a tag to its assets; `digests` overrides the sha256
+        GitHub reports for an asset."""
+        github = tempfile.TemporaryDirectory(prefix="dreamweave-github-")
+        self.addCleanup(github.cleanup)
+        root = Path(github.name)
+        tags = root / "api/repos/someone/cool-mods/releases/tags"
+        tags.mkdir(parents=True)
+        for tag, assets in releases.items():
+            downloads = root / "download" / tag
+            downloads.mkdir(parents=True)
+            documents = []
+            for name, data in assets.items():
+                (downloads / name).write_bytes(data)
+                digest = (digests or {}).get(name, hashlib.sha256(data).hexdigest())
+                documents.append({"name": name, "size": len(data), "digest": f"sha256:{digest}", "browser_download_url": (downloads / name).as_uri()})
+            (tags / tag).write_text(json.dumps({"tag_name": tag, "draft": False, "assets": documents}))
+        return {"DREAMWEAVE_GITHUB_API": (root / "api").as_uri()}
+
+    def add_broom_with_an_old_release(self) -> None:
+        """Broom 0.9.0 was published before the repository was a site, under a v-prefixed tag."""
+        self.add_broom()
+        mod_toml = self.root / "content/broom/mod.toml"
+        mod_toml.write_text(mod_toml.read_text().replace(
+            '[[releases]]\nversion = "1.0.0"',
+            '[[releases]]\nversion = "0.9.0"\ndate = 2025-12-01\ntag = "v0.9.0"\nsummary = "Before the site."\n\n[[releases]]\nversion = "1.0.0"',
+        ))
+        self.scratch.commit("Declare Broom 0.9.0")
+        git(self.root, "tag", "v0.9.0")
+        git(self.root, "tag", "1.0.0")
+
+    def test_releases_published_before_the_site_are_recorded_from_github(self):
+        self.add_broom_with_an_old_release()
+        build_site(self.root, "build")
+        self.assertEqual(load(self.root, "static/dreamweave/view.json")["projects"]["broom/"]["unverified"], ["0.9.0", "1.0.0"])
+
+        old = {f"broom-{archive}": f"broom {archive} 0.9.0".encode() for archive in BROOM_ARCHIVES if not archive.endswith(".muxapp")}
+        new = {f"broom-{archive}": f"broom {archive} 1.0.0".encode() for archive in BROOM_ARCHIVES}
+        output = build_site(self.root, "record-releases", env=self.fake_github({"v0.9.0": old, "1.0.0": new})).stdout
+        self.assertIn("Recorded Broom 0.9.0 from GitHub's release v0.9.0: 4 archive(s); it has no broom-Portmaster-ARM64.muxapp", output)
+        lock = load(self.root, "content/broom/mod.lock")
+        self.assertEqual([release["version"] for release in lock["releases"]], ["0.9.0", "1.0.0"])
+        first = lock["releases"][0]
+        self.assertEqual(first["locked_from"], git(self.root, "rev-parse", "v0.9.0"))
+        self.assertEqual(first["artifacts"][0]["digests"]["sha256"], hashlib.sha256(b"broom Linux-X64.zip 0.9.0").hexdigest())
+        self.assertEqual(len(lock["releases"][1]["artifacts"]), 5)
+        self.scratch.commit("RELEASE: Record Broom's GitHub releases")
+        self.assertNotIn("Recorded", build_site(self.root, "record-releases", env=self.fake_github({"v0.9.0": old, "1.0.0": new})).stdout, "a recorded release is not recorded again")
+
+        build_site(self.root, "build")
+        manifest = load(self.root, f"static/dreamweave/projects/{BROOM_ID}.json")
+        self.assertEqual(manifest["channels"]["stable"], {"version": "1.0.0"})
+        older = next(release for release in manifest["releases"] if release["version"] == "0.9.0")
+        self.assertEqual(older["source"]["tag"], "v0.9.0")
+        self.assertEqual(older["artifacts"][0]["sources"][0]["url"], "https://github.com/someone/cool-mods/releases/download/v0.9.0/broom-Linux-X64.zip")
+        if jsonschema:
+            self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])
+        subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
+        page = html.unescape((self.root / "public/broom/index.html").read_text())
+        self.assertIn("https://github.com/someone/cool-mods/releases/download/v0.9.0/broom-Linux-X64.zip", page, "the page's model uses the release's own tag")
+
+    def test_a_github_release_that_does_not_match_its_digest_is_not_recorded(self):
+        self.add_broom_with_an_old_release()
+        assets = {f"broom-{archive}": f"broom {archive} 1.0.0".encode() for archive in BROOM_ARCHIVES}
+        process = build_site(self.root, "record-releases", env=self.fake_github({"1.0.0": assets}, digests={"broom-Windows-X64.zip": "0" * 64}), check=False)
+        self.assertIn("but GitHub says " + "0" * 64, process.stderr)
+        self.assertFalse((self.root / "content/broom/mod.lock").exists())
+
+        output = build_site(self.root, "record-releases", env=self.fake_github({"1.0.0": assets})).stdout
+        self.assertIn("v0.9.0 has no GitHub release, so Broom 0.9.0 stays unrecorded", output)
+        self.assertEqual([release["version"] for release in load(self.root, "content/broom/mod.lock")["releases"]], ["1.0.0"])
+
+    def test_a_release_under_its_own_tag_is_found_by_it(self):
+        self.add_broom_with_an_old_release()
+        process = build_site(self.root, "release", "v0.9.0", check=False)
+        self.assertIn("v0.9.0: the Rust workflow's archives are missing from dist/binaries/: broom-Linux-X64.zip", process.stderr, "v0.9.0 names Broom's 0.9.0")
+
     def test_a_crate_that_does_not_match_its_index_entry_is_not_recorded(self):
         self.add_ledger()
         process = build_site(self.root, "record-crates", env=self.fake_registry({"1.0.0": b"ledger 1.0.0"}, corrupt="1.0.0"), check=False)
@@ -436,6 +536,7 @@ class ReleaseLifecycle(unittest.TestCase):
         self.assertIn('ledger-rs = "1.0.0"', page)
         self.assertIn('href="https://crates.io/crates/ledger-rs/1.0.0"', page)
         self.assertIn("<dt>Package</dt><dd>Rust crate</dd>", page)
+        self.assertNotIn("<span>Morrowind</span>", page, "a library that names no game is not labelled with one")
         self.assertIn('Pushing its tag, 1.1.0, publishes it">unreleased', page)
         self.assertIn('<a href="#v1-0-0">1.0.0</a>', page)
         self.assertIn(f"Verify · sha256 {hashlib.sha256(b'ledger 1.0.0').hexdigest()[:12]}", page)
@@ -576,6 +677,7 @@ class ReleaseLifecycle(unittest.TestCase):
         page = self.zola_build()
         locked = load(self.root, "content/lantern/mod.lock")["releases"][0]["artifacts"][0]
         self.assertIn('href="https://github.com/someone/cool-mods/releases/download/lantern-1.0.0/lantern.zip"', page)
+        self.assertIn("<span>Morrowind</span>", page, "game data names its game")
         self.assertIn(locked["digests"]["sha256"], page)
         self.assertIn("content=Lantern.omwscripts", page)
         self.assertIn('id="v1-0-0"', page, "without the generated changelog page, the project page lists every release")

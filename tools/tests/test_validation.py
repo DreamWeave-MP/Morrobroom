@@ -239,12 +239,32 @@ class RepositoryRules(unittest.TestCase):
         self.assertTrue(any("id 0b8f1c2d-3e4a-4b5c-8d6e-7f8091a2b3c4 is already used by content/" in error for error in errors), errors)
         self.assertTrue(any("slug 'lantern' is already used by content/" in error for error in errors), errors)
 
-    def test_a_repository_has_one_rust_project(self):
+    def test_a_repository_has_one_rust_program_and_one_rust_library(self):
         crate = 'type = "library"\n[package]\nformat = "crate"\ncrate = "alpha"\n'
         program = 'type = "tool"\n[package]\nformat = "binary"\nbinary = "beta"\n[[platforms]]\nos = "linux"\narch = "x86_64"\n'
         self.scratch.add_project("alpha", 'id = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"\nslug = "alpha"\n' + crate, title="Alpha")
         self.scratch.add_project("beta", 'id = "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"\nslug = "beta"\n' + program, title="Beta")
-        self.assertError("a repository has one Rust project, released under bare version tags; content/alpha already is it")
+        self.assertEqual(self.errors(), [], "a program and its library share a repository")
+        self.scratch.add_project("gamma", 'id = "3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f"\nslug = "gamma"\n' + crate.replace('"alpha"', '"gamma"'), title="Gamma")
+        self.assertError("a repository has at most one Rust program and one Rust library, which share its bare version tags; content/alpha already is its library")
+
+    def test_a_programs_include_paths_start_where_stroggforge_builds_it(self):
+        program = 'id = "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"\nslug = "beta"\ntype = "tool"\n[package]\nformat = "binary"\nbinary = "beta"\ninclude = ["README.md", "assets"]\n[[platforms]]\nos = "linux"\narch = "x86_64"\n'
+        self.scratch.add_project("beta", program, title="Beta")
+        self.scratch.write("README.md", "At the root.\n")
+        self.scratch.write("assets/icon.txt", "icon\n")
+        self.assertEqual(self.errors(), [], "a program built at the root packs from the root")
+        self.scratch.write("beta/Readme.md", "In the workspace member, in another case.\n")
+        self.assertError("'assets' is not a file or directory in beta/, the directory StroggForge builds the program in; include paths start there")
+        self.scratch.write("beta/assets/icon.txt", "icon\n")
+        self.assertEqual(self.errors(), [], "a workspace member's files match in any case, as StroggForge finds them")
+
+    def test_a_release_tag_is_a_git_tag_and_its_own(self):
+        release = '[[releases]]\nversion = "{version}"\ndate = 2026-01-02\ntag = "{tag}"\n'
+        self.scratch.add_project("lantern", LANTERN.replace("[[releases]]", release.format(version="0.9.0", tag="lantern-1.0.0") + "\n[[releases]]", 1), files=LANTERN_FILES)
+        self.assertError("more than one release is tagged lantern-1.0.0")
+        self.scratch.add_project("lantern", LANTERN.replace("[[releases]]", release.format(version="0.9.0", tag="old tag") + "\n[[releases]]", 1), files=LANTERN_FILES)
+        self.assertError("'old tag' is not a git tag name like v0.3.3")
 
     def test_a_v4_changelog_file_is_refused(self):
         self.scratch.add_project("lantern", LANTERN, files={**LANTERN_FILES, "changelog.md": "+++\ntitle = \"Changelog\"\n+++\n"})
@@ -267,7 +287,7 @@ class RepositoryRules(unittest.TestCase):
     def test_palette_must_exist(self):
         config = (self.scratch.root / "config.toml").read_text().replace("[extra]\n", '[extra]\npalette = "blue"\n', 1)
         (self.scratch.root / "config.toml").write_text(config)
-        self.assertError("'blue' is not one of purple, teal, gold, ember, moss, umber")
+        self.assertError("'blue' is not one of purple, teal, gold, ember, moss, umber, grove, prism, slate, crimson, indigo, azure, frost")
 
     def test_v4_pages_without_mod_toml_are_rejected(self):
         self.scratch.write("content/old/index.md", '+++\ntitle = "Old"\n[extra]\nversion = "0.5"\n+++\n')
