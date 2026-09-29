@@ -1,7 +1,7 @@
 # Notes for whoever works on the compiler next
 
 What is still open after the 2026-09-29 round of fixes. Everything else these notes used to list is
-fixed, with a test, in the commits of that day.
+fixed, with a test, in the commits of that day, including how brush entities read `mangle`.
 
 ## Declared in the FGDs, not compiled
 
@@ -18,14 +18,6 @@ compiled)", and the compiler prints `<class> is an editor preview and is not com
 
 ## Loose ends
 
-- **Brush entities read `mangle` in a convention of their own.** TrenchBroom writes `mangle` as
-  pitch, yaw and roll about its Z-up axes, `Rz(yaw) * Ry(pitch) * Rx(roll)`, for brush entities as
-  well as point entities (`TrenchBroom/lib/TbMdlLib/src/EntityRotation.cpp`). Point entities are
-  read that way (`point_entity_rotation` in `main.rs`). Brush entities go through `get_rotation`,
-  which treats it as a Y-up ZYX rotation. The mesh is counter-rotated by the same angles, so a
-  brush entity looks right in game either way; what differs is its local axes when it has pitch or
-  roll, which shows once an item is picked up and dropped. `get_rotation`'s test and the NIF
-  torture map pin the current reading, so changing it is a decision, not a fix.
 - **nif2map does not import oscillating UVs.** It recognizes linear Scroll keys only, so a mesh
   compiled with `Nif_UV_Mode` Oscillate comes back with a diagnostic and no `Nif_UV_*` properties.
   Recognizing Morrobroom's own five quadratic keys (0, A, 0, -A, 0 at quarter periods) would do.
@@ -36,3 +28,11 @@ compiled)", and the compiler prints `<class> is an editor preview and is not com
   `Caius_x20_Cosades`. The compiler never reads them for catalog placements, so this is cosmetic.
 - **Placed records do not add masters.** A catalog placement references a record from another
   plugin without listing that plugin in the header. OpenMW resolves it by ID; the manual says so.
+- **A worldspawn without brushes compiles to no cell.** The cell is made in the brush pass
+  (`assign_game_object`, `"worldspawn"`), and a brushless worldspawn is a point entity instead,
+  reported as `Unidentified point entity class: worldspawn`. Every brush entity's record is then
+  written but never placed, silently. Found on 2026-09-29 while checking `mangle`; not fixed.
+- **nif2map writes Morrowind units.** It applies the NIF's node scale, so a mesh compiled at the
+  default `--scale 2.0` comes back twice the size of its map, and compiling nif2map's output at the
+  default scale doubles a vanilla mesh. The manual does not say which scale to compile its maps
+  at; either nif2map divides by a scale or the manual says `--scale 1.0`.
