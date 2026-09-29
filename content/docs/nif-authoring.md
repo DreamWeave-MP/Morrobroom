@@ -1,6 +1,6 @@
 +++
 title = "NIF authoring"
-description = "Set materials, transparency, texturing, scrolling textures and NIF structure from TrenchBroom."
+description = "Set materials, transparency, texturing, moving textures and NIF structure from TrenchBroom."
 weight = 30
 
 [extra]
@@ -54,13 +54,16 @@ for glass and smoke, testing for leaves, grates and anything with hard holes.
 The dark map slot is where baked lighting goes. Set `Nif_Texture_DarkMap` and your texture wins
 over the lightmap for that entity; the compiler says so when it happens.
 
-## Scrolling textures
+## Moving textures
 
 Set `Nif_UV_Mode` to **Scroll**, then `Nif_UV_U` and `Nif_UV_V` to how many texture widths per
 second the texture moves along each axis: water, lava, a conveyor of doom. The compiler works out a
 loop length that ends on whole tiles, so a wrapped texture never visibly jumps back.
 
-**Oscillate** is in the list but not built yet, and `Nif_UV_Period` is unused.
+Set it to **Oscillate** for a texture that sways back and forth instead: seaweed, a heat shimmer, a
+banner in a draft. `Nif_UV_U` and `Nif_UV_V` are then how far it swings each way, in texture widths,
+and `Nif_UV_Period` is how many seconds one full swing takes. Oscillate needs a period; without one
+the compiler warns and leaves the texture still.
 
 ## Structure: groups and links
 

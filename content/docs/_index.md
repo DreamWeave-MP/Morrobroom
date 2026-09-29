@@ -33,7 +33,7 @@ when the compiler objects to your architectural decisions.
 
 - **[Entities](@/docs/entities.md)**: everything you can place, what each one compiles into, and
   what does not compile yet.
-- **[NIF authoring](@/docs/nif-authoring.md)**: materials, transparency, texturing, scrolling
+- **[NIF authoring](@/docs/nif-authoring.md)**: materials, transparency, texturing, moving
   textures, billboards, sort nodes and collision, set from TrenchBroom.
 - **[OpenMW integration](@/docs/openmw.md)**: what a compile writes, baked lighting, scale,
   plugins, and the entity catalog for your load order.

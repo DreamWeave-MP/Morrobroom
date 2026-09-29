@@ -37,8 +37,8 @@ For the story behind all of this, read OpenMW's
 - Compiles Valve 220 `.map` files into NIF meshes and a Morrowind or OpenMW plugin, with
   statics, activators, containers, items, lights and leveled lists built from what you placed.
 - Bakes colored static lighting into BC7 lightmaps, which OpenMW loads without an engine patch.
-- Carries NIF materials, transparency, texturing, scrolling UVs, billboards, sort nodes and
-  collision roots from TrenchBroom into the meshes it writes.
+- Carries NIF materials, transparency, texturing, scrolling and swaying UVs, billboards, sort nodes
+  and collision roots from TrenchBroom into the meshes it writes.
 - Generates a TrenchBroom entity catalog from an OpenMW load order.
 - Reverse-compiles visual NIF geometry into editable maps with `nif2map`.
 

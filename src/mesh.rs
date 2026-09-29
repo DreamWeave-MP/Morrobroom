@@ -6,17 +6,20 @@ use tes3::{
     esp,
     nif::{
         self, BumpMap, LightingMode, Map, NiAlphaAccumulator, NiAlphaProperty, NiBSAnimationNode,
-        NiBillboardNode, NiFloatData, NiFloatKey, NiLinFloatKey, NiLink, NiMaterialProperty,
-        NiNode, NiSortAdjustNode, NiStream, NiTexturingProperty, NiTimeController, NiTriShape,
-        NiTriShapeData, NiUVController, NiUVData, NiVertexColorProperty, RootCollisionNode,
-        SortingMode, SourceVertexMode, TextureMap, TextureSource,
+        NiBezFloatKey, NiBillboardNode, NiFloatData, NiFloatKey, NiLinFloatKey, NiLink,
+        NiMaterialProperty, NiNode, NiSortAdjustNode, NiStream, NiTexturingProperty,
+        NiTimeController, NiTriShape, NiTriShapeData, NiUVController, NiUVData,
+        NiVertexColorProperty, RootCollisionNode, SortingMode, SourceVertexMode, TextureMap,
+        TextureSource,
     },
 };
 use vfstool_lib::VFS;
 
 use crate::{
     MapData,
-    brush_ni_node::{BrushNiAlphaProps, BrushNiColorProps, BrushNiMatProps, BrushNiNode},
+    brush_ni_node::{
+        BrushNiAlphaProps, BrushNiColorProps, BrushNiMatProps, BrushNiNode, BrushNiUvProps,
+    },
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -623,38 +626,29 @@ impl Mesh {
     }
 
     fn assign_uv_animation(&mut self, props: &BrushNiMatProps, object: NiLink<NiTriShape>) {
-        match props.uv.mode {
+        let animation = match props.uv.mode {
             Some(0) | None => return,
-            Some(1) => {}
+            Some(1) => scroll_animation(&props.uv),
+            Some(2) => oscillation_animation(&props.uv),
             Some(mode) => {
-                eprintln!("Unsupported Nif_UV_Mode {mode}; only Scroll is materialized");
+                eprintln!(
+                    "Unsupported Nif_UV_Mode {mode}; expected 0 (None), 1 (Scroll) or 2 (Oscillate)"
+                );
                 return;
             }
-        }
-        if props.uv.period.is_some() {
-            eprintln!(
-                "Nif_UV_Period applies to oscillation; Scroll uses a shared seamless period derived from U/V"
-            );
-        }
-
-        let u_rate = props.uv.u_rate.unwrap_or(0.0);
-        let v_rate = props.uv.v_rate.unwrap_or(0.0);
-        if !u_rate.is_finite() || !v_rate.is_finite() || (u_rate == 0.0 && v_rate == 0.0) {
-            if !u_rate.is_finite() || !v_rate.is_finite() {
-                eprintln!("Invalid Nif_UV_U or Nif_UV_V rate; skipping UV scrolling");
-            }
-            return;
-        }
-        let Some(period) = common_scroll_period(u_rate, v_rate) else {
-            eprintln!(
-                "Nif_UV_U and Nif_UV_V have no practical seamless common cycle; skipping UV scrolling"
-            );
+        };
+        let Some(UvAnimation {
+            u_offset_data,
+            v_offset_data,
+            period,
+        }) = animation
+        else {
             return;
         };
 
         let data_link = self.stream.insert(NiUVData {
-            u_offset_data: scrolling_float_data(props.uv.u_rate, period),
-            v_offset_data: scrolling_float_data(props.uv.v_rate, period),
+            u_offset_data,
+            v_offset_data,
             ..Default::default()
         });
         let previous_controller = self
@@ -681,6 +675,69 @@ impl Mesh {
             .expect("UV controller target shape should remain valid")
             .controller = controller_link.cast();
     }
+}
+
+/// Offset keys for one `NiUVController` cycle of `period` seconds.
+struct UvAnimation {
+    u_offset_data: NiFloatData,
+    v_offset_data: NiFloatData,
+    period: f32,
+}
+
+fn scroll_animation(uv: &BrushNiUvProps) -> Option<UvAnimation> {
+    if uv.period.is_some() {
+        eprintln!(
+            "Nif_UV_Period applies to oscillation; Scroll uses a shared seamless period derived from U/V"
+        );
+    }
+
+    let u_rate = uv.u_rate.unwrap_or(0.0);
+    let v_rate = uv.v_rate.unwrap_or(0.0);
+    if !u_rate.is_finite() || !v_rate.is_finite() {
+        eprintln!("Invalid Nif_UV_U or Nif_UV_V rate; skipping UV scrolling");
+        return None;
+    }
+    if u_rate == 0.0 && v_rate == 0.0 {
+        return None;
+    }
+    let Some(period) = common_scroll_period(u_rate, v_rate) else {
+        eprintln!(
+            "Nif_UV_U and Nif_UV_V have no practical seamless common cycle; skipping UV scrolling"
+        );
+        return None;
+    };
+
+    Some(UvAnimation {
+        u_offset_data: scrolling_float_data(uv.u_rate, period),
+        v_offset_data: scrolling_float_data(uv.v_rate, period),
+        period,
+    })
+}
+
+fn oscillation_animation(uv: &BrushNiUvProps) -> Option<UvAnimation> {
+    let Some(period) = uv
+        .period
+        .filter(|period| period.is_finite() && *period > 0.0)
+    else {
+        eprintln!("Nif_UV_Mode Oscillate needs a positive Nif_UV_Period; skipping UV oscillation");
+        return None;
+    };
+
+    let u_amplitude = uv.u_rate.unwrap_or(0.0);
+    let v_amplitude = uv.v_rate.unwrap_or(0.0);
+    if !u_amplitude.is_finite() || !v_amplitude.is_finite() {
+        eprintln!("Invalid Nif_UV_U or Nif_UV_V amplitude; skipping UV oscillation");
+        return None;
+    }
+    if u_amplitude == 0.0 && v_amplitude == 0.0 {
+        return None;
+    }
+
+    Some(UvAnimation {
+        u_offset_data: oscillating_float_data(uv.u_rate, period),
+        v_offset_data: oscillating_float_data(uv.v_rate, period),
+        period,
+    })
 }
 
 fn subtract_points(lhs: [f32; 3], rhs: [f32; 3]) -> [f32; 3] {
@@ -740,6 +797,34 @@ fn scrolling_float_data(rate: Option<f32>, period: f32) -> NiFloatData {
     });
     NiFloatData {
         keys: NiFloatKey::LinKey(keys),
+        ..Default::default()
+    }
+}
+
+fn oscillating_float_data(amplitude: Option<f32>, period: f32) -> NiFloatData {
+    // One sine cycle through quadratic keys at each quarter period: 0, A, 0,
+    // -A, 0. A key's tangent spans its key interval, a quarter period, so the
+    // sine's slope A * 2pi / period becomes A * pi / 2 there.
+    let keys = amplitude.map_or_else(Vec::new, |amplitude| {
+        let slope = amplitude * std::f32::consts::FRAC_PI_2;
+        (0_u8..)
+            .zip([
+                (0.0, slope),
+                (amplitude, 0.0),
+                (0.0, -slope),
+                (-amplitude, 0.0),
+                (0.0, slope),
+            ])
+            .map(|(quarter, (value, tangent))| NiBezFloatKey {
+                time: period * f32::from(quarter) / 4.0,
+                value,
+                in_tan: tangent,
+                out_tan: tangent,
+            })
+            .collect()
+    });
+    NiFloatData {
+        keys: NiFloatKey::BezKey(keys),
         ..Default::default()
     }
 }
@@ -960,6 +1045,99 @@ mod tests {
         assert_texturing_round_trip(&stream, shape);
         assert_material_round_trip(&stream, shape, &props);
         assert_uv_scroll_round_trip(&stream, shape);
+    }
+
+    fn uv_animated_stream(uv: BrushNiUvProps) -> NiStream {
+        let mut mesh = Mesh::new(1.0);
+        let shape_link = mesh.stream.insert(NiTriShape::default());
+        mesh.stream
+            .get_mut(mesh.base_index)
+            .unwrap()
+            .children
+            .push(shape_link.cast());
+        let props = BrushNiMatProps {
+            uv,
+            ..Default::default()
+        };
+        mesh.assign_uv_animation(&props, shape_link);
+        mesh.prepare_autoplay_root();
+        let bytes = mesh
+            .stream
+            .save_bytes()
+            .expect("UV animation should serialize");
+        NiStream::from_bytes(&bytes).expect("UV animation should deserialize")
+    }
+
+    /// Evaluate quadratic keys the way `OpenMW` does: a cubic Hermite spline
+    /// per key interval, with tangents scaled to that interval.
+    fn hermite_at(keys: &[tes3::nif::NiBezFloatKey], time: f32) -> f32 {
+        let pair = keys
+            .windows(2)
+            .find(|pair| pair[0].time <= time && time <= pair[1].time)
+            .expect("time should fall inside the keys");
+        let (a, b) = (pair[0], pair[1]);
+        let t = (time - a.time) / (b.time - a.time);
+        let (t2, t3) = (t * t, t * t * t);
+        a.value * (2.0 * t3 - 3.0 * t2 + 1.0)
+            + b.value * (-2.0 * t3 + 3.0 * t2)
+            + a.out_tan * (t3 - 2.0 * t2 + t)
+            + b.in_tan * (t3 - t2)
+    }
+
+    #[test]
+    fn uv_oscillation_swings_by_its_amplitude_over_its_period() {
+        let stream = uv_animated_stream(BrushNiUvProps {
+            mode: Some(2),
+            u_rate: Some(0.5),
+            v_rate: None,
+            period: Some(4.0),
+        });
+        let controller = stream
+            .objects_of_type::<NiUVController>()
+            .next()
+            .expect("Oscillate should build a UV controller");
+        assert_float_close(controller.base.stop_time, 4.0);
+        assert_eq!(controller.base.flags & 0x000E, 0x0008);
+        let data = stream
+            .get_as::<_, NiUVData>(controller.data)
+            .expect("UV controller should own NiUVData");
+        let tes3::nif::NiFloatKey::BezKey(u_keys) = &data.u_offset_data.keys else {
+            panic!("oscillating U offset should use quadratic keys");
+        };
+        assert_float_close(u_keys.first().unwrap().time, 0.0);
+        assert_float_close(u_keys.last().unwrap().time, 4.0);
+        for step in 0..=32_u8 {
+            let time = f32::from(step) / 8.0;
+            let expected = 0.5 * (std::f32::consts::TAU * time / 4.0).sin();
+            let actual = hermite_at(u_keys, time);
+            assert!(
+                (actual - expected).abs() < 0.01,
+                "U offset at {time}s is {actual}, expected {expected}"
+            );
+        }
+        let v_has_keys = match &data.v_offset_data.keys {
+            tes3::nif::NiFloatKey::LinKey(keys) => !keys.is_empty(),
+            tes3::nif::NiFloatKey::BezKey(keys) => !keys.is_empty(),
+            tes3::nif::NiFloatKey::TCBKey(keys) => !keys.is_empty(),
+        };
+        assert!(!v_has_keys, "V has no amplitude, so it should not move");
+        assert!(
+            stream
+                .objects_of_type::<NiBSAnimationNode>()
+                .next()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn uv_oscillation_without_a_period_builds_nothing() {
+        let stream = uv_animated_stream(BrushNiUvProps {
+            mode: Some(2),
+            u_rate: Some(0.5),
+            v_rate: Some(0.25),
+            period: None,
+        });
+        assert_eq!(stream.objects_of_type::<NiUVController>().count(), 0);
     }
 
     #[test]
