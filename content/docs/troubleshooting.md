@@ -39,8 +39,10 @@ or change the profile's `--start` to match.
 Look at the compiler's output. `Unidentified point entity class: …` means the entity is neither
 one Morrobroom compiles nor a record to place: a record from the catalog whose `ESM3_RefId` was
 cleared looks like that, so give it back its ID. `… is an editor preview and is not compiled yet`
-is `nif_fx_fire` or the VFX catalog. `No matching object type found!` is the same for a brush
-entity. [Entities](@/docs/entities.md) lists what does compile.
+is `nif_fx_fire` or the VFX catalog. `… has no brushes, so there is nothing to build` is a brush
+entity whose brushes were all deleted or moved out of it. `No matching object type found!` is a
+brush entity whose class Morrobroom does not compile. [Entities](@/docs/entities.md) lists what
+does compile.
 
 A record from the catalog that compiled but is missing in game comes from a plugin OpenMW is not
 loading. Load that plugin, or generate the catalog from the `openmw.cfg` you play with.

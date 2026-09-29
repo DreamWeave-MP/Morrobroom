@@ -159,8 +159,7 @@ fn compile_map(
         processed_base_objects: HashSet::new(),
         used_indices: used_reference_indices(&plugin),
     };
-    process_brush_entities(&mut state)?;
-    process_point_entities(&mut state);
+    compile_entities(&mut state)?;
     let CompileState {
         cell,
         mut created_objects,
@@ -209,6 +208,43 @@ fn used_reference_indices(plugin: &Plugin) -> BTreeSet<u32> {
                 .map(|(_, reference_index)| *reference_index)
         })
         .collect()
+}
+
+/// Compile every entity into the map's cell.
+///
+/// The cell comes from worldspawn's properties before anything is placed in
+/// it, so it exists whether or not worldspawn has brushes of its own: nif2map's
+/// maps, and maps built only from brush entities and placed records, have none.
+fn compile_entities(state: &mut CompileState<'_>) -> io::Result<()> {
+    state.cell = Some(worldspawn_cell(state.map_data, state.map_dir)?);
+    process_brush_entities(state)?;
+    process_point_entities(state);
+    Ok(())
+}
+
+fn worldspawn_cell(map_data: &MapData, map_dir: &str) -> io::Result<Cell> {
+    let worldspawn = map_data
+        .geomap
+        .entities
+        .iter()
+        .map(|entity_id| map_data.get_entity_properties(*entity_id))
+        .find(|properties| {
+            properties
+                .get(&"classname".to_string())
+                .is_some_and(|classname| classname.as_str() == "worldspawn")
+        })
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "The map has no worldspawn entity, so there is no cell to compile into. \
+                 TrenchBroom writes one at the top of every map; is the file complete?",
+            )
+        })?;
+    let mut cell = game_object::cell(&worldspawn);
+    if cell.name.is_empty() {
+        map_dir.clone_into(&mut cell.name);
+    }
+    Ok(cell)
 }
 
 fn process_brush_entities(state: &mut CompileState<'_>) -> io::Result<()> {
@@ -549,22 +585,7 @@ fn assign_game_object(
             mesh.game_object = game_object::light(props, state.object_scale, ref_id, mesh_name);
         }
         "item_Misc" => mesh.game_object = game_object::misc(props, ref_id, mesh_name),
-        "worldspawn" => {
-            let mut local_cell = game_object::cell(props);
-            if local_cell.name.is_empty() {
-                local_cell.name = state.map_dir.to_string();
-            }
-            state.processed_base_objects.insert(local_cell.name.clone());
-            state.processed_base_objects.insert(ref_id.to_string());
-            state.cell = Some(local_cell);
-            mesh.game_object = Static {
-                id: ref_id.to_string(),
-                mesh: mesh_name.to_string(),
-                flags: game_object::object_flags(props),
-            }
-            .into();
-        }
-        "world_Detail" | "nif_geometry" | "func_group" => {
+        "worldspawn" | "world_Detail" | "nif_geometry" | "func_group" => {
             state.processed_base_objects.insert(ref_id.to_string());
             mesh.game_object = Static {
                 id: ref_id.to_string(),
@@ -581,11 +602,32 @@ fn assign_game_object(
     true
 }
 
+/// The brush entity classes the bundled FGDs declare and the compiler builds.
+const BRUSH_ENTITY_CLASSES: [&str; 14] = [
+    "worldspawn",
+    "func_group",
+    "world_Detail",
+    "world_Activator",
+    "world_Container",
+    "nif_geometry",
+    "item_Alchemy",
+    "item_Apparatus",
+    "item_Armor",
+    "item_Book",
+    "item_Clothing",
+    "item_Ingredient",
+    "item_Light",
+    "item_Misc",
+];
+
 /// What the compiler makes of a point entity.
 #[derive(Debug, PartialEq, Eq)]
 enum PointEntity {
-    /// Editor-only entities, and the NIF markers the brush pass has read.
+    /// Editor-only entities, worldspawn, whose cell is made before anything is
+    /// placed, and the NIF markers the brush pass has read.
     Skip,
+    /// A brush entity left without brushes: there is nothing to build.
+    EmptyBrushEntity,
     PointLight,
     CreatureList,
     ItemList,
@@ -600,10 +642,12 @@ enum PointEntity {
 fn classify_point_entity(class: &str, properties: &HashMap<&String, &String>) -> PointEntity {
     if matches!(
         class,
-        "func_group" | "info_player_start" | "tool_Dictionary"
+        "worldspawn" | "func_group" | "info_player_start" | "tool_Dictionary"
     ) || class.starts_with("nif_node_")
     {
         PointEntity::Skip
+    } else if BRUSH_ENTITY_CLASSES.contains(&class) {
+        PointEntity::EmptyBrushEntity
     } else if class.contains("Light_Point") {
         PointEntity::PointLight
     } else if class == "world_CreatureList" {
@@ -684,6 +728,9 @@ fn process_point_entities(state: &mut CompileState<'_>) {
                 point_entity_position(state.object_scale, &prop_map),
                 entity_rotation(class, &prop_map),
             ),
+            PointEntity::EmptyBrushEntity => {
+                println!("{class} has no brushes, so there is nothing to build; skipped");
+            }
             PointEntity::Preview => {
                 println!("{class} is an editor preview and is not compiled yet; nothing placed");
             }
@@ -1449,5 +1496,110 @@ mod brush_rotation_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod worldspawn_cell_tests {
+    use super::*;
+    use morrobroom::slipgate::repr::Map;
+
+    /// Everything in brush entities and placed records; worldspawn has no brushes,
+    /// as in every map nif2map writes.
+    const BRUSHLESS_WORLDSPAWN_MAP: &str = r#"// Game: Morrowind
+// Format: Valve
+{
+"classname" "worldspawn"
+"ESM3_Name" "Brushless Hall"
+}
+{
+"classname" "world_Detail"
+"ESM3_RefId" "hall_pillar"
+{
+( -16 -16 -16 ) ( -16 -15 -16 ) ( -16 -16 -15 ) mb/canonical [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -16 -16 -15 ) ( -15 -16 -16 ) mb/canonical [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -15 -16 -16 ) ( -16 -15 -16 ) mb/canonical [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 16 17 16 ) ( 17 16 16 ) mb/canonical [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 17 16 16 ) ( 16 16 17 ) mb/canonical [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 16 16 16 ) ( 16 16 17 ) ( 16 17 16 ) mb/canonical [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+}
+}
+{
+"classname" "static_ex_common_house_01"
+"origin" "64 0 0"
+"ESM3_RefId" "ex_common_house_01"
+}
+"#;
+
+    #[test]
+    fn a_worldspawn_without_brushes_still_makes_the_cell() {
+        let map = BRUSHLESS_WORLDSPAWN_MAP
+            .parse::<Map>()
+            .expect("brushless worldspawn map should parse");
+        let openmw_config = openmw_config::OpenMWConfiguration::new_empty("worldspawn-test-config")
+            .expect("construct in-memory empty OpenMW configuration");
+        let map_data = MapData::from_map(map, "hall.map", false, &openmw_config);
+        let output_dir = std::env::temp_dir().join(format!(
+            "morrobroom-brushless-worldspawn-{}",
+            std::process::id()
+        ));
+        let (work_dir, map_dir) = morrobroom::create_workdir_at(Path::new("hall.map"), &output_dir)
+            .expect("create the generated-asset tree");
+        let mut state = CompileState {
+            map_data: &map_data,
+            work_dir: &work_dir,
+            map_dir: &map_dir,
+            object_scale: 2.0,
+            cell: None,
+            created_objects: Vec::new(),
+            processed_base_objects: HashSet::new(),
+            used_indices: BTreeSet::new(),
+        };
+
+        let compiled = compile_entities(&mut state);
+        std::fs::remove_dir_all(&output_dir).expect("remove the generated-asset tree");
+        compiled.expect("a brushless worldspawn map should compile");
+
+        let cell = state.cell.expect("the map should compile into a cell");
+        assert_eq!(cell.name, "Brushless Hall");
+        let mut placed: Vec<_> = cell
+            .references
+            .values()
+            .map(|reference| reference.id.as_str())
+            .collect();
+        placed.sort_unstable();
+        assert_eq!(placed, ["ex_common_house_01", "hall_pillar"]);
+    }
+
+    #[test]
+    fn brush_entity_classes_are_the_ones_the_fgds_declare() {
+        let mut declared: Vec<&str> = [
+            include_str!("../resources/Morrowind.fgd"),
+            include_str!("../resources/Nif.fgd"),
+        ]
+        .into_iter()
+        .flat_map(str::lines)
+        .filter(|line| line.starts_with("@SolidClass"))
+        .filter_map(|line| line.split_once("= "))
+        .filter_map(|(_, declaration)| declaration.split([' ', ':']).next())
+        .collect();
+        declared.push("func_group");
+        declared.sort_unstable();
+        let mut compiled = BRUSH_ENTITY_CLASSES.to_vec();
+        compiled.sort_unstable();
+        assert_eq!(compiled, declared);
+    }
+
+    #[test]
+    fn worldspawn_is_never_an_unidentified_point_entity() {
+        let properties = HashMap::new();
+        assert_eq!(
+            classify_point_entity("worldspawn", &properties),
+            PointEntity::Skip
+        );
+        assert_eq!(
+            classify_point_entity("world_Detail", &properties),
+            PointEntity::EmptyBrushEntity
+        );
     }
 }

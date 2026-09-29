@@ -1,7 +1,8 @@
 # Notes for whoever works on the compiler next
 
 What is still open after the 2026-09-29 round of fixes. Everything else these notes used to list is
-fixed, with a test, in the commits of that day, including how brush entities read `mangle`.
+fixed, with a test, in the commits of that day, including how brush entities read `mangle` and
+maps whose worldspawn has no brushes.
 
 ## Declared in the FGDs, not compiled
 
@@ -28,10 +29,10 @@ compiled)", and the compiler prints `<class> is an editor preview and is not com
   `Caius_x20_Cosades`. The compiler never reads them for catalog placements, so this is cosmetic.
 - **Placed records do not add masters.** A catalog placement references a record from another
   plugin without listing that plugin in the header. OpenMW resolves it by ID; the manual says so.
-- **A worldspawn without brushes compiles to no cell.** The cell is made in the brush pass
-  (`assign_game_object`, `"worldspawn"`), and a brushless worldspawn is a point entity instead,
-  reported as `Unidentified point entity class: worldspawn`. Every brush entity's record is then
-  written but never placed, silently. Found on 2026-09-29 while checking `mangle`; not fixed.
+- **A map with no brushes at all does not compile.** `compile_map` asserts "No brushes found in
+  map!", and with lightmaps on, `MapData` panics first generating lightmap UVs for an empty mesh.
+  Since the cell no longer needs worldspawn brushes, a map of nothing but placed records is
+  otherwise compilable; both would have to allow an empty render mesh.
 - **nif2map writes Morrowind units.** It applies the NIF's node scale, so a mesh compiled at the
   default `--scale 2.0` comes back twice the size of its map, and compiling nif2map's output at the
   default scale doubles a vanilla mesh. The manual does not say which scale to compile its maps
