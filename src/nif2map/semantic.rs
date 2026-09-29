@@ -406,12 +406,16 @@ where
                 name: node.name.clone(),
                 origin: marker_origin(self.transform_for, key, node.transform()),
                 scope,
-                properties: node_link_properties(&node.name),
+                properties: {
+                    // A Morrowind NIF keeps the billboard mode in bits 5 and 6 of the flags.
+                    let mut properties = node_link_properties(&node.name);
+                    properties.push(NifProperty {
+                        key: "Nif_Billboard_Mode".into(),
+                        value: ((node.flags >> 5) & 0x3).to_string(),
+                    });
+                    properties
+                },
             });
-            self.context.diagnostics.push(format!(
-                "node {:?}: billboard mode is not encoded by the supported NIF version",
-                node.name
-            ));
         } else if let Some(node) = self
             .stream
             .get_as::<_, NiSortAdjustNode>(NiLink::<()>::new(key))
@@ -929,9 +933,9 @@ mod tests {
 
     use super::{NifProperty, NifState, import_uv_state, semantic_context};
     use tes3::nif::{
-        NiAVObject, NiBSAnimationNode, NiFloatData, NiFloatKey, NiLinFloatKey, NiNode, NiObjectNET,
-        NiSortAdjustNode, NiStream, NiTimeController, NiTriShape, NiUVController, NiUVData,
-        SortingMode,
+        NiAVObject, NiBSAnimationNode, NiBillboardNode, NiFloatData, NiFloatKey, NiLinFloatKey,
+        NiNode, NiObjectNET, NiSortAdjustNode, NiStream, NiTimeController, NiTriShape,
+        NiUVController, NiUVData, SortingMode,
     };
 
     fn node(name: &str) -> NiNode {
@@ -1000,6 +1004,32 @@ mod tests {
         assert_eq!(
             context.shape_scopes.get(&unnamed_shape.key),
             Some(&body_scope.id)
+        );
+    }
+
+    #[test]
+    fn billboard_mode_imports_from_the_node_flags() {
+        let mut stream = NiStream::default();
+        let mut billboard = NiBillboardNode { base: node("face") };
+        billboard.flags = 0x0040 | 0x0008;
+        let billboard = stream.insert(billboard);
+        stream.roots.push(billboard.cast());
+
+        let context = semantic_context(&stream, &|_, transform| transform);
+        let marker = context
+            .markers
+            .iter()
+            .find(|marker| marker.classname == "nif_node_billboard")
+            .expect("billboard node should import");
+        assert!(marker.properties.contains(&NifProperty {
+            key: "Nif_Billboard_Mode".into(),
+            value: "2".into(),
+        }));
+        assert!(
+            context
+                .diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.contains("billboard"))
         );
     }
 
