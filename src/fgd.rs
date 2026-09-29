@@ -472,6 +472,28 @@ mod bundled_fgd_test {
 }
 
 #[cfg(test)]
+mod bundled_nif_fgd_test {
+    fn choices<'a>(fgd: &'a str, property: &str) -> Vec<&'a str> {
+        let start = fgd
+            .find(&format!("{property}(choices)"))
+            .unwrap_or_else(|| panic!("Nif.fgd should declare {property}"));
+        fgd[start..]
+            .lines()
+            .skip(2)
+            .take_while(|line| !line.trim_start().starts_with(']'))
+            .filter_map(|line| line.split(':').next())
+            .map(str::trim)
+            .collect()
+    }
+
+    #[test]
+    fn billboard_modes_are_the_four_a_morrowind_nif_can_store() {
+        let fgd = include_str!("../resources/Nif.fgd");
+        assert_eq!(choices(fgd, "Nif_Billboard_Mode"), ["0", "1", "2", "3"]);
+    }
+}
+
+#[cfg(test)]
 mod default_catalog_path_test {
     use super::{FgdGenerationError, GENERATED_FGD_NAME, catalog_output_path_in};
     use std::process;

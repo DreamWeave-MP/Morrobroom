@@ -235,12 +235,13 @@ impl Mesh {
     ) -> RenderParent {
         match marker.kind {
             NifStructuralKind::Billboard { mode } => {
-                if mode != 0 {
-                    eprintln!(
-                        "The linked tes3 NIF schema cannot store billboard mode {mode}; creating NiBillboardNode with the NIF default"
-                    );
-                }
                 let mut node = NiBillboardNode::default();
+                node.base.flags |= billboard_mode_flags(mode).unwrap_or_else(|| {
+                    eprintln!(
+                        "Nif_Billboard_Mode {mode} cannot be stored in a Morrowind NIF, which has modes 0 to 3; using Always Face Camera"
+                    );
+                    0
+                });
                 node.base.name = marker.link_name.clone().unwrap_or_default();
                 node.base.translation = translation.into();
                 let link = self.stream.insert(node);
@@ -706,6 +707,13 @@ fn negate_point(point: [f32; 3]) -> [f32; 3] {
     [-point[0], -point[1], -point[2]]
 }
 
+/// A Morrowind NIF (4.0.0.2) keeps a billboard's mode in bits 5 and 6 of the
+/// node's flags, so it can hold modes 0 to 3 only.
+fn billboard_mode_flags(mode: u32) -> Option<u16> {
+    let mode = u16::try_from(mode).ok().filter(|mode| *mode <= 3)?;
+    Some(mode << 5)
+}
+
 fn sorting_mode(value: u32) -> Option<SortingMode> {
     match value {
         0 => Some(SortingMode::Inherit),
@@ -997,6 +1005,48 @@ mod tests {
             mesh.stream.objects_of_type::<NiAlphaAccumulator>().count(),
             0
         );
+    }
+
+    fn billboard_flags_after_round_trip(mode: u32) -> u16 {
+        let mut mesh = Mesh::new(1.0);
+        mesh.node_distances.push(SV3::default());
+        mesh.attach_nif_semantics(
+            &[NifStructuralMarker {
+                kind: NifStructuralKind::Billboard { mode },
+                link_name: None,
+                target: None,
+                origin: SV3::default(),
+            }],
+            None,
+        );
+        let bytes = mesh
+            .stream
+            .save_bytes()
+            .expect("billboard should serialize");
+        let stream = NiStream::from_bytes(&bytes).expect("billboard should deserialize");
+        stream
+            .objects_of_type::<NiBillboardNode>()
+            .next()
+            .expect("billboard marker should materialize")
+            .flags
+    }
+
+    #[test]
+    fn billboard_mode_is_stored_in_the_node_flags() {
+        for (mode, flags) in [(0, 0x0000), (1, 0x0020), (2, 0x0040), (3, 0x0060)] {
+            assert_eq!(
+                billboard_flags_after_round_trip(mode) & 0x0060,
+                flags,
+                "Nif_Billboard_Mode {mode}"
+            );
+        }
+    }
+
+    #[test]
+    fn billboard_modes_a_morrowind_nif_cannot_hold_face_the_camera() {
+        for mode in [4, 5, 9] {
+            assert_eq!(billboard_flags_after_round_trip(mode) & 0x0060, 0);
+        }
     }
 
     #[test]

@@ -69,7 +69,7 @@ TrenchBroom group, and they wrap every brush in that group:
 
 | Entity | Wraps the geometry in |
 | --- | --- |
-| `nif_node_billboard` | A billboard: the geometry turns to face the camera, pivoting at the marker. Morrobroom writes every billboard as **Always Face Camera**; the other modes in the list are not stored yet. |
+| `nif_node_billboard` | A billboard: the geometry turns to face the camera, pivoting at the marker. `Nif_Billboard_Mode` says how: Always Face Camera (the default), Rotate About Up for things that stay upright, Rigid Face Camera, or Always Face Center. Those four are all a Morrowind NIF can hold, and OpenMW draws the last one as Always Face Camera. |
 | `nif_node_sort_adjust` | A sort node: `Nif_Sort_Mode` Inherit, Off or Subsort, for transparent geometry that sorts badly. |
 | `nif_node_collision_root` | Nothing visible: it moves the mesh's collision node (`RootCollisionNode`) to the marker, without moving the collision itself. One per mesh; any more are ignored with a warning. |
 

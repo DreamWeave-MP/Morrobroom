@@ -169,6 +169,8 @@
 // -----------------------------------------------------------------------------
 // Structural markers apply to the containing TrenchBroom group.
 
+// A Morrowind NIF stores a billboard's mode in two bits of the node's flags, so
+// it has these four. OpenMW draws Always Face Center as Always Face Camera.
 @PointClass size(-8 -8 -8, 8 8 8) color(128 192 255) base(NifLinks) = nif_node_billboard : "NIF Billboard Node"
 [
     Nif_Billboard_Mode(choices) : "Billboard mode" =
@@ -177,9 +179,6 @@
         1 : "Rotate About Up"
         2 : "Rigid Face Camera"
         3 : "Always Face Center"
-        4 : "Rigid Face Center"
-        5 : "Rotate About Up (Bethesda)"
-        9 : "Rotate About Up 2"
     ]
 ]
 
