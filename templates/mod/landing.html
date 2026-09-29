@@ -76,7 +76,7 @@
                 <a class="dw-button" href="modl://{{ project.game }}/?url={{ primary_source.url | safe }}" title="Hand the archive to umo or ModdingLinked MO2">Mod manager</a>
                 {%- endif %}
                 {%- if project.format == "crate" and not dw_offline %}<a class="dw-button" href="{% if project.crate_release %}{{ project.crate_release.url | safe }}{% else %}{{ project.links.crate | safe }}{% endif %}">crates.io{% if project.crate_release %} <span class="dw-button__meta">{{ project.crate_release.version }}</span>{% endif %}</a>{% endif %}
-                {%- if "install" in sections %}<a class="dw-button" href="#install">{% if project.format == "crate" %}Add it{% else %}Install guide{% endif %}</a>{% endif %}
+                {%- if "install" in sections %}<a class="dw-button" href="#install">{% if project.format == "crate" %}Install{% else %}Install guide{% endif %}</a>{% endif %}
                 {%- if project.links.documentation is defined %}<a class="dw-button" href="{{ project.links.documentation | safe }}">Documentation</a>{% endif %}
                 <a class="dw-button dw-button--ghost" href="{{ project.links.source | safe }}">Source</a>
                 <a class="dw-button dw-button--ghost" href="{{ project.links.issues | safe }}">Report a problem</a>

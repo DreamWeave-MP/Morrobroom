@@ -215,16 +215,23 @@ class ReleaseState:
 def release_state(repository: Repository, project: Project) -> ReleaseState:
     """Published: recorded in mod.lock, which CI only does for a pushed tag. Unverified: tagged,
     but never recorded, like tags from before this template. Planned: declared, not tagged yet.
-    On registry: a crate's tagged versions, which StroggForge published to crates.io; the
-    manifest lists none of them, because crates.io, not this site, distributes a crate."""
+    On registry: a crate's versions on crates.io, which the manifest does not list, because
+    crates.io, not this site, distributes a crate. A version is there once StroggForge published
+    its tag, and so is any version older than a tagged one: crates published before a repository
+    tagged its releases count, and only versions newer than every tag are planned."""
     locked = {release.version: release for release in repository.locks[project.id]}
     published, unverified, planned, on_registry = [], [], [], []
+    if project.package_format == "crate":
+        tagged = [declared.version for declared in project.releases if gitrepo.tag_revision(project.release_tag(declared.version))]
+        newest_tag = max(tagged, key=lambda version: version.precedence_key(), default=None)
+        for declared in project.releases:
+            released = declared.version in tagged or newest_tag is not None and declared.version.precedence_key() < newest_tag.precedence_key()
+            (on_registry if released else planned).append(str(declared.version))
+        return ReleaseState(published=published, unverified=unverified, planned=planned, on_registry=on_registry)
     for declared in project.releases:
         tag = project.release_tag(declared.version)
         record = locked.get(declared.version)
-        if project.package_format == "crate":
-            (on_registry if gitrepo.tag_revision(tag) else planned).append(str(declared.version))
-        elif record:
+        if record:
             published.append(records.PublishedRelease(declared=declared, locked=record, tag=tag, revision=record.locked_from or None, channel=declared.channel, date=declared.date))
         elif gitrepo.tag_revision(tag):
             unverified.append(str(declared.version))

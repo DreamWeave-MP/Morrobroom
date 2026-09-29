@@ -93,7 +93,7 @@ def crate_checks(project: Project, state, manifest: dict) -> list[dict]:
     crate_url = manifest["project"]["links"]["crate"]
     checks = []
     if state.on_registry:
-        checks.append({"id": "releases", "label": "Released to crates.io", "state": "pass", "detail": f"{', '.join(state.on_registry)}: tagged, and published by StroggForge's crate workflow"})
+        checks.append({"id": "releases", "label": "Released to crates.io", "state": "pass", "detail": f"{', '.join(state.on_registry)}: tagged, or older than a tagged version; StroggForge publishes each tag"})
     else:
         checks.append({"id": "releases", "label": "Released to crates.io", "state": "warn", "detail": "no version is tagged yet; the crate is not on crates.io"})
     if state.planned:

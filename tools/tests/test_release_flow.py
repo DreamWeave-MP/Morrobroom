@@ -111,6 +111,11 @@ dependents = ["someone/abacus"]
 benchmarks = true
 
 [[releases]]
+version = "0.9.0"
+date = 2025-12-01
+summary = "Published before the repository tagged its releases."
+
+[[releases]]
 version = "1.0.0"
 date = 2026-01-02
 summary = "First."
@@ -344,9 +349,10 @@ class ReleaseLifecycle(unittest.TestCase):
         entry = next(entry for entry in load(self.root, "static/dreamweave.json")["projects"] if entry["id"] == LEDGER_ID)
         self.assertEqual(entry["updated"], "2026-01-02")
         facts = load(self.root, "static/dreamweave/view.json")["projects"]["ledger/"]
-        self.assertEqual(facts["planned"], ["1.1.0"])
+        self.assertEqual(facts["planned"], ["1.1.0"], "0.9.0 has no tag, but 1.0.0 does: it was published before tagging began")
         checks = {check["id"]: check for check in facts["checks"]}
         self.assertEqual(checks["releases"]["state"], "pass")
+        self.assertIn("0.9.0, 1.0.0", checks["releases"]["detail"])
         self.assertIn("push the tag 1.1.0", checks["planned"]["detail"])
         if jsonschema:
             self.assertEqual(schema_errors(manifest, "modManifest-2.schema.json"), [])

@@ -361,6 +361,9 @@
   list-style: none
 
 .dw-release
+  // A grid item grows to fit its widest child; without this, a code block in the notes widens the
+  // page instead of scrolling.
+  min-width: 0
   border: 1px solid var(--dw-line)
   border-left: 3px solid var(--dw-accent-strong)
   border-radius: var(--dw-radius)
