@@ -1,40 +1,38 @@
 # Notes for whoever works on the compiler next
 
-Found on 2026-09-28 while rewriting the manual against the source. The manual describes what the
-code does today; these are the places where that differs from what the FGDs, comments or older docs
-promised.
-
-## Bugs
-
-All four fixed on 2026-09-28: the bake reads `ESM3_light_color`, `ESM3_Ambient_color` and
-`ESM3_Radius`; `parse_string` lets `'` appear inside `"..."`; the FGD now describes `ESM3_Model` as
-the generated mesh's output path. `clip` needed nothing: visible geometry comes from the render mesh,
-which drops it, so a `clip` face only collides.
+What is still open after the 2026-09-29 round of fixes. Everything else these notes used to list is
+fixed, with a test, in the commits of that day.
 
 ## Declared in the FGDs, not compiled
 
-Each of these appears in TrenchBroom's entity browser, and placing one compiles to nothing:
-`process_point_entities` prints `Unidentified point entity class: <class>` and moves on.
+Both stay in TrenchBroom's entity browser as previews. Their descriptions end in "(preview, not
+compiled)", and the compiler prints `<class> is an editor preview and is not compiled yet`.
 
-- **Records placed from the generated catalog** (`MorrowindObjects.fgd`, from `morrobroom fgd`).
-  The catalog is useful for browsing and previews, but only `Light_Point*`, `world_CreatureList`
-  and `world_ItemList` point entities become references. `info_player_start` is a scale reference
-  and also reaches that branch.
-- **`nif_fx_fire`** and the **VFX catalog** (`VFX.fgd`, Kurpulio's meshbank previews).
-- **`Nif_UV_Mode` Oscillate.** Only Scroll is built (`mesh.rs:629`); Oscillate prints a warning and
-  `Nif_UV_Period` is unused.
-- **`Nif_Billboard_Mode` other than 0.** `insert_render_marker` (`mesh.rs:237`) prints "cannot store
-  billboard mode" and writes the default NiBillboardNode; the FGD offers seven modes.
-- **Armor and clothing.** `item_Armor` is commented out in `Morrowind.fgd`.
-- **Smooth Shading**, the face attribute `GameConfig.cfg` itself marks "not yet implemented".
+- **`nif_fx_fire`** (`Nif.fgd`). Compiling it means generating a particle system (NiBSParticleNode,
+  NiRotatingParticles, a particle controller and its modifiers) from the `Nif_Fire_*` properties,
+  and checking the result in OpenMW and Morrowind; unit tests cannot say whether it looks like fire.
+- **The VFX catalog** (`VFX.fgd`, `vfx_kurp_*`). Each entity previews one geometry block of
+  Kurpulio's `kurpmesh-uv-y-5sec.nif` (`resources/kurpulio_vfx_inventory.csv` maps entity to
+  block). Compiling one means finding that NIF in the user's VFS, which Morrobroom cannot ship and
+  does not know the path of, and copying the block out under the entity's NIF properties.
 
 ## Loose ends
 
-- `broom_args.rs:145` justifies the `FGD` variant with "FGD is the established command spelling and
-  appears in the CLI contract", but clap exposes the subcommand as `fgd` and the tests call it
-  that. The manual used to say `morrobroom FGD`, which fails with "unrecognized subcommand"; it now
-  says `fgd`. Either rename the command or reword the comment.
-- `morrobroom --help` describes `nif2map` but not `compile` or `fgd`: their variants have no doc
-  comments.
-- `fgd --types` rejected the uppercase record tags the manual showed. Commit 2bce2e5 made it
-  case-insensitive; that is the only code change made during the docs work.
+- **Brush entities read `mangle` in a convention of their own.** TrenchBroom writes `mangle` as
+  pitch, yaw and roll about its Z-up axes, `Rz(yaw) * Ry(pitch) * Rx(roll)`, for brush entities as
+  well as point entities (`TrenchBroom/lib/TbMdlLib/src/EntityRotation.cpp`). Point entities are
+  read that way (`point_entity_rotation` in `main.rs`). Brush entities go through `get_rotation`,
+  which treats it as a Y-up ZYX rotation. The mesh is counter-rotated by the same angles, so a
+  brush entity looks right in game either way; what differs is its local axes when it has pitch or
+  roll, which shows once an item is picked up and dropped. `get_rotation`'s test and the NIF
+  torture map pin the current reading, so changing it is a decision, not a fix.
+- **nif2map does not import oscillating UVs.** It recognizes linear Scroll keys only, so a mesh
+  compiled with `Nif_UV_Mode` Oscillate comes back with a diagnostic and no `Nif_UV_*` properties.
+  Recognizing Morrobroom's own five quadratic keys (0, A, 0, -A, 0 at quarter periods) would do.
+- **Catalog light boxes ignore `fgd --scale`.** Non-carryable lights get a box of half their
+  radius (`write_fgd_prop.rs`, `impl WriteFGDProp for Light`), which is the right size only at the
+  default scale of 2.0; the writer is not given the scale.
+- **Catalog display names are FGD-token encoded.** `ESM3_Name` defaults read like
+  `Caius_x20_Cosades`. The compiler never reads them for catalog placements, so this is cosmetic.
+- **Placed records do not add masters.** A catalog placement references a record from another
+  plugin without listing that plugin in the header. OpenMW resolves it by ID; the manual says so.
