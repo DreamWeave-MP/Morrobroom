@@ -1,0 +1,35 @@
+{#- {{ pipeline(data_path="data/pipeline/x.json") }}: a left-to-right flow of stages joined by
+    connectors, with pieces that hang off a stage drawn beneath it. The file has `title`, an
+    optional `description` and `id`, and `stages`, each with a `title` and optional `kind`,
+    `detail` and `page` (an `@/` path). `alongside` entries name the stage they hang off (`from`,
+    counted from 1), a short `label` for the link, and a `title`, `detail` and `page` of their own.
+    Styled in sass/_pipeline.sass. From the l3i site. -#}
+{%- set figure = load_data(path=data_path, format="json") -%}
+{%- set figure_id = figure.id | default(value="pipeline") -%}
+{%- set count = figure.stages | length -%}
+<figure class="dw-pipeline" aria-labelledby="{{ figure_id }}-title" style="--stages: {{ count }}">
+  <figcaption class="dw-pipeline__caption">
+    <h2 id="{{ figure_id }}-title">{{ figure.title }}</h2>
+    {%- if figure.description %}<p>{{ figure.description }}</p>{% endif %}
+  </figcaption>
+  <ol class="dw-pipeline__stages">
+  {%- for stage in figure.stages %}
+    <li class="dw-pipeline__stage dw-pipeline__stage--{{ stage.kind | default(value="step") }}">
+      <span class="dw-pipeline__index" aria-hidden="true">{{ loop.index }}</span>
+      {%- if stage.page %}<a class="dw-pipeline__title" href="{{ get_url(path=stage.page) | safe }}">{{ stage.title }}</a>{% else %}<span class="dw-pipeline__title">{{ stage.title }}</span>{% endif %}
+      {%- if stage.detail %}<p>{{ stage.detail }}</p>{% endif %}
+    </li>
+  {%- endfor %}
+  </ol>
+  {%- if figure.alongside %}
+  <ul class="dw-pipeline__alongside" aria-label="Alongside the flow">
+  {%- for piece in figure.alongside %}
+    <li class="dw-pipeline__piece" style="--from: {{ piece.from }}">
+      <span class="dw-pipeline__label">{{ piece.label }}</span>
+      {%- if piece.page %}<a class="dw-pipeline__title" href="{{ get_url(path=piece.page) | safe }}">{{ piece.title }}</a>{% else %}<span class="dw-pipeline__title">{{ piece.title }}</span>{% endif %}
+      {%- if piece.detail %}<p>{{ piece.detail }}</p>{% endif %}
+    </li>
+  {%- endfor %}
+  </ul>
+  {%- endif %}
+</figure>

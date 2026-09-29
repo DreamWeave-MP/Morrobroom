@@ -1,0 +1,186 @@
+// The pipeline figure ({{ pipeline() }}, templates/shortcodes/pipeline.html): stages in a row,
+// joined by connectors that carry the accent, and the pieces that hang off a stage beneath it,
+// each tied to its stage by a stem. Two columns on tablets, one on phones, where the flow turns
+// downward.
+
+.dw-pipeline
+  margin: 2.2em 0
+  padding: var(--dw-space-5) var(--dw-space-5) var(--dw-space-6)
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius-lg)
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in oklab, var(--dw-accent) 9%, transparent), transparent 70%), var(--dw-bg-1)
+  box-shadow: var(--dw-sheen)
+
+.dw-pipeline__caption
+  max-width: var(--dw-width-prose)
+  margin-bottom: var(--dw-space-5)
+
+  h2
+    margin: 0 0 .4rem
+    font-size: var(--dw-step-2)
+
+  p
+    margin: 0
+    color: var(--dw-text-muted)
+
+.dw-pipeline__stages,
+.dw-pipeline__alongside
+  display: grid
+  grid-template-columns: repeat(var(--stages), minmax(0, 1fr))
+  gap: 2rem
+  margin: 0
+  padding: 0
+  list-style: none
+
+.dw-pipeline__stage,
+.dw-pipeline__piece
+  position: relative
+  // The prose list rule spaces list items apart; these are cards on a grid.
+  margin: 0 !important
+  padding: 1rem 1.1rem 1.1rem
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  background: var(--dw-bg-2)
+  font-size: .9rem
+  transition: border-color var(--dw-duration) var(--dw-ease), box-shadow var(--dw-duration) var(--dw-ease)
+
+  &:hover
+    border-color: var(--dw-accent-line)
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--dw-accent) 25%, transparent), var(--dw-shadow-2)
+
+  p
+    margin: .45em 0 0
+    color: var(--dw-text-muted)
+    line-height: 1.5
+
+.dw-pipeline__title
+  display: block
+  color: var(--dw-text)
+  font-family: var(--dw-font-display)
+  font-size: 1.02rem
+  font-weight: 700
+  letter-spacing: .01em
+  text-decoration: none
+
+  &:hover
+    color: var(--dw-accent)
+
+.dw-pipeline__index
+  display: inline-block
+  margin-bottom: .55rem
+  padding: .1em .55em
+  border-radius: var(--dw-radius-pill)
+  background: var(--dw-accent-soft)
+  color: var(--dw-accent)
+  font-family: var(--dw-font-mono)
+  font-size: .72rem
+  letter-spacing: .12em
+
+// The connector: a line out of each stage's right edge into the next, tipped with a chevron.
+.dw-pipeline__stage:not(:last-child)::after
+  content: ""
+  position: absolute
+  top: 50%
+  left: 100%
+  width: 2rem
+  height: 2px
+  background: linear-gradient(90deg, var(--dw-accent-line), var(--dw-accent))
+  transform: translateY(-50%)
+  pointer-events: none
+
+.dw-pipeline__stage:not(:last-child)::before
+  content: ""
+  position: absolute
+  top: 50%
+  left: calc(100% + 2rem - .55rem)
+  width: .5rem
+  height: .5rem
+  border-top: 2px solid var(--dw-accent)
+  border-right: 2px solid var(--dw-accent)
+  transform: translateY(-50%) rotate(45deg)
+  pointer-events: none
+  z-index: 1
+
+// A piece sits under the stage it hangs off, tied to it by a stem from the stage's bottom edge.
+.dw-pipeline__alongside
+  margin-top: 2.6rem
+
+.dw-pipeline__piece
+  grid-column: var(--from)
+  border-style: dashed
+  background: color-mix(in oklab, var(--dw-bg-2) 70%, var(--dw-bg-1))
+
+  &::before
+    content: ""
+    position: absolute
+    left: 50%
+    bottom: 100%
+    width: 2px
+    height: 2.6rem
+    background: linear-gradient(180deg, var(--dw-accent-line), var(--dw-accent))
+    transform: translateX(-50%)
+    pointer-events: none
+
+  &::after
+    content: ""
+    position: absolute
+    left: 50%
+    bottom: calc(100% - .3rem)
+    width: .5rem
+    height: .5rem
+    border-right: 2px solid var(--dw-accent)
+    border-bottom: 2px solid var(--dw-accent)
+    transform: translateX(-50%) rotate(45deg)
+    pointer-events: none
+
+.dw-pipeline__label
+  display: block
+  margin-bottom: .35rem
+  color: var(--dw-accent)
+  font-family: var(--dw-font-mono)
+  font-size: .72rem
+  letter-spacing: .12em
+  text-transform: uppercase
+
+@media (max-width: 1100px)
+  .dw-pipeline__stages,
+  .dw-pipeline__alongside
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+
+  .dw-pipeline__stage:nth-child(2n)::after,
+  .dw-pipeline__stage:nth-child(2n)::before
+    display: none
+
+  .dw-pipeline__piece
+    grid-column: auto
+
+    &::before,
+    &::after
+      display: none
+
+@media (max-width: 640px)
+  .dw-pipeline
+    padding: var(--dw-space-4)
+
+  .dw-pipeline__stages,
+  .dw-pipeline__alongside
+    grid-template-columns: minmax(0, 1fr)
+    gap: 1.6rem
+
+  .dw-pipeline__stage::after,
+  .dw-pipeline__stage::before
+    display: none
+
+  .dw-pipeline__stage:not(:last-child)::after
+    display: block
+    top: 100%
+    left: 50%
+    width: 2px
+    height: 1.6rem
+    transform: translateX(-50%)
+    background: linear-gradient(180deg, var(--dw-accent-line), var(--dw-accent))
+
+@media (prefers-reduced-motion: reduce)
+  .dw-pipeline__stage,
+  .dw-pipeline__piece
+    transition: none

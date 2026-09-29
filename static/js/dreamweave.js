@@ -1,6 +1,7 @@
 // DreamWeave Mod Template: progressive enhancement. Every page works without this file;
-// it adds search, copy buttons, the screenshot viewer, the openmw.cfg configurator, and marks
-// the visitor's own platform among a program's downloads.
+// it adds search, copy buttons, the narrow header's search and menu buttons, the screenshot
+// viewer, the openmw.cfg configurator, and marks the visitor's own platform among a program's
+// downloads.
 (() => {
   'use strict';
 
@@ -50,14 +51,64 @@
     flash(button, await copyText(text) ? 'Copied' : 'Copy failed');
   });
 
+  // A code block goes in a frame that holds its copy button, so the button stays in the corner
+  // while the code scrolls sideways under it.
   for (const code of document.querySelectorAll('pre > code')) {
+    const block = code.parentElement;
+    const frame = document.createElement('div');
+    frame.className = 'dw-code';
+    block.before(frame);
+    frame.append(block);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'dw-copy';
     button.textContent = 'Copy';
     button.setAttribute('data-copy-code', '');
     button.setAttribute('aria-label', 'Copy code to clipboard');
-    code.parentElement.append(button);
+    frame.append(button);
+  }
+
+  // A Markdown table gets the frame the template's own tables have: it scrolls inside it, and
+  // spans the column when it is narrower.
+  for (const table of document.querySelectorAll('.dw-prose table, .docs-article table')) {
+    if (table.parentElement.classList.contains('dw-table-scroll')) continue;
+    const frame = document.createElement('div');
+    frame.className = 'dw-table-scroll';
+    table.before(frame);
+    frame.append(table);
+  }
+
+  // Header --------------------------------------------------------------------------------------
+  // Below 900px the search waits behind a button, and a menu of four links or more behind
+  // another. Without this script both stay in view.
+
+  const header = document.querySelector('.dw-header');
+  const headerTools = header?.querySelector('[data-header-tools]');
+  const searchToggle = headerTools?.querySelector('[data-search-toggle]');
+  const menuToggle = headerTools?.querySelector('[data-menu-toggle]');
+  const setOpen = (button, state, open) => {
+    if (!button) return;
+    header.classList.toggle(state, open);
+    button.setAttribute('aria-expanded', String(open));
+  };
+  if (headerTools) {
+    if (searchToggle && !header.querySelector('#dw-search-input')) searchToggle.remove();
+    headerTools.hidden = false;
+    searchToggle?.addEventListener('click', () => {
+      const open = !header.classList.contains('is-searching');
+      setOpen(searchToggle, 'is-searching', open);
+      setOpen(menuToggle, 'is-menu-open', false);
+      if (open) header.querySelector('#dw-search-input')?.focus();
+    });
+    menuToggle?.addEventListener('click', () => {
+      setOpen(menuToggle, 'is-menu-open', !header.classList.contains('is-menu-open'));
+      setOpen(searchToggle, 'is-searching', false);
+    });
+    header.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !header.classList.contains('is-menu-open')) return;
+      setOpen(menuToggle, 'is-menu-open', false);
+      menuToggle.focus();
+    });
   }
 
   // Search ------------------------------------------------------------------------------------
@@ -170,6 +221,10 @@
       } else if (event.key === 'Escape') {
         results.hidden = true;
         searchInput.blur();
+        if (header?.classList.contains('is-searching')) {
+          setOpen(searchToggle, 'is-searching', false);
+          searchToggle?.focus();
+        }
       }
     });
     list.addEventListener('keydown', event => {
@@ -190,6 +245,7 @@
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
       if (event.key === '/' && !typing) {
         event.preventDefault();
+        setOpen(searchToggle, 'is-searching', true);
         searchInput.focus();
       }
     });

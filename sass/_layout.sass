@@ -1,171 +1,411 @@
 // Page chrome: shell, header, footer, the article column and the project two-column grid.
+//
+// Widths: a phone below 760px, a tablet to 1100px, a desktop above. The header folds its search
+// (and a menu of four links or more) behind buttons below 900px.
 
 .dw-shell
   width: 100%
   max-width: var(--dw-width-page)
   margin: 0 auto
-  padding: 0 clamp(12px, 3vw, 32px)
+  padding: 0 var(--dw-gutter)
+
+// Header --------------------------------------------------------------------------------------
 
 .dw-header
   position: relative
-  z-index: 10
-  border-top: 3px solid var(--dw-accent-strong)
+  z-index: 30
   border-bottom: 1px solid var(--dw-line)
   background: var(--dw-bg-1)
 
+  // The accent along the top edge, bright at the brand and fading out.
+  &::before
+    content: ""
+    position: absolute
+    inset: 0 0 auto
+    height: 2px
+    background: linear-gradient(90deg, var(--dw-accent), var(--dw-accent-strong) 30%, transparent 85%)
+    pointer-events: none
+
 .dw-header__inner
   display: grid
-  grid-template-columns: auto minmax(0, 1fr) minmax(12rem, 22rem)
-  gap: 1rem 1.5rem
+  grid-template-columns: auto minmax(0, 1fr) minmax(13rem, 21rem)
+  grid-template-areas: "brand nav search"
+  gap: var(--dw-space-2) var(--dw-space-6)
   align-items: center
-  min-height: 3.6rem
+  min-height: 4rem
+  padding-block: var(--dw-space-2)
 
 .dw-brand
+  grid-area: brand
   display: inline-flex
-  gap: .6em
+  gap: .65em
   align-items: center
+  min-width: 0
+  min-height: var(--dw-control)
   color: var(--dw-text)
   font-family: var(--dw-font-display)
+  font-size: var(--dw-step-1)
   font-weight: 700
   letter-spacing: -.02em
+  line-height: 1.15
   text-decoration: none
-  white-space: nowrap
 
   img
-    width: 26px
-    height: 26px
+    width: 28px
+    height: 28px
 
   &:hover
     color: var(--dw-accent-hover)
 
-.dw-brand__mark
-  display: inline-block
-  width: .7em
-  height: .7em
-  border: 2px solid var(--dw-accent)
-  transform: rotate(45deg)
+    .dw-brand__mark
+      transform: rotate(135deg)
 
+// A long name wraps onto a second line rather than losing its end.
+.dw-brand__name
+  min-width: 0
+  overflow-wrap: anywhere
+  text-wrap: balance
+
+.dw-brand__mark
+  flex: none
+  display: inline-block
+  width: .72em
+  height: .72em
+  border: 2px solid var(--dw-accent)
+  border-radius: 1px
+  box-shadow: 0 0 10px color-mix(in oklab, var(--dw-accent) 45%, transparent)
+  transform: rotate(45deg)
+  transition: transform .4s var(--dw-ease)
+
+// The site's links: a row while they fit, a strip that scrolls sideways when they do not, and a
+// menu behind a button on a narrow screen when there are four or more.
 .dw-nav
+  grid-area: nav
   display: flex
-  flex-wrap: wrap
-  gap: .15rem .25rem
+  gap: var(--dw-space-1)
+  min-width: 0
+  overflow-x: auto
+  overscroll-behavior-x: contain
+  scrollbar-width: none
   font-family: var(--dw-font-mono)
-  font-size: .82rem
+  font-size: var(--dw-step--1)
+
+  &::-webkit-scrollbar
+    display: none
 
   a
-    padding: .35em .6em
+    position: relative
+    display: inline-flex
+    flex: none
+    align-items: center
+    min-height: var(--dw-control)
     border-radius: var(--dw-radius)
+    padding: 0 .85em
     color: var(--dw-text-muted)
     text-decoration: none
+    white-space: nowrap
+    transition: background var(--dw-duration) var(--dw-ease), color var(--dw-duration) var(--dw-ease)
 
     &:hover
-      background: var(--dw-bg-3)
+      background: var(--dw-bg-2)
       color: var(--dw-text)
 
+    &:focus-visible
+      outline-offset: -2px
+
     &[aria-current="page"]
+      background: var(--dw-accent-soft)
       color: var(--dw-accent)
-      box-shadow: inset 0 -2px 0 var(--dw-accent)
+
+// A tablet held sideways gets the desktop header, and still a finger's worth of link.
+@media (pointer: coarse)
+  .dw-nav a
+    min-height: var(--dw-touch)
+
+.dw-header .dw-search
+  grid-area: search
+
+// The narrow screen's search and menu buttons. The script un-hides them.
+.dw-header__tools
+  grid-area: tools
+  display: none
+  gap: var(--dw-space-2)
+  align-items: center
+
+.dw-header__menu
+  display: none
+
+@media (max-width: 899px)
+  .dw-header__inner
+    grid-template-columns: minmax(0, 1fr) auto
+    grid-template-areas: "brand tools" "nav nav" "search search"
+    gap: 0 var(--dw-space-3)
+    min-height: 3.5rem
+    padding-block: var(--dw-space-1)
+
+  .dw-header__tools
+    display: flex
+
+  // The strip runs to the screen's edges and fades where it scrolls on.
+  .dw-nav
+    margin-inline: calc(-1 * var(--dw-gutter))
+    padding: 0 calc(var(--dw-gutter) + 1.5rem) var(--dw-space-1) var(--dw-gutter)
+    mask-image: linear-gradient(90deg, black calc(100% - 2.5rem), transparent)
+
+    a
+      min-height: var(--dw-touch)
+
+  .dw-header .dw-search
+    padding-bottom: var(--dw-space-3)
+
+  // With the script, the search waits behind its button.
+  .dw-js .dw-header .dw-search
+    display: none
+
+  .dw-js .dw-header.is-searching .dw-search
+    display: block
+
+  // And four links or more become a menu.
+  .dw-js .dw-header--menu .dw-header__menu
+    display: inline-flex
+
+  .dw-js .dw-header--menu .dw-nav
+    display: none
+
+  .dw-js .dw-header--menu.is-menu-open .dw-nav
+    display: grid
+    gap: 2px
+    margin: 0 0 var(--dw-space-3)
+    border-top: 1px solid var(--dw-line)
+    padding: var(--dw-space-2) 0 0
+    mask-image: none
+    font-size: var(--dw-step-0)
+
+    a
+      padding: 0 var(--dw-space-3)
+
+// On a phone the menu button is its icon; its name stays for screen readers.
+@media (max-width: 479px)
+  .dw-header__menu
+    padding-inline: 0
+
+  .dw-header__menu-label
+    position: absolute
+    width: 1px
+    height: 1px
+    overflow: hidden
+    clip-path: inset(50%)
+    white-space: nowrap
+
+// Main and footer -----------------------------------------------------------------------------
+
+// A short page still ends in the footer at the bottom of the screen.
+body
+  display: flex
+  flex-direction: column
 
 .dw-main
   display: block
-  padding: 1.5rem 0 3rem
+  flex: 1 0 auto
+  padding: var(--dw-space-6) 0 var(--dw-space-8)
+
+  &:focus
+    outline: none
 
   // A hero is the top of its page: no gap between it and the header.
   > .dw-hero:first-child
-    margin-top: -1.5rem
+    margin-top: calc(-1 * var(--dw-space-6))
 
 .dw-footer
   border-top: 1px solid var(--dw-line)
   background: var(--dw-bg-1)
   color: var(--dw-text-faint)
-  font-size: .82rem
+  font-size: var(--dw-step--1)
 
 .dw-footer__inner
   display: flex
   flex-wrap: wrap
-  gap: .5rem 1.5rem
+  gap: var(--dw-space-3) var(--dw-space-6)
   align-items: center
   justify-content: space-between
-  padding-block: 1.1rem
+  padding-block: var(--dw-space-5)
+
+.dw-footer__about
+  display: inline-flex
+  gap: .7em
+  align-items: center
+  margin: 0
+  color: var(--dw-text-muted)
+
+  .dw-brand__mark
+    width: .6em
+    height: .6em
+    box-shadow: none
 
 .dw-footer__links
   display: flex
   flex-wrap: wrap
-  gap: .3rem 1rem
+  gap: var(--dw-space-1) var(--dw-space-2)
+  align-items: center
   font-family: var(--dw-font-mono)
 
   a
+    display: inline-flex
+    align-items: center
+    min-height: 2rem
+    border-radius: var(--dw-radius)
+    padding: 0 .5em
     color: var(--dw-text-muted)
     text-decoration: none
 
     &:hover
+      background: var(--dw-bg-2)
       color: var(--dw-accent)
 
+// The glider is drawn in black: turned light, and quiet until pointed at.
 .dw-footer__emblem
   width: 20px
   height: 20px
-  opacity: .7
+  opacity: .45
+  filter: invert(1)
   vertical-align: middle
+  transition: opacity var(--dw-duration) var(--dw-ease)
 
-// Reading column for articles and generic pages
+a:hover > .dw-footer__emblem
+  opacity: .85
+
+@media (max-width: 759px)
+  .dw-footer__inner
+    flex-direction: column
+    align-items: flex-start
+
+  .dw-footer__links
+    margin-inline: -.5em
+
+    a
+      min-height: var(--dw-touch)
+
+// Reading column for articles and generic pages -----------------------------------------------
+
 .dw-article
-  max-width: calc(var(--dw-width-prose) + 18rem)
+  max-width: calc(var(--dw-width-prose) + 16rem)
 
+  > header
+    margin-bottom: var(--dw-space-6)
+
+    h1
+      margin-bottom: var(--dw-space-3)
+
+// Text keeps a readable measure; headings, code, tables and figures take the column.
 .dw-prose
-  > p, > ul, > ol, > blockquote, > dl, > h2, > h3, > h4, > h5, > h6
+  > p, > ul, > ol, > blockquote, > dl
     max-width: var(--dw-width-prose)
 
   > h2
-    padding-bottom: .3em
+    margin-top: 2.2em
     border-bottom: 1px solid var(--dw-line)
+    padding-bottom: .4em
+
+  > h3
+    margin-top: 1.8em
 
   li + li
-    margin-top: .25em
+    margin-top: .35em
 
+  li > ul, li > ol
+    margin: .35em 0 0
+
+  // Without the script a table scrolls inside itself; with it, dreamweave.js wraps it in
+  // .dw-table-scroll, which does the scrolling and draws the frame.
   > table
     display: block
+    max-width: 100%
     overflow-x: auto
 
   img
-    border-radius: var(--dw-radius)
+    border-radius: var(--dw-radius-lg)
 
-// Project page: reading column plus a sticky record rail
+  > :last-child
+    margin-bottom: 0
+
+// Project page: reading column plus a sticky record rail ----------------------------------------
+
 .dw-project__body
   display: grid
   grid-template-columns: minmax(0, 1fr) var(--dw-width-rail)
-  gap: 2.25rem
+  gap: var(--dw-space-7)
   align-items: start
-  margin-top: 1.75rem
 
 .dw-project__main
   min-width: 0
 
+  > .dw-section:first-child
+    margin-top: 0
+
 .dw-project__rail
   position: sticky
-  top: 1rem
+  top: var(--dw-space-4)
   display: grid
-  gap: 1rem
+  gap: var(--dw-space-4)
   min-width: 0
+  max-height: calc(100vh - 2rem)
+  overflow-y: auto
+  overscroll-behavior: contain
+  scrollbar-width: thin
+  scrollbar-color: var(--dw-line-strong) transparent
+  // Room for the panels' shadows and focus rings inside the scrolling box
+  margin: -6px
+  padding: 6px
 
-@media (max-width: 1100px)
+@media (max-width: 1099px)
   .dw-project__body
     grid-template-columns: minmax(0, 1fr)
+    gap: var(--dw-space-6)
 
   // Below the page, not above it: the hero already offers the download, and on a phone the
   // record and links would push what the mod is off the first screen.
   .dw-project__rail
     position: static
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr))
+    align-items: start
+    max-height: none
+    overflow: visible
+    margin: 0
+    padding: 0
 
-@media (max-width: 860px)
-  .dw-header__inner
-    grid-template-columns: minmax(0, 1fr) auto
-    padding-block: .6rem
+// A page with nothing to show: the 404.
+.dw-empty
+  display: grid
+  justify-items: center
+  max-width: 40rem
+  padding-block: clamp(2rem, 8vh, 6rem)
+  text-align: center
 
-  .dw-nav
-    grid-column: 1 / -1
-    grid-row: 2
+  h1
+    margin: 0 0 var(--dw-space-3)
 
-  .dw-header .dw-search
-    grid-column: 1 / -1
-    grid-row: 3
+  p
+    color: var(--dw-text-muted)
+    text-wrap: balance
+
+  .dw-actions
+    justify-content: center
+    margin-top: var(--dw-space-3)
+
+.dw-empty .dw-empty__code
+  margin: 0
+  background: linear-gradient(180deg, var(--dw-accent), var(--dw-accent-strong))
+  -webkit-background-clip: text
+  background-clip: text
+  color: transparent
+  font-family: var(--dw-font-display)
+  font-size: clamp(5rem, 3rem + 10vw, 9rem)
+  font-weight: 700
+  letter-spacing: -.04em
+  line-height: 1
+  text-shadow: 0 0 60px color-mix(in oklab, var(--dw-accent) 30%, transparent)
+
+@media (forced-colors: active)
+  .dw-empty .dw-empty__code
+    background: none
+    color: CanvasText

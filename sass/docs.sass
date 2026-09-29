@@ -1,211 +1,302 @@
 // The shared documentation shell: recursive sidebar, breadcrumbs and a page table of contents.
 // Imported by StroggForge (see its site/UPSTREAM.md); keep class names stable.
+//
+// It reads the template's --dw- tokens, each with a fallback to the older names (--accent,
+// --border-color, --color, --background), so a site that only defines those still gets a
+// working shell.
+//
+// Three columns (navigation, page, contents) from 1200px. Below that the contents fold into a
+// button that stays at the top of the page and opens as a drawer; below 768px the navigation
+// does the same, and the two buttons make one bar across the screen. docs.js closes the drawers
+// and marks the shell .docs-shell--ready; without it both panels stay open in the page's flow.
+
+$line: var(--border-color)
+$accent: var(--accent)
+$accent-line: var(--accent-alpha-70)
+$accent-soft: var(--accent-alpha-20)
+$text: var(--color)
+$muted: var(--dw-text-muted, color-mix(in srgb, var(--color) 78%, transparent))
+$faint: var(--dw-text-faint, color-mix(in srgb, var(--color) 60%, transparent))
+$page: var(--dw-bg-0, var(--background))
+$surface: var(--dw-bg-1, var(--background))
+$raised: var(--dw-bg-2, var(--accent-alpha-20))
+$radius: var(--dw-radius, .25em)
+$radius-lg: var(--dw-radius-lg, .4em)
+$mono: var(--dw-font-mono, ui-monospace, monospace)
+$touch: var(--dw-touch, 44px)
+$gutter: var(--dw-gutter, 16px)
+$ease: var(--dw-ease, ease)
+$duration: var(--dw-duration, .15s)
+$measure: var(--dw-width-prose, 78ch)
 
 .docs-usage
   margin: 1.5em 0
   padding: 1em 1.25em
-  border: 1px solid var(--border-color)
-  border-left: 4px solid var(--accent)
-  border-radius: .3em
+  border: 1px solid $line
+  border-left: 4px solid $accent
+  border-radius: $radius-lg
+  background: $surface
   overflow-wrap: anywhere
 
   .docs-usage__title
     margin: 0 0 .5em
-    color: var(--accent)
+    color: $accent
 
   > :last-child
     margin-bottom: 0
 
+// Shell -------------------------------------------------------------------------------------
+
 .docs-shell
   display: grid
-  grid-template-columns: 240px minmax(0, 1fr) 200px
+  grid-template-columns: var(--dw-width-docs-nav, 15rem) minmax(0, 52rem) var(--dw-width-docs-toc, 13rem)
   grid-template-areas: "sidebar main toc"
-  gap: 2.5em
+  justify-content: space-between
+  gap: var(--dw-space-6, 2rem)
   align-items: start
 
+// A page without a contents list keeps the same column for its text, so pages line up.
 .docs-shell--no-toc
-  grid-template-columns: 240px minmax(0, 1fr)
-  grid-template-areas: "sidebar main"
+  grid-template-areas: "sidebar main ."
+
+.docs-main
+  grid-area: main
+  min-width: 0
+
+// Navigation --------------------------------------------------------------------------------
 
 .docs-sidebar
   grid-area: sidebar
-  min-width: 0
   position: sticky
-  top: 1em
-  max-height: calc(100vh - 2em)
+  top: var(--dw-space-4, 1em)
+  min-width: 0
+  max-height: calc(100vh - 2rem)
   overflow-y: auto
-  scrollbar-color: var(--accent-alpha-70) transparent
+  overscroll-behavior: contain
+  scrollbar-color: $accent-line transparent
   scrollbar-gutter: stable
   scrollbar-width: thin
-  border-right: 1px solid var(--border-color)
-  padding-right: .6em
-  font-size: .88rem
+  border-right: 1px solid $line
+  padding-right: .75em
+  font-size: var(--dw-step--1, .9rem)
 
-.docs-sidebar__panel > summary
+// The panel's name: a label beside the page, the drawer's button on a phone.
+.docs-sidebar__panel > summary,
+.docs-toc__panel > summary
+  display: flex
+  gap: .6em
+  align-items: center
   margin-bottom: .6em
-  color: var(--dw-text-faint)
-  font-family: var(--dw-font-mono)
-  font-size: .7rem
+  color: $faint
+  font-family: $mono
+  font-size: var(--dw-step--2, .72rem)
+  font-weight: 600
   letter-spacing: .1em
   text-transform: uppercase
   list-style: none
 
-@media (min-width: 1101px)
+  &::-webkit-details-marker
+    display: none
+
+// On a wide screen the panels are always open and their names are labels, not buttons.
+@media (min-width: 768px)
   .docs-sidebar__panel > summary
     pointer-events: none
 
-.docs-toc__panel
-  > summary
-    color: var(--accent)
-    font-weight: bold
+@media (min-width: 1200px)
+  .docs-toc__panel > summary
+    pointer-events: none
 
 .docs-sidebar ul
   list-style: none
   margin: 0
   padding: 0
 
+.docs-sidebar li
+  margin: 1px 0
+
 .docs-sidebar details > summary
   list-style: none
 
-.docs-sidebar details > summary::before
-  content: "▸"
-  display: inline-block
-  width: 1em
-  color: var(--accent-alpha-70)
-
-.docs-sidebar details[open] > summary::before
-  content: "▾"
-
-.docs-sidebar li
-  margin: .15em 0
+  &::-webkit-details-marker
+    display: none
 
 .docs-sidebar a,
-.docs-sidebar summary
-  display: block
-  padding: .3em .6em
-  border-radius: .2em
+.docs-sidebar details details > summary,
+.docs-sidebar__group-label
+  display: flex
+  gap: .45em
+  align-items: center
+  min-height: 2rem
+  border-radius: $radius
+  padding: .3em .65em
+  line-height: 1.35
   text-decoration: none
+  transition: background $duration $ease, color $duration $ease
+
+// A folder's chevron: right when closed, down when open. Folders are the details inside the
+// panel's own.
+.docs-sidebar details details > summary::before
+  content: ""
+  flex: none
+  width: .38em
+  height: .38em
+  margin: 0 .15em 0 -.1em
+  border-right: 1.5px solid $accent-line
+  border-bottom: 1.5px solid $accent-line
+  transform: rotate(-45deg)
+  transition: transform $duration $ease
+
+.docs-sidebar details details[open] > summary::before
+  transform: rotate(45deg)
 
 .docs-sidebar a
-  color: var(--color)
-  opacity: .78
+  color: $muted
 
 .docs-sidebar a:hover,
 .docs-sidebar a:focus-visible,
-.docs-sidebar summary:hover
-  background: var(--accent-alpha-20)
-  color: var(--accent)
-  opacity: 1
+.docs-sidebar details details > summary:hover,
+.docs-sidebar__group-label:hover
+  background: $raised
+  color: $text
 
 .docs-sidebar a.is-current
-  background: var(--accent-alpha-20)
-  color: var(--accent)
-  font-weight: bold
-  opacity: 1
+  background: $accent-soft
+  box-shadow: inset 2px 0 0 $accent
+  color: $accent
+  font-weight: 600
 
 .docs-sidebar summary.is-current,
 .docs-sidebar summary.is-ancestor
-  color: var(--color)
-  opacity: 1
+  color: $text
 
-.docs-sidebar__section > details > ul
-  padding-left: 1em
+.docs-sidebar__home
+  font-weight: 600
 
 .docs-sidebar__group-label
-  display: block
-  padding: .3em .6em
-  color: var(--color)
+  color: $text
   font-size: inherit
-  font-weight: bold
+  font-weight: 600
   letter-spacing: normal
-  opacity: .82
-
-.docs-sidebar__group > details > ul
-  padding-left: .7em
 
 .docs-sidebar__section
   margin-top: .35em
 
 .docs-sidebar__section > details > summary
-  color: var(--color)
-  font-weight: bold
-
-.docs-sidebar__overview
-  margin-left: 1em
-  color: var(--color)
-  opacity: .72
-
-.docs-sidebar__overview.is-current
-  color: var(--accent)
-  font-weight: bold
-  opacity: 1
+  color: $text
+  font-weight: 600
 
 .docs-sidebar__section > details:not([open]) > summary
-  opacity: .8
+  color: $muted
 
-.docs-main
-  grid-area: main
-  min-width: 0
+// Nested pages hang off a guide line.
+.docs-sidebar__section > details > ul,
+.docs-sidebar__group > details > ul
+  margin: 1px 0 .35em .95em
+  border-left: 1px solid $line
+  padding-left: .45em
+
+// A section's own page lines up with the pages under it.
+.docs-sidebar__overview
+  margin-left: calc(1.4em + 1px)
+  color: $muted
+
+.docs-sidebar__overview.is-current
+  color: $accent
+  font-weight: 600
+
+@media (pointer: coarse)
+  .docs-sidebar a,
+  .docs-sidebar details details > summary,
+  .docs-sidebar__group-label
+    min-height: $touch
+
+// Breadcrumbs and page header ---------------------------------------------------------------
 
 .docs-breadcrumbs
   display: flex
   flex-wrap: wrap
-  gap: .45em
-  margin-bottom: 1em
-  color: var(--color)
-  font-size: .85em
-  opacity: .8
+  gap: .15em .5em
+  align-items: center
+  margin-bottom: var(--dw-space-4, 1em)
+  color: $faint
+  font-size: var(--dw-step--1, .85em)
 
   a
-    color: var(--accent-alpha-70)
+    color: $muted
     text-decoration: none
 
+    &:hover
+      color: $accent
+      text-decoration: underline
+
+  [aria-current="page"]
+    color: $text
+
+@media (pointer: coarse)
+  .docs-breadcrumbs a
+    position: relative
+
+    &::after
+      content: ""
+      position: absolute
+      inset: -12px -4px
+
 .docs-page-header
-  margin-bottom: 2em
-  border-bottom: 1px solid var(--border-color)
-  padding-bottom: 1em
+  margin-bottom: var(--dw-space-6, 2em)
+  border-bottom: 1px solid $line
+  padding-bottom: var(--dw-space-5, 1.25em)
 
   h1
-    margin: .15em 0 .35em
-    color: var(--accent)
+    margin: .2em 0 .3em
+    color: $text
 
   p
-    max-width: 78ch
+    max-width: $measure
     margin: 0
-    opacity: .8
+    color: $muted
+    font-size: var(--dw-step-1, 1.1em)
+    line-height: 1.55
 
 .docs-kind
-  color: var(--accent)
-  font-size: .75em
-  font-weight: bold
+  display: inline-block
+  color: $accent
+  font-family: $mono
+  font-size: var(--dw-step--2, .75em)
+  font-weight: 700
   letter-spacing: .12em
   text-transform: uppercase
+
+// Article -----------------------------------------------------------------------------------
 
 .docs-article
   min-width: 0
 
+// Text keeps a readable measure; headings, code, tables and diagrams take the column.
 .docs-article > p,
 .docs-article > ul,
 .docs-article > ol,
-.docs-article > blockquote,
-.docs-article > h2,
-.docs-article > h3,
-.docs-article > h4,
-.docs-article > h5,
-.docs-article > h6
-  max-width: 78ch
+.docs-article > blockquote
+  max-width: $measure
+
+.docs-article li + li
+  margin-top: .35em
+
+.docs-article li > ul,
+.docs-article li > ol
+  margin: .35em 0 0
 
 .docs-article h2
-  margin-top: 2.25em
-  border-bottom: 1px solid var(--accent-alpha-70)
-  padding-bottom: .3em
+  margin-top: 2.3em
+  border-bottom: 1px solid $line
+  padding-bottom: .35em
 
 .docs-article h3
-  margin-top: 1.75em
-  color: var(--accent)
+  margin-top: 1.9em
+  color: $accent
 
 .docs-article h4
-  margin-top: 1.5em
+  margin-top: 1.6em
 
 .docs-article pre
   max-width: none
@@ -213,24 +304,35 @@
 .docs-api-signature
   max-width: none
   margin: 1.5em 0
-  border-left: .25em solid var(--accent)
-  padding: .75em 1em
-  background: var(--accent-alpha-20)
-  font-family: var(--dw-font-mono)
+  border: 1px solid $accent-line
+  border-left: 3px solid $accent
+  border-radius: $radius-lg
+  padding: .8em 1.1em
+  background: linear-gradient(90deg, $accent-soft, var(--dw-code-bg, transparent))
+  font-family: $mono
   overflow-wrap: anywhere
 
 .docs-api-signature code
   margin: 0
+  border: 0
   padding: 0
   background: none
-  color: var(--accent)
+  color: $accent
+  font-size: .95em
+  white-space: pre-wrap
 
 // A table is as wide as its content needs, up to the column, and scrolls past that. overflow-wrap
-// is break-word, not anywhere: anywhere lets automatic layout shrink columns mid-word.
+// is break-word, not anywhere: anywhere lets automatic layout shrink columns mid-word. The page
+// script frames it in .dw-table-scroll, which then does the scrolling.
 .docs-article table
   display: block
   max-width: 100%
   overflow-x: auto
+
+.docs-article .dw-table-scroll > table
+  display: table
+  max-width: none
+  overflow: visible
 
 .docs-article th,
 .docs-article td
@@ -242,147 +344,391 @@
 .docs-article table,
 .docs-article th,
 .docs-article td
-  border-color: var(--border-color)
+  border-color: $line
 
 .docs-article th
-  border-bottom-color: var(--accent-alpha-70)
+  border-bottom-color: $accent-line
 
 .docs-article tbody tr:hover
-  background: var(--accent-alpha-20)
+  background: $accent-soft
+
+// Child pages as cards ----------------------------------------------------------------------
 
 .docs-section-links
   display: grid
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))
-  gap: 1em
-  margin-top: 2em
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr))
+  gap: var(--dw-space-3, .9em)
+  margin-top: 2.25em
 
 .docs-section-link,
 .docs-card
-  display: block
+  display: flex
+  flex-direction: column
+  gap: .3em
   height: 100%
-  border: 1px solid var(--accent-alpha-70)
-  border-radius: .3em
-  padding: 1em
+  border: 1px solid $line
+  border-radius: $radius-lg
+  padding: 1em 1.1em
+  background: $surface
+  box-shadow: var(--dw-sheen, none)
   text-decoration: none
-  transition: border-color .2s ease-in-out, background .2s ease-in-out
+  transition: border-color $duration $ease, background $duration $ease, box-shadow $duration $ease, transform $duration $ease
 
 .docs-section-link strong,
 .docs-card strong
   display: block
-  margin-bottom: .35em
-  color: var(--accent)
+  color: $accent
+  font-family: var(--dw-font-display, inherit)
+  font-size: var(--dw-step-0, 1em)
 
 .docs-section-link span,
 .docs-card span
   display: block
-  opacity: .8
+  color: $muted
+  font-size: var(--dw-step--1, .9em)
+  line-height: 1.5
 
 .docs-section-link:hover,
 .docs-section-link:focus-visible,
 .docs-card:hover,
 .docs-card:focus-visible
-  border-color: var(--accent)
-  background: var(--accent-alpha-20)
+  border-color: $accent-line
+  box-shadow: var(--dw-shadow-2, none)
+  transform: translateY(-2px)
+
+// Contents ----------------------------------------------------------------------------------
 
 .docs-toc
   grid-area: toc
-  min-width: 0
   position: sticky
-  top: 1em
-  max-height: calc(100vh - 2em)
-  overflow-y: auto
+  top: var(--dw-space-4, 1em)
+  min-width: 0
+  max-height: calc(100vh - 2rem)
   overflow-x: hidden
+  overflow-y: auto
+  scrollbar-width: thin
+  font-size: var(--dw-step--1, .875rem)
 
 .docs-toc__panel > summary
-  padding-bottom: .75em
-
-.docs-toc__panel > summary::before
-  content: "▸"
-  display: inline-block
-  width: 1em
-  color: var(--accent-alpha-70)
-
-.docs-toc__panel[open] > summary::before
-  content: "▾"
-
-.docs-toc__panel > summary::marker
-  content: none
-
-.docs-toc__panel > summary
-  list-style: none
   cursor: default
 
 .docs-toc ul
   list-style: none
   margin: 0
-  padding-left: .9em
-  border-left: 1px solid var(--accent-alpha-70)
+  border-left: 1px solid $line
+  padding: 0
+
+.docs-toc ul ul
+  border-left: 0
+  padding-left: .8em
 
 .docs-toc li
-  margin: .35em 0
+  margin: 0
 
 .docs-toc a
   display: block
   max-width: 100%
-  color: var(--color)
-  opacity: .68
+  margin-left: -1px
+  border-left: 2px solid transparent
+  padding: .3em .8em
+  color: $muted
+  line-height: 1.4
   overflow-wrap: anywhere
   text-decoration: none
+  transition: color $duration $ease, border-color $duration $ease
 
 .docs-toc a:hover,
-.docs-toc a:focus-visible,
-.docs-toc a.is-active
-  color: var(--accent)
-  opacity: 1
+.docs-toc a:focus-visible
+  border-left-color: $line
+  color: $text
 
 .docs-toc a.is-active
-  font-weight: bold
+  border-left-color: $accent
+  color: $accent
+  font-weight: 600
+
+// Footer ------------------------------------------------------------------------------------
 
 .docs-footer
   display: flex
+  flex-wrap: wrap
   justify-content: center
   gap: .6em
-  margin-top: 3em
-  border-top: 1px solid var(--border-color)
-  padding-top: 1em
+  margin-top: var(--dw-space-7, 3em)
+  border-top: 1px solid $line
+  padding-block: 1em
+  color: $faint
   font-size: .85em
-  opacity: .7
 
-@media (max-width: 1100px)
-  .docs-shell
-    display: block
+  a
+    color: $muted
 
-  .docs-sidebar,
-  .docs-toc
-    position: static
-    max-height: none
-    overflow-y: visible
-    overflow-x: hidden
+    &:hover
+      color: $accent
+
+// Below 1200px: two columns, the contents a drawer ------------------------------------------
+
+@media (max-width: 1199px)
+  .docs-shell,
+  .docs-shell--no-toc
+    grid-template-columns: var(--dw-width-docs-nav, 14rem) minmax(0, 1fr)
+    grid-template-areas: "sidebar toc" "sidebar main"
+    justify-content: stretch
+    row-gap: 0
+
+  .docs-shell--no-toc
+    grid-template-areas: "sidebar main"
 
   .docs-sidebar
-    margin-bottom: 1.5em
+    grid-row: 1 / span 2
 
-  .docs-toc
-    margin-bottom: 2em
-
-  .docs-toc__panel > summary
-    cursor: pointer
-
-  .docs-toc__panel > summary
-    border: 1px solid var(--accent-alpha-70)
-    padding: .75em
-
-  .docs-toc__panel > nav
-    margin-top: .75em
-
-@media (max-width: 899px)
-  .docs-sidebar,
   .docs-toc
     position: static
     max-height: none
-    overflow-y: visible
-    overflow-x: hidden
+    overflow: visible
+    margin-bottom: var(--dw-space-5, 1.5em)
 
+  .docs-toc__panel
+    border: 1px solid $line
+    border-radius: $radius-lg
+    background: $surface
+
+    > summary
+      min-height: $touch
+      margin: 0
+      padding: 0 1em
+      cursor: pointer
+
+    > nav
+      padding: 0 1em .9em
+
+  // With docs.js, the contents become a button at the page's top right that stays in view,
+  // and open as a drawer over the page.
+  .docs-shell--ready .docs-toc
+    position: sticky
+    top: var(--dw-space-2, .5rem)
+    z-index: 20
+    justify-self: end
+    height: 0
+    margin: 0
+    overflow: visible
+
+  .docs-shell--ready .docs-toc__panel
+    position: relative
+    width: max-content
+    border-color: $accent-line
+    background: color-mix(in srgb, $surface 90%, transparent)
+    backdrop-filter: blur(8px)
+    box-shadow: var(--dw-shadow-2, none)
+
+    > summary
+      min-height: var(--dw-control, 2.5rem)
+
+    > nav
+      position: absolute
+      top: calc(100% + 6px)
+      right: 0
+      width: min(22rem, 100vw - 2 * #{$gutter})
+      max-height: min(70vh, 32rem)
+      overflow-y: auto
+      overscroll-behavior: contain
+      border: 1px solid $line
+      border-radius: $radius-lg
+      padding: .8em .9em
+      background: $surface
+      box-shadow: var(--dw-shadow-3, none)
+
+  // The page's text leaves the button its corner.
+  .docs-shell--ready:not(.docs-shell--no-toc) .docs-breadcrumbs
+    padding-right: 11rem
+
+// Below 768px: one column, both drawers in a bar ---------------------------------------------
+
+@media (max-width: 767px)
+  .docs-shell,
+  .docs-shell--no-toc
+    display: block
+
+  .docs-sidebar
+    position: static
+    max-height: none
+    overflow: visible
+    margin-bottom: var(--dw-space-5, 1.5em)
+    border-right: 0
+    padding-right: 0
+
+  .docs-sidebar__panel
+    border: 1px solid $line
+    border-radius: $radius-lg
+    background: $surface
+
+    > summary
+      min-height: $touch
+      margin: 0
+      padding: 0 1em
+      color: $text
+      font-size: var(--dw-step--1, .85rem)
+      letter-spacing: .04em
+
+    > nav
+      padding: 0 .6em .8em
+
+  // With docs.js: a bar across the top of the screen, the navigation on the left and the
+  // contents on the right, each opening as a drawer below it.
+  .docs-shell--ready
+    display: grid
+    grid-template-columns: minmax(0, 1fr) auto
+    grid-template-areas: "sidebar toc" "main main"
+    gap: 0
+
+  .docs-shell--ready.docs-shell--no-toc
+    grid-template-areas: "sidebar sidebar" "main main"
+
+  .docs-shell--ready .docs-sidebar,
+  .docs-shell--ready .docs-toc
+    position: sticky
+    top: 0
+    z-index: 20
+    height: auto
+    margin: 0 0 var(--dw-space-5, 1.5em)
+    border-bottom: 1px solid $line
+    padding-block: .5rem
+    background: color-mix(in srgb, $page 88%, transparent)
+    backdrop-filter: blur(10px)
+
+  .docs-shell--ready .docs-sidebar
+    margin-left: calc(-1 * #{$gutter})
+    padding-left: $gutter
+    padding-right: .5rem
+
+  .docs-shell--ready .docs-toc
+    justify-self: stretch
+    margin-right: calc(-1 * #{$gutter})
+    padding-right: $gutter
+
+  .docs-shell--ready.docs-shell--no-toc .docs-sidebar
+    margin-right: calc(-1 * #{$gutter})
+    padding-right: $gutter
+
+  .docs-shell--ready .docs-sidebar__panel,
+  .docs-shell--ready .docs-toc__panel
+    position: static
+    width: auto
+    border-color: $line
+    background: $surface
+    box-shadow: none
+    backdrop-filter: none
+
+    > summary
+      min-height: $touch
+      color: $text
+      font-size: var(--dw-step--1, .85rem)
+      letter-spacing: .04em
+
+    // The bar's halves reach the screen's edges, so a drawer spans the page from either one.
+    > nav
+      position: absolute
+      top: calc(100% + 6px)
+      width: calc(100vw - 2 * #{$gutter})
+      max-height: min(72vh, 34rem)
+      overflow-y: auto
+      overscroll-behavior: contain
+      border: 1px solid $line
+      border-radius: $radius-lg
+      padding: .7em
+      background: $surface
+      box-shadow: var(--dw-shadow-3, none)
+
+  .docs-shell--ready .docs-sidebar__panel > nav
+    left: $gutter
+
+  .docs-shell--ready .docs-toc__panel > nav
+    right: $gutter
+
+  // A drawer's button shows it is open.
+  .docs-shell--ready .docs-sidebar__panel[open],
+  .docs-shell--ready .docs-toc__panel[open]
+    border-color: $accent-line
+
+  .docs-shell--ready:not(.docs-shell--no-toc) .docs-breadcrumbs
+    padding-right: 0
+
+  .docs-shell--ready .docs-sidebar__panel > summary::before
+    content: ""
+    flex: none
+    width: 1em
+    height: .7em
+    border-block: 2px solid currentColor
+    background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat
+
+  // A heading jumped to lands below the bar, not under it.
+  html:has(.docs-shell--ready)
+    scroll-padding-top: 5rem
 
   .docs-footer
     margin-bottom: 1em
+
+// The manual switcher, on sites with more than one docs root.
+.docs-switcher
+  margin: 0 0 var(--dw-space-3, .75rem)
+  border: 1px solid var(--dw-line, var(--border-color))
+  border-radius: var(--dw-radius, 5px)
+  background: var(--dw-bg-1, transparent)
+
+  > summary
+    display: flex
+    align-items: baseline
+    gap: .5em
+    min-height: var(--dw-control, 2.5rem)
+    padding: .45em .75em
+    cursor: pointer
+    list-style: none
+
+    &::-webkit-details-marker
+      display: none
+
+    &::after
+      content: "▾"
+      margin-left: auto
+      color: var(--dw-text-faint)
+
+  &[open] > summary::after
+    content: "▴"
+
+  ul
+    margin: 0
+    padding: .25em 0 .4em
+    border-top: 1px solid var(--dw-line, var(--border-color))
+    list-style: none
+
+  a
+    display: block
+    padding: .35em .75em
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover,
+    &:focus-visible
+      background: var(--dw-accent-soft)
+      color: var(--dw-text)
+
+    &[aria-current]
+      color: var(--dw-accent)
+      font-weight: 600
+
+.docs-switcher__label
+  color: var(--dw-text-faint)
+  font: .72rem var(--dw-font-mono)
+  letter-spacing: .1em
+  text-transform: uppercase
+
+.docs-switcher__current
+  color: var(--dw-text)
+  font-weight: 600
+
+.docs-switcher__all
+  margin-top: .25em
+  border-top: 1px solid var(--dw-line, var(--border-color))
+
+  a
+    color: var(--dw-accent)

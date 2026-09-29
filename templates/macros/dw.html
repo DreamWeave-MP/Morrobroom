@@ -180,3 +180,12 @@
 <pre data-lang="cfg" class="dw-configurator__output"><code>{% for line in cfg_lines %}{{ line }}
 {% endfor %}</code></pre>
 {%- endmacro config_block %}
+
+{#- A page's own art from its [extra] (`icon`, `cover`), resized to WebP. A path that starts with
+    `/` is a file under static/, shared by any page (`/img/logo.webp`); any other path is next to
+    the page's index.md. Presentation only: none of it reaches the manifest. -#}
+{% macro page_art(page_dir, path, width, height=0, op="fit_width", class="", quality=85) -%}
+{%- if path is starting_with("/") %}{% set source = "static" ~ path %}{% else %}{% set source = "content/" ~ page_dir ~ path %}{% endif -%}
+{%- if height > 0 %}{% set image = resize_image(path=source, width=width, height=height, op=op, format="webp", quality=quality) %}{% else %}{% set image = resize_image(path=source, width=width, op=op, format="webp", quality=quality) %}{% endif -%}
+<img{% if class %} class="{{ class }}"{% endif %} src="{{ image.url | safe }}" width="{{ image.width }}" height="{{ image.height }}" alt="" loading="lazy">
+{%- endmacro page_art %}

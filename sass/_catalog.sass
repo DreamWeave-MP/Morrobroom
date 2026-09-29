@@ -1,23 +1,34 @@
-// The multi-project catalog and the network diagnostics page.
+// The multi-project catalog, section and tag listings, the network diagnostics page and comments.
 
 .dw-catalog__intro
   max-width: var(--dw-width-prose)
+  margin-bottom: var(--dw-space-6)
   color: var(--dw-text-muted)
 
+// A listing: one row per page, the name, summary and facts in columns that line up from row to
+// row (each row borrows the list's columns through subgrid).
 .dw-catalog
-  margin: 1.2rem 0 0
-  padding: 0
+  display: grid
+  grid-template-columns: minmax(9rem, 17rem) minmax(0, 1fr) auto
+  margin: 0
   border: 1px solid var(--dw-line)
-  border-radius: var(--dw-radius)
-  list-style: none
+  border-radius: var(--dw-radius-lg)
+  padding: 0
+  overflow: hidden
   background: var(--dw-bg-1)
+  box-shadow: var(--dw-sheen), var(--dw-shadow-1)
+  list-style: none
 
 .dw-catalog__row
+  position: relative
+  grid-column: 1 / -1
   display: grid
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto
+  grid-template-columns: subgrid
   gap: .35rem 1.5rem
   align-items: baseline
-  padding: .8rem 1rem
+  margin: 0
+  padding: .95rem 1.15rem
+  transition: background var(--dw-duration) var(--dw-ease)
 
   + .dw-catalog__row
     border-top: 1px solid var(--dw-line)
@@ -27,12 +38,14 @@
 
 .dw-catalog__name
   margin: 0
-  font-size: 1.02rem
+  font-size: var(--dw-step-0)
+  letter-spacing: -.01em
 
   a
     color: var(--dw-text)
     text-decoration: none
 
+    // The whole row is the link's target; tags keep their own.
     &::after
       content: ""
       position: absolute
@@ -41,100 +54,227 @@
     &:hover
       color: var(--dw-accent)
 
-.dw-catalog__row
-  position: relative
+    &:focus-visible
+      outline: none
+
+      &::after
+        outline: 2px solid var(--dw-focus)
+        outline-offset: -2px
+        border-radius: inherit
 
 .dw-catalog__summary
   margin: 0
   color: var(--dw-text-muted)
-  font-size: .9rem
+  font-size: .94rem
 
 .dw-catalog__facts
   display: flex
   flex-wrap: wrap
   gap: .35rem
   justify-content: flex-end
+  color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .76rem
+  font-size: var(--dw-step--2)
   white-space: nowrap
 
 .dw-catalog__meta
+  position: relative
+  z-index: 1
   grid-column: 1 / -1
   display: flex
   flex-wrap: wrap
   gap: .2rem 1rem
-  position: relative
-  z-index: 1
+  margin-top: .2rem
 
-@media (max-width: 760px)
-  .dw-catalog__row
+.dw-catalog__thumb
+  display: none
+
+@media (max-width: 759px)
+  .dw-catalog
     grid-template-columns: minmax(0, 1fr)
 
   .dw-catalog__facts
     justify-content: flex-start
 
+// The catalog homepage: cards, a picture over each ---------------------------------------------
+
+.dw-catalog--cards
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr))
+  gap: var(--dw-space-4)
+  border: 0
+  overflow: visible
+  background: none
+  box-shadow: none
+
+  > .dw-catalog__row
+    grid-column: auto
+    display: flex
+    flex-direction: column
+    gap: .45rem
+    align-items: stretch
+    border: 1px solid var(--dw-line)
+    border-radius: var(--dw-radius-lg)
+    padding: 0 0 1.1rem
+    overflow: hidden
+    background: var(--dw-bg-1)
+    box-shadow: var(--dw-sheen), var(--dw-shadow-1)
+    transition: border-color var(--dw-duration) var(--dw-ease), box-shadow var(--dw-duration) var(--dw-ease), transform var(--dw-duration) var(--dw-ease)
+
+    + .dw-catalog__row
+      border-top: 1px solid var(--dw-line)
+
+    &:hover, &:focus-within
+      border-color: var(--dw-accent-line)
+      background: var(--dw-bg-1)
+      box-shadow: var(--dw-shadow-2)
+
+    &:hover
+      transform: translateY(-2px)
+
+    > :not(.dw-catalog__thumb)
+      margin-inline: 1.15rem
+
+  .dw-catalog__thumb
+    display: grid
+    margin-bottom: .45rem
+    border-bottom: 1px solid var(--dw-line)
+    overflow: hidden
+    background: radial-gradient(ellipse 80% 110% at 85% 0%, color-mix(in oklab, var(--dw-accent) 20%, transparent), transparent 70%), radial-gradient(color-mix(in oklab, var(--dw-text) 8%, transparent) 1px, transparent 1.5px) 0 0 / 18px 18px, var(--dw-bg-2)
+    aspect-ratio: 2 / 1
+
+    img
+      grid-area: 1 / 1
+      width: 100%
+      height: 100%
+      object-fit: cover
+      transition: transform .4s var(--dw-ease)
+
+  > .dw-catalog__row:hover .dw-catalog__thumb img
+    transform: scale(1.04)
+
+  .dw-catalog__name
+    font-size: var(--dw-step-1)
+
+    a::after
+      border-radius: var(--dw-radius-lg)
+
+  .dw-catalog__summary
+    display: -webkit-box
+    overflow: hidden
+    -webkit-box-orient: vertical
+    -webkit-line-clamp: 3
+    line-clamp: 3
+
+  .dw-catalog__facts
+    justify-content: flex-start
+    margin-top: auto
+    padding-top: .35rem
+
+  .dw-catalog__meta
+    margin-top: 0
+
 // Network diagnostics ---------------------------------------------------------------------
 
 .dw-checks
-  margin: 0
+  margin: 0 0 var(--dw-space-5)
+  border: 1px solid var(--dw-line)
+  border-radius: var(--dw-radius-lg)
   padding: 0
+  overflow: hidden
+  background: var(--dw-bg-1)
   list-style: none
 
   li
     display: grid
-    grid-template-columns: 8.5rem 11rem minmax(0, 1fr)
+    grid-template-columns: 7.5rem 12rem minmax(0, 1fr)
     gap: .2rem 1rem
     align-items: baseline
-    border-top: 1px dashed var(--dw-line)
-    padding: .45em 0
-    font-size: .88rem
+    margin: 0
+    padding: .6em 1em
+    font-size: var(--dw-step--1)
 
-    &:first-child
-      border-top: 0
+    + li
+      border-top: 1px solid var(--dw-line)
 
   .dw-status
-    font-size: .76rem
-    text-transform: uppercase
+    font-size: var(--dw-step--2)
     letter-spacing: .08em
+    text-transform: uppercase
 
 .dw-checks__label
   font-family: var(--dw-font-mono)
-  font-size: .82rem
+  font-size: var(--dw-step--1)
 
 .dw-checks__detail
   color: var(--dw-text-muted)
   overflow-wrap: anywhere
 
-@media (max-width: 760px)
+@media (max-width: 759px)
   .dw-checks li
     grid-template-columns: minmax(0, 1fr)
 
 .dw-network-project
-  margin-top: 2.2rem
-  scroll-margin-top: 1rem
+  margin-top: var(--dw-space-7)
+  scroll-margin-top: var(--dw-space-4)
+
+  h3
+    margin-top: var(--dw-space-6)
+
+  .dw-record
+    margin-bottom: var(--dw-space-4)
 
 .dw-endpoints
   display: grid
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr))
-  gap: .75rem
-  margin: 1rem 0
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr))
+  gap: var(--dw-space-3)
+  margin: var(--dw-space-5) 0
 
   .dw-panel__body
     font-family: var(--dw-font-mono)
-    font-size: .82rem
+    font-size: var(--dw-step--1)
+    line-height: 1.8
     overflow-wrap: anywhere
 
 // Comments ----------------------------------------------------------------------------------
 
 .dw-comments
-  margin-top: 3rem
+  margin-top: var(--dw-space-8)
 
   .giscus, noscript
     display: block
 
+  // giscus sizes its frame once it loads; keep a line's room so the page does not jump.
+  .giscus
+    min-height: 8rem
+
 .dw-comments__preview
-  margin: 0 0 .8rem
-  border-left: 2px solid var(--dw-info)
-  padding: .2em .7em
-  color: var(--dw-text-faint)
-  font-size: .8rem
+  margin: 0 0 var(--dw-space-4)
+  border: 1px solid color-mix(in oklab, var(--dw-info) 25%, var(--dw-line))
+  border-left: 3px solid var(--dw-info)
+  border-radius: var(--dw-radius)
+  padding: .55em .9em
+  background: color-mix(in oklab, var(--dw-info) 5%, var(--dw-bg-1))
+  color: var(--dw-text-muted)
+  font-size: var(--dw-step--1)
+
+// A project with no picture: its name, set large in the display face.
+.dw-catalog__wordmark
+  grid-area: 1 / 1
+  place-self: center
+  max-width: 86%
+  color: color-mix(in oklab, var(--dw-accent) 70%, white)
+  font-family: var(--dw-font-display)
+  font-size: var(--dw-step-2)
+  font-weight: 700
+  line-height: 1.1
+  text-align: center
+  text-wrap: balance
+  text-shadow: 0 0 28px color-mix(in oklab, var(--dw-accent) 45%, transparent)
+
+.dw-catalog__icon
+  grid-area: 1 / 1
+  place-self: center
+  width: 5.5rem
+  height: 5.5rem
+  object-fit: contain
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / .5))

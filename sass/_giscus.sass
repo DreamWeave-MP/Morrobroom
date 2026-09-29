@@ -2,8 +2,10 @@
 // custom properties, so each palette compiles to its own stylesheet under /giscus/<palette>.css.
 // Variable names are GitHub Primer's, as in giscus's own themes (MIT, Copyright (c) 2018 GitHub Inc.).
 
-=giscus-theme($bg-0, $bg-1, $bg-2, $bg-3, $line, $line-strong, $accent, $text: #e7dfef, $muted: #b6a9c6, $faint: #8d809f)
-  $strong: mix($accent, #3a1066, 62%)
+=giscus-theme($bg-0, $bg-1, $bg-2, $bg-3, $line, $line-strong, $accent, $text: #ebe4f4, $muted: #c0b2cf, $faint: #9687a6)
+  // The accent halfway to the palette's darkest surface: dark enough for white button text (4.5:1
+  // for every palette's accent), and still its hue.
+  $strong: mix($accent, $bg-0, 50%)
 
   main
     --color-prettylights-syntax-comment: #{$faint}

@@ -4,30 +4,49 @@
 
 {#- The root section. With redirect_to set in content/_index.md this never renders: the site
     opens on its one project. Without it, this is the catalog of every project. -#}
+{%- block model %}
+{%- set_global dw_hero_page = config.extra.hero.home | default(value=true) %}
+{%- endblock model %}
 {%- block content %}
 {%- if paginator %}{% set listed = paginator.pages %}{% else %}{% set listed = section.pages %}{% endif %}
-<header class="dw-hero">
+<header class="dw-hero{% if dw_hero_script %} dw-hero--art{% endif %}">
+    {%- if dw_hero_script %}
+    <div class="dw-hero__art" data-dw-hero-art data-hero-page="catalog" aria-hidden="true"></div>
+    {%- endif %}
     <div class="dw-shell">
         {%- if paginator %}{% set listed_total = paginator.total_pages %}{% else %}{% set listed_total = section.pages | length %}{% endif %}
         <p class="dw-kicker"><span>Catalog</span><span>{{ listed_total }} project{{ listed_total | pluralize }}</span>{% if paginator and paginator.number_pagers > 1 %}<span>page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>{% endif %}</p>
-        <h1 class="dw-hero__title">{% if section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
+        <h1 class="dw-hero__title">{% if section.extra.title_html %}{{ section.extra.title_html | safe }}{% elif section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
         {%- if section.description or config.description %}<p class="dw-hero__summary">{% if section.description %}{{ section.description }}{% else %}{{ config.description }}{% endif %}</p>{% endif %}
     </div>
 </header>
 <div class="dw-shell">
     {%- if section.content %}<div class="dw-prose dw-catalog__intro">{{ section.content | safe }}</div>{% endif %}
-    <ol class="dw-catalog">
+    <ol class="dw-catalog dw-catalog--cards">
     {%- for item in listed %}
         {%- set project = false %}
+        {%- set thumbnail = false %}
         {%- if item.colocated_path %}
         {%- set mod_toml = load_data(path="content/" ~ item.colocated_path ~ "mod.toml", required=false) %}
         {%- if mod_toml %}
         {%- set item_ci = false %}{% if dw and item.colocated_path in dw.projects %}{% set item_ci = dw.projects[item.colocated_path] %}{% endif %}
         {%- set model_text = project_model::model(path=item.colocated_path, page=item, ci=item_ci) %}
         {%- set project = load_data(literal=model_text, format="json") %}
+        {%- set item_images = project.media | filter(attribute="kind", value="image") %}
+        {%- set item_featured = item_images | filter(attribute="featured", value=true) %}
+        {%- if item_featured | length > 0 %}{% set thumbnail = item_featured | first %}{% elif item_images | length > 0 %}{% set thumbnail = item_images | first %}{% endif %}
         {%- endif %}
         {%- endif %}
         <li class="dw-catalog__row">
+            {#- The picture repeats the title's link, so it is left out of the reading order. -#}
+            <div class="dw-catalog__thumb" aria-hidden="true">
+                {%- set item_cover = item.extra.cover | default(value="") %}
+                {%- set item_icon = item.extra.icon | default(value="") %}
+                {%- if thumbnail %}{{ dw_macros::media_image(project=project, item=thumbnail, width=640) }}
+                {%- elif item_cover %}{{ dw_macros::page_art(page_dir=item.colocated_path, path=item_cover, width=640, height=360, op="fill") }}
+                {%- elif item_icon %}{{ dw_macros::page_art(page_dir=item.colocated_path, path=item_icon, width=160, height=160, op="fit", class="dw-catalog__icon", quality=90) }}
+                {%- else %}<span class="dw-catalog__wordmark">{{ item.title }}</span>{% endif %}
+            </div>
             <h2 class="dw-catalog__name"><a href="{{ item.permalink | safe }}">{{ item.title }}</a></h2>
             <p class="dw-catalog__summary">{{ item.description | default(value="") }}</p>
             <div class="dw-catalog__facts">

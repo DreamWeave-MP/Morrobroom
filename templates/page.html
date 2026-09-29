@@ -15,6 +15,7 @@
 {%- set project_index = load_data(literal='{"": null' ~ index_text ~ '}', format="json") %}
 {%- set model_text = project_model::model(path=page.colocated_path, page=page, ci=ci, index=project_index) %}
 {%- set_global project = load_data(literal=model_text, format="json") %}
+{%- set_global dw_hero_page = config.extra.hero.projects | default(value=true) and page.extra.hero | default(value=true) %}
 {%- endif %}
 {%- endif %}
 {%- endblock model %}

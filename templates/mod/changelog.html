@@ -27,7 +27,8 @@
         <p class="dw-hero__summary">Every release of {{ project.name }}, newest first.{% if not dw_offline %} A release marked <em>unreleased</em> is declared in mod.toml and published when its tag is pushed.{% endif %}</p>
     </div>
 </header>
-<div class="dw-shell"><div class="dw-article">
+<div class="dw-shell dw-changelog">
+    <div class="dw-changelog__main">
     {%- if not dw_offline and project.heads.development is defined %}
     {%- set development = project.heads.development %}
     <section class="dw-section" aria-labelledby="development-title">
@@ -59,7 +60,18 @@
         </ol>
         {%- endif %}
     </section>
-</div></div>
+    </div>
+    {%- if project.declared_releases | length > 1 %}
+    <nav class="dw-changelog__index" aria-label="Versions">
+        <p class="dw-kicker"><span>Versions</span></p>
+        <ol>
+        {%- for declared in project.declared_releases %}
+            <li><a href="#v{{ declared.version | slugify }}">{{ declared.version }}<small>{{ declared.date }}</small></a></li>
+        {%- endfor %}
+        </ol>
+    </nav>
+    {%- endif %}
+</div>
 {%- else %}
 <div class="dw-shell"><div class="dw-article">
     <h1>{{ page.title }}</h1>

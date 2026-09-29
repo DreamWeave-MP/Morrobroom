@@ -1,10 +1,11 @@
-// Schematic shortcode styles, from S3ctors-S3cret-St4sh sass/docs.sass at 86cbc261 (the same
-// revision StroggForge imports). Keep in sync with upstream rather than restyling here.
+// Schematic shortcode styles, from S3ctors-S3cret-St4sh sass/docs.sass at 86cbc261, the revision
+// StroggForge imports with templates/shortcodes/schematic.html. Keep the class names; the colors
+// come from the template's tokens, so a diagram follows the site's palette.
 
 .docs-schematic
   margin: 2em auto
   border: 1px solid var(--accent-alpha-70)
-  border-radius: .35em
+  border-radius: var(--dw-radius-lg)
   padding: 1.25em
   background: linear-gradient(135deg, var(--accent-alpha-20), transparent 55%)
 
@@ -14,6 +15,7 @@
   flex-direction: column
   justify-content: center
   margin-bottom: 1.25em
+  border-radius: var(--dw-radius)
   padding: .9em 1em
   background: var(--accent-alpha-20)
   color: var(--color)
@@ -104,10 +106,10 @@
   min-width: 0
   border: 1px solid var(--border-color)
   border-left: .3em solid var(--accent)
-  border-radius: .25em
+  border-radius: var(--dw-radius)
   padding: .8em 1em
   background: var(--background)
-  box-shadow: 0 .3em 1em rgb(0 0 0 / 12%)
+  box-shadow: var(--dw-sheen), var(--dw-shadow-1)
   overflow-wrap: anywhere
 
 .docs-schematic__node::before
@@ -120,42 +122,42 @@
   letter-spacing: .08em
 
 .docs-schematic__node--source
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__node--input
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__node--state,
 .docs-schematic__node--cache
-  border-left-color: #83c7ff
+  border-left-color: var(--dw-info)
 
 .docs-schematic__node--tool
-  border-left-color: #f2c66d
+  border-left-color: var(--dw-warn)
 
 .docs-schematic__node--component
-  border-left-color: #b48cff
+  border-left-color: var(--dw-accent)
 
 .docs-schematic__node--service
-  border-left-color: #83c7ff
+  border-left-color: var(--dw-info)
 
 .docs-schematic__node--boundary
-  border-left-color: #f2c66d
+  border-left-color: var(--dw-warn)
 
 .docs-schematic__node--engine,
 .docs-schematic__node--external
   border-left-width: .4em
-  border-left-color: #9aa4b2
+  border-left-color: var(--dw-neutral)
 
 .docs-schematic__node--allocation
-  border-left-color: #ff8f70
+  border-left-color: var(--dw-danger)
 
 .docs-schematic__node--result
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__node--history,
 .docs-schematic__node--scar
   border-left-style: dashed
-  border-left-color: #9aa4b2
+  border-left-color: var(--dw-neutral)
 
 .docs-schematic__node--cod3x
   border-color: var(--accent)
@@ -340,42 +342,42 @@ a.docs-schematic__title:focus-visible
   background: var(--background)
 
 .docs-schematic__legend-swatch--source
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__legend-swatch--input
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__legend-swatch--state,
 .docs-schematic__legend-swatch--cache
-  border-left-color: #83c7ff
+  border-left-color: var(--dw-info)
 
 .docs-schematic__legend-swatch--component
-  border-left-color: #b48cff
+  border-left-color: var(--dw-accent)
 
 .docs-schematic__legend-swatch--tool
-  border-left-color: #f2c66d
+  border-left-color: var(--dw-warn)
 
 .docs-schematic__legend-swatch--service
-  border-left-color: #83c7ff
+  border-left-color: var(--dw-info)
 
 .docs-schematic__legend-swatch--boundary
-  border-left-color: #f2c66d
+  border-left-color: var(--dw-warn)
 
 .docs-schematic__legend-swatch--engine,
 .docs-schematic__legend-swatch--external
   border-left-width: .35em
-  border-left-color: #9aa4b2
+  border-left-color: var(--dw-neutral)
 
 .docs-schematic__legend-swatch--allocation
-  border-left-color: #ff8f70
+  border-left-color: var(--dw-danger)
 
 .docs-schematic__legend-swatch--result
-  border-left-color: #7ee2a8
+  border-left-color: var(--dw-ok)
 
 .docs-schematic__legend-swatch--history,
 .docs-schematic__legend-swatch--scar
   border-left-style: dashed
-  border-left-color: #9aa4b2
+  border-left-color: var(--dw-neutral)
 
 .docs-schematic__legend-swatch--cod3x
   border: 1px dashed var(--accent)

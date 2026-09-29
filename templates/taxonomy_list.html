@@ -2,11 +2,13 @@
 
 {%- block content %}
 <div class="dw-shell"><div class="dw-article">
-    <p class="dw-kicker"><span>Taxonomy</span></p>
-    <h1>{{ taxonomy.name | capitalize }}</h1>
-    <ul class="dw-linklist">
+    <header>
+        <p class="dw-kicker"><span>Taxonomy</span><span>{{ terms | length }} term{{ terms | length | pluralize }}</span></p>
+        <h1>{{ taxonomy.name | capitalize }}</h1>
+    </header>
+    <ul class="dw-tags dw-tags--cloud">
     {%- for term in terms %}
-        <li><a href="{{ term.permalink | safe }}"><span>{{ term.name }}</span><small>{{ term.pages | length }}</small></a></li>
+        <li><a href="{{ term.permalink | safe }}">{{ term.name }}<small>{{ term.pages | length }}</small></a></li>
     {%- endfor %}
     </ul>
 </div></div>

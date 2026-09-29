@@ -13,10 +13,16 @@
 {#- CI generates the changelog page. Without it (a plain `zola serve`) every release is listed here. -#}
 {%- set changelog_page = load_data(path="content/" ~ page.colocated_path ~ "_changelog.md", format="plain", required=false) -%}
 {%- set relationships = project.relationships -%}
+{#- A page's own art: a logo beside the title, and a cover where no screenshot is featured. -#}
+{%- set page_icon = page.extra.icon | default(value="") -%}
+{%- set page_cover = page.extra.cover | default(value="") -%}
 
-<header class="dw-hero">
-    <div class="dw-shell dw-hero__grid">
-        <div>
+<header class="dw-hero{% if dw_hero_script %} dw-hero--art{% endif %}">
+    {%- if dw_hero_script %}
+    <div class="dw-hero__art" data-dw-hero-art data-hero-page="project" data-hero-project="{{ project.slug }}" aria-hidden="true"></div>
+    {%- endif %}
+    <div class="dw-shell dw-hero__grid{% if not featured and not page_cover %} dw-hero__grid--text{% endif %}">
+        <div class="dw-hero__text">
             <p class="dw-kicker">
                 <span>{{ dw_macros::type_label(type=project.type) }}</span>
                 {%- if project.game_named %}
@@ -24,32 +30,11 @@
                 {%- endif %}
                 <span>{{ dw_macros::status(state=project.status) }}</span>
             </p>
-            <h1 class="dw-hero__title">{{ page.title }}</h1>
+            <h1 class="dw-hero__title{% if page_icon %} dw-hero__title--icon{% endif %}">
+                {%- if page_icon %}{{ dw_macros::page_art(page_dir=page.colocated_path, path=page_icon, width=192, height=192, op="fit", class="dw-hero__icon", quality=90) }}{% endif -%}
+                <span>{% if page.extra.title_html %}{{ page.extra.title_html | safe }}{% else %}{{ page.title }}{% endif %}</span>
+            </h1>
             {%- if project.summary %}<p class="dw-hero__summary">{{ project.summary }}</p>{% endif %}
-
-            <dl class="dw-strip" aria-label="Project status">
-                {%- if dw_offline %}
-                <div><dt>This archive</dt><dd>{% if ci and ci.packaged_version %}{{ ci.packaged_version }}{% else %}unversioned{% endif %}</dd></div>
-                {%- else %}
-                <div><dt>Stable</dt><dd>{% if stable %}<a href="#v{{ stable.version | slugify }}">{{ stable.version }}</a> <small>{{ stable.date }}</small>{% else %}not released{% endif %}</dd></div>
-                {%- if development %}
-                <div><dt>Development</dt><dd>{{ development.version }}</dd></div>
-                {%- endif %}
-                {%- endif %}
-                {%- for runtime, requirement in project.runtimes %}
-                <div><dt>Runs on</dt><dd>{{ dw_macros::runtime_label(runtime=runtime) }} {{ dw_macros::constraint(text=requirement) }}</dd></div>
-                {%- endfor %}
-                {%- if project.openmw and project.openmw.lua_api is defined %}
-                <div><dt>Lua API</dt><dd>{{ project.openmw.lua_api }}</dd></div>
-                {%- endif %}
-                {%- if "install" in sections or "components" in sections %}
-                <div><dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}{% if project.format == "binary" %} <small>{{ project.platforms | length }} platform{{ project.platforms | length | pluralize }}</small>{% elif not project.implicit_component %} <small>{{ project.components | length }} components</small>{% endif %}</dd></div>
-                {%- endif %}
-                {%- if project.license %}
-                <div><dt>License</dt><dd>{{ project.license }}</dd></div>
-                {%- endif %}
-            </dl>
-
             {%- if project.format == "crate" and not dw_offline %}
             {#- A library: the command that adds it is the download. -#}
             <div class="dw-command" aria-label="Add it with Cargo"><code>cargo add {{ project.crate }}</code><button class="dw-copy" type="button" data-copy="cargo add {{ project.crate }}">Copy</button></div>
@@ -89,7 +74,34 @@
             {{ dw_macros::media_image(project=project, item=featured, width=960) }}
             {%- if featured.caption %}<figcaption>{{ featured.caption }}</figcaption>{% endif %}
         </figure>
+        {%- elif page_cover %}
+        <figure class="dw-hero__figure dw-hero__figure--cover">
+            {{ dw_macros::page_art(page_dir=page.colocated_path, path=page_cover, width=960) }}
+        </figure>
         {%- endif %}
+        {#- The facts run the hero's full width, under the text and the picture. -#}
+        <dl class="dw-strip" aria-label="Project status">
+            {%- if dw_offline %}
+            <div><dt>This archive</dt><dd>{% if ci and ci.packaged_version %}{{ ci.packaged_version }}{% else %}unversioned{% endif %}</dd></div>
+            {%- else %}
+            <div><dt>Stable</dt><dd>{% if stable %}<a href="#v{{ stable.version | slugify }}">{{ stable.version }}</a> <small>{{ stable.date }}</small>{% else %}not released{% endif %}</dd></div>
+            {%- if development %}
+            <div><dt>Development</dt><dd>{{ development.version }}</dd></div>
+            {%- endif %}
+            {%- endif %}
+            {%- for runtime, requirement in project.runtimes %}
+            <div><dt>Runs on</dt><dd>{{ dw_macros::runtime_label(runtime=runtime) }} {{ dw_macros::constraint(text=requirement) }}</dd></div>
+            {%- endfor %}
+            {%- if project.openmw and project.openmw.lua_api is defined %}
+            <div><dt>Lua API</dt><dd>{{ project.openmw.lua_api }}</dd></div>
+            {%- endif %}
+            {%- if "install" in sections or "components" in sections %}
+            <div><dt>Package</dt><dd>{{ dw_macros::format_label(format=project.format) }}{% if project.format == "binary" %} <small>{{ project.platforms | length }} platform{{ project.platforms | length | pluralize }}</small>{% elif not project.implicit_component %} <small>{{ project.components | length }} components</small>{% endif %}</dd></div>
+            {%- endif %}
+            {%- if project.license %}
+            <div><dt>License</dt><dd>{{ project.license }}</dd></div>
+            {%- endif %}
+        </dl>
     </div>
 </header>
 

@@ -5,57 +5,99 @@
 
 html
   font-size: var(--dw-size-base)
-  scrollbar-color: var(--dw-accent-line) var(--dw-bg-0)
+  scrollbar-color: var(--dw-line-strong) var(--dw-bg-0)
   scrollbar-width: thin
   -webkit-text-size-adjust: 100%
+  text-size-adjust: 100%
+  // A jump to #install or to a heading leaves room above it.
+  scroll-padding-top: var(--dw-space-5)
+
+@media (prefers-reduced-motion: no-preference)
+  html
+    scroll-behavior: smooth
 
 body
   margin: 0
   min-height: 100vh
+  // The page never scrolls sideways: wide tables and code scroll inside their own boxes.
+  overflow-x: clip
   background: var(--dw-bg-0)
   color: var(--dw-text)
   font-family: var(--dw-font-body)
   line-height: var(--dw-leading)
+  font-kerning: normal
   text-rendering: optimizeLegibility
+  -webkit-font-smoothing: antialiased
+  -moz-osx-font-smoothing: grayscale
+
+// Headings ------------------------------------------------------------------------------------
 
 h1, h2, h3, h4, h5, h6
-  margin: 1.6em 0 .55em
+  margin: 1.75em 0 .6em
   font-family: var(--dw-font-display)
   font-weight: 700
-  line-height: 1.25
-  letter-spacing: -.01em
+  line-height: var(--dw-leading-tight)
+  letter-spacing: -.015em
   text-wrap: balance
+  overflow-wrap: break-word
 
 h1
-  font-size: clamp(1.75rem, 3.2vw, 2.4rem)
+  font-size: var(--dw-step-4)
+  letter-spacing: -.025em
 
 h2
-  font-size: 1.3rem
+  font-size: var(--dw-step-3)
 
 h3
-  font-size: 1.08rem
+  font-size: var(--dw-step-2)
 
-h4, h5, h6
-  font-size: 1rem
+h4
+  font-size: var(--dw-step-1)
+
+h5, h6
+  font-size: var(--dw-step-0)
+
+// A heading first in its box, or right under another, needs no room above it.
+:is(h1, h2, h3, h4, h5, h6):first-child, :is(h1, h2, h3, h4, h5, h6) + :is(h2, h3, h4, h5, h6)
+  margin-top: 0
+
+// Text ----------------------------------------------------------------------------------------
 
 p, ul, ol, dl, table, pre, blockquote, figure
-  margin: 0 0 1em
+  margin: 0 0 1.1em
+
+p, li
+  text-wrap: pretty
+
+ul, ol
+  padding-left: 1.4em
+
+li::marker
+  color: var(--dw-text-faint)
+
+strong, b
+  font-weight: 650
 
 a
   color: var(--dw-accent)
+  text-decoration-line: underline
+  text-decoration-color: color-mix(in oklab, var(--dw-accent) 45%, transparent)
   text-decoration-thickness: 1px
-  text-underline-offset: .2em
+  text-underline-offset: .22em
+  transition: color var(--dw-duration) var(--dw-ease), text-decoration-color var(--dw-duration) var(--dw-ease)
 
   &:hover
     color: var(--dw-accent-hover)
+    text-decoration-color: currentColor
 
+// One focus ring for everything that takes focus: the focus color, clear of the element.
 :focus-visible
   outline: 2px solid var(--dw-focus)
   outline-offset: 2px
 
 ::selection
-  background: var(--dw-accent-strong)
-  color: #fff
+  background: color-mix(in oklab, var(--dw-accent) 40%, var(--dw-bg-0))
+  color: var(--dw-text)
 
 img, video
   max-width: 100%
@@ -64,70 +106,96 @@ img, video
 hr
   border: 0
   border-top: 1px solid var(--dw-line)
-  margin: 2em 0
+  margin: 2.5em 0
+
+small
+  font-size: var(--dw-step--1)
+
+// Code ----------------------------------------------------------------------------------------
 
 code, kbd, samp, pre
   font-family: var(--dw-font-mono)
-  font-size: .88em
+  font-size: .875em
+  font-variant-ligatures: none
 
 code
-  background: var(--dw-code-inline-bg)
+  border: 1px solid color-mix(in oklab, var(--dw-line) 70%, transparent)
   border-radius: var(--dw-radius)
-  padding: .1em .3em
+  padding: .08em .35em
+  background: var(--dw-code-inline-bg)
   overflow-wrap: anywhere
+  -webkit-box-decoration-break: clone
+  box-decoration-break: clone
+
+// In a link, code takes the link's color.
+a code
+  color: inherit
 
 kbd
   border: 1px solid var(--dw-line-strong)
   border-bottom-width: 2px
   border-radius: var(--dw-radius)
-  padding: .05em .35em
+  padding: .05em .4em
   background: var(--dw-bg-2)
+  font-size: .8em
 
+// A code block scrolls inside itself. dreamweave.js wraps it in .dw-code, which holds the copy
+// button, so the button stays put while the code scrolls under it.
 pre
   position: relative
   overflow-x: auto
   border: 1px solid var(--dw-line)
-  border-left: 3px solid var(--dw-accent-line)
-  border-radius: var(--dw-radius)
-  padding: .9em 1em
+  border-radius: var(--dw-radius-lg)
+  padding: var(--dw-space-4) 1.15rem
   background: var(--dw-code-bg) !important
-  line-height: 1.5
+  box-shadow: var(--dw-sheen)
+  font-size: .875rem
+  line-height: 1.6
   tab-size: 2
+  scrollbar-color: var(--dw-line-strong) transparent
 
   code
-    background: none
+    border: 0
     padding: 0
+    background: none
     font-size: 1em
     overflow-wrap: normal
+
+// The language, as a label along the block's top edge.
+pre[data-lang]
+  padding-top: 2.35rem
 
 pre[data-lang]::before
   content: attr(data-lang)
   position: absolute
-  top: 0
-  right: 0
-  padding: .1em .6em
-  border-left: 1px solid var(--dw-line)
-  border-bottom: 1px solid var(--dw-line)
+  top: .6rem
+  left: 1.15rem
   color: var(--dw-text-faint)
-  font-size: .72em
-  text-transform: lowercase
+  font-size: var(--dw-step--2)
+  letter-spacing: .08em
+  line-height: 1.2
+  text-transform: uppercase
 
 blockquote
   border-left: 3px solid var(--dw-accent-line)
-  padding: .2em 1em
+  padding: .15em 0 .15em 1.1em
   color: var(--dw-text-muted)
 
   > :last-child
     margin-bottom: 0
 
+// Tables --------------------------------------------------------------------------------------
+
 table
   width: 100%
-  border-collapse: collapse
-  font-size: .9rem
+  border-collapse: separate
+  border-spacing: 0
+  font-size: var(--dw-step--1)
+  font-variant-numeric: tabular-nums
 
 th, td
-  border: 1px solid var(--dw-line)
-  padding: .5em .75em
+  border-bottom: 1px solid var(--dw-line)
+  padding: .6em .85em
   vertical-align: top
   text-align: left
   overflow-wrap: break-word
@@ -137,13 +205,55 @@ th, td
 
 th
   background: var(--dw-bg-2)
+  color: var(--dw-text-muted)
   font-family: var(--dw-font-mono)
-  font-size: .82em
+  font-size: var(--dw-step--2)
   font-weight: 600
-  letter-spacing: .02em
+  letter-spacing: .06em
+  text-transform: uppercase
+  white-space: nowrap
+
+tbody tr:last-child > *
+  border-bottom: 0
 
 tbody tr:nth-child(even)
-  background: color-mix(in oklab, var(--dw-bg-1) 60%, var(--dw-bg-0))
+  background: color-mix(in oklab, var(--dw-bg-1) 60%, transparent)
+
+// Forms ---------------------------------------------------------------------------------------
+
+button, input, select, textarea
+  font: inherit
+  color: inherit
+
+button
+  cursor: pointer
+
+// A text field: the search, the openmw.cfg folder, anything a site adds.
+.dw-input, input[type="text"], input[type="search"], input[type="url"], textarea, select
+  min-height: var(--dw-control)
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius)
+  padding: .45em .75em
+  background: var(--dw-bg-0)
+  transition: border-color var(--dw-duration) var(--dw-ease), box-shadow var(--dw-duration) var(--dw-ease)
+
+  &::placeholder
+    color: var(--dw-text-faint)
+    opacity: 1
+
+  &:hover
+    border-color: color-mix(in oklab, var(--dw-accent) 30%, var(--dw-line-strong))
+
+  &:focus
+    border-color: var(--dw-accent-line)
+    outline: none
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--dw-accent) 22%, transparent)
+
+// A phone zooms into any field whose text is under 16px.
+@media (pointer: coarse)
+  .dw-input, input[type="text"], input[type="search"], input[type="url"], textarea, select
+    min-height: var(--dw-touch)
+    font-size: max(16px, 1rem)
 
 details > summary
   cursor: pointer
@@ -151,18 +261,13 @@ details > summary
 summary:focus-visible
   outline-offset: 0
 
-dl
+dl, dd
   margin: 0
-
-dd
-  margin: 0
-
-button, input, select, textarea
-  font: inherit
-  color: inherit
 
 [hidden]
   display: none !important
+
+// Heading anchors -----------------------------------------------------------------------------
 
 .zola-anchor
   margin-left: .35em
@@ -170,6 +275,7 @@ button, input, select, textarea
   font-weight: 400
   text-decoration: none
   opacity: 0
+  transition: opacity var(--dw-duration) var(--dw-ease)
 
   &:focus-visible
     opacity: 1
@@ -182,9 +288,12 @@ button, input, select, textarea
   .zola-anchor
     opacity: .6
 
+// Motion and accessibility --------------------------------------------------------------------
+
 @media (prefers-reduced-motion: reduce)
   *, *::before, *::after
     animation-duration: 0s !important
+    animation-iteration-count: 1 !important
     transition-duration: 0s !important
     scroll-behavior: auto !important
 
@@ -194,16 +303,25 @@ button, input, select, textarea
   height: 1px
   overflow: hidden
   clip: rect(0 0 0 0)
+  clip-path: inset(50%)
   white-space: nowrap
 
 .dw-skip-link
   position: absolute
-  left: 1rem
-  top: -100px
-  z-index: 50
-  padding: .5em 1em
-  background: var(--dw-bg-3)
+  top: var(--dw-space-2)
+  left: var(--dw-space-2)
+  z-index: 100
+  border: 1px solid var(--dw-accent)
+  border-radius: var(--dw-radius)
+  padding: .6em 1em
+  background: var(--dw-bg-2)
+  box-shadow: var(--dw-shadow-3)
   color: var(--dw-text)
+  font-family: var(--dw-font-mono)
+  font-size: var(--dw-step--1)
+  font-weight: 600
+  text-decoration: none
+  transform: translateY(-300%)
 
   &:focus
-    top: 1rem
+    transform: none

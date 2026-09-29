@@ -8,6 +8,13 @@
 {#- Pages that describe a project set `project` (and `ci`, its CI facts) here, before anything
     renders. See templates/macros/project.html. -#}
 {%- block model %}{% endblock model -%}
+{#- A site's own hero art, from [extra.hero] in config.toml (content/guide/customizing.md). The
+    catalog and project pages say in their model block whether they show it. Offline
+    documentation never loads it. -#}
+{%- set_global dw_hero_script = "" -%}
+{%- if dw_hero_page is defined and dw_hero_page and not dw_offline and config.extra.hero.script is defined -%}
+  {%- set_global dw_hero_script = config.extra.hero.script -%}
+{%- endif -%}
 {%- if lang is defined and lang -%}{%- set document_language = lang -%}{%- else -%}{%- set document_language = config.default_language -%}{%- endif -%}
 {%- set palette = config.extra.palette | default(value="purple") -%}
 {%- if page -%}
@@ -29,6 +36,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
+    {#- Styles that need the page script, like the header folding behind buttons, wait for this
+        class, so a page without JavaScript keeps everything in view. -#}
+    <script>document.documentElement.classList.add("dw-js")</script>
     <title>{% block title %}{{ document_title }}{% endblock title %}</title>
     <meta name="description" content="{{ document_description }}">
     <meta property="og:title" content="{{ document_title }}">
@@ -38,6 +48,11 @@
     {%- block og_image %}{% endblock og_image %}
     <link rel="stylesheet" href="{{ get_url(path='site.css', trailing_slash=false) | safe }}">
     {%- block extra_head %}{% endblock extra_head %}
+    {%- if dw_hero_script %}
+    {%- for module in config.extra.hero.preload | default(value=[]) | concat(with=dw_hero_script) %}
+    <link rel="modulepreload" href="{% if module is starting_with("https://") %}{{ module | safe }}{% else %}{{ get_url(path=module, trailing_slash=false) | safe }}{% endif %}">
+    {%- endfor %}
+    {%- endif %}
     <link rel="stylesheet" href="{{ get_url(path='brand.css', trailing_slash=false) | safe }}">
     {%- if config.extra.accent is defined and config.extra.accent is matching("^#[0-9a-fA-F]{6}$") %}
     <style>:root{--dw-accent:{{ config.extra.accent }}}</style>
@@ -66,22 +81,31 @@
 <body class="{% block body_class %}{% endblock body_class %}">
 <a class="dw-skip-link" href="#main">Skip to content</a>
 {%- block header %}
-<header class="dw-header">
+{%- set menu_items = config.extra.menu_items | default(value=[]) %}
+{%- set has_search = config.build_search_index and not dw_offline %}
+{#- Below 900px the search folds behind a button, and four links or more behind a menu. -#}
+<header class="dw-header{% if menu_items | length > 3 %} dw-header--menu{% endif %}">
     <div class="dw-shell dw-header__inner">
         <a class="dw-brand" href="{{ config.extra.logo_home_link | default(value=config.base_url ~ '/') | safe }}">
-            <span class="dw-brand__mark" aria-hidden="true"></span>{% if config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}
+            <span class="dw-brand__mark" aria-hidden="true"></span><span class="dw-brand__name">{% if config.extra.logo_html %}{{ config.extra.logo_html | safe }}{% elif config.extra.logo_text %}{{ config.extra.logo_text }}{% else %}{{ config.title }}{% endif %}</span>
         </a>
-        <nav class="dw-nav" aria-label="Site">
-            {%- for item in config.extra.menu_items | default(value=[]) %}
-            {%- if item.url is starting_with("@/") %}{% set item_url = get_url(path=item.url) %}{% else %}{% set item_url = item.url %}{% endif %}
+        <nav class="dw-nav" id="dw-nav" aria-label="Site">
+            {%- for item in menu_items %}
+            {#- `@/…` is a content file, a full URL, `/…` or `#…` stays as written, and anything else is
+                a path in the site, like `tags/`, under the base URL. -#}
+            {%- if item.url is starting_with("@/") %}{% set item_url = get_url(path=item.url) %}
+            {%- elif item.url is starting_with("http://") or item.url is starting_with("https://") or item.url is starting_with("/") or item.url is starting_with("#") %}{% set item_url = item.url %}
+            {%- else %}{% set item_url = get_url(path=item.url) %}{% endif %}
             <a href="{{ item_url | safe }}"{% if current_url and item_url == current_url %} aria-current="page"{% endif %}>{{ item.name }}</a>
             {%- endfor %}
         </nav>
-        {%- if config.build_search_index and not dw_offline %}
+        {%- if has_search %}
         {%- block search %}
-        <div class="dw-search" role="search">
+        <div class="dw-search" id="dw-search" role="search">
             <label class="dw-visually-hidden" for="dw-search-input">Search this site</label>
-            <input id="dw-search-input" type="search" placeholder="Search…  /" autocomplete="off" aria-controls="dw-search-results" data-scope="{% block search_scope %}{{ config.base_url | safe }}/{% endblock search_scope %}">
+            <svg class="dw-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+            <input id="dw-search-input" type="search" placeholder="Search…" autocomplete="off" aria-controls="dw-search-results" aria-keyshortcuts="/" data-scope="{% block search_scope %}{{ config.base_url | safe }}/{% endblock search_scope %}">
+            <kbd class="dw-search__key" aria-hidden="true">/</kbd>
             <div class="dw-search__results" id="dw-search-results" hidden>
                 <p class="dw-search__status" role="status" aria-live="polite"></p>
                 <ul class="dw-search__list"></ul>
@@ -89,6 +113,14 @@
         </div>
         {%- endblock search %}
         {%- endif %}
+        <div class="dw-header__tools" data-header-tools hidden>
+            {%- if has_search %}
+            <button class="dw-icon-button" type="button" data-search-toggle aria-controls="dw-search" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg><span class="dw-visually-hidden">Search</span></button>
+            {%- endif %}
+            {%- if menu_items | length > 3 %}
+            <button class="dw-icon-button dw-header__menu" type="button" data-menu-toggle aria-controls="dw-nav" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="dw-header__menu-label">Menu</span></button>
+            {%- endif %}
+        </div>
     </div>
 </header>
 {%- endblock header %}
@@ -99,7 +131,7 @@
 {%- block footer %}
 <footer class="dw-footer">
     <div class="dw-shell dw-footer__inner">
-        <span>{% if config.extra.footer_text %}{{ config.extra.footer_text }}{% else %}{{ config.title }}{% endif %}</span>
+        <p class="dw-footer__about"><span class="dw-brand__mark" aria-hidden="true"></span>{% if config.extra.footer_text %}{{ config.extra.footer_text }}{% else %}{{ config.title }}{% endif %}</p>
         <nav class="dw-footer__links" aria-label="Footer">
             {%- if not dw_offline %}
             <a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">dreamweave.json</a>
@@ -114,6 +146,15 @@
 {%- block extra_body %}
 <script src="{{ get_url(path='js/dreamweave.js', trailing_slash=false) | safe }}"{% if config.build_search_index and not dw_offline %} data-search-index="{{ get_url(path='search_index.' ~ config.default_language ~ '.json', trailing_slash=false) | safe }}"{% endif %} defer></script>
 {%- endblock extra_body %}
+{#- A site's own scripts on every page, from [extra] scripts; offline documentation has none. -#}
+{%- if not dw_offline %}
+{%- for site_script in config.extra.scripts | default(value=[]) %}
+<script src="{% if site_script is starting_with("https://") %}{{ site_script | safe }}{% else %}{{ get_url(path=site_script, trailing_slash=false) | safe }}{% endif %}" defer></script>
+{%- endfor %}
+{%- endif %}
+{%- if dw_hero_script %}
+<script type="module" src="{% if dw_hero_script is starting_with("https://") %}{{ dw_hero_script | safe }}{% else %}{{ get_url(path=dw_hero_script, trailing_slash=false) | safe }}{% endif %}"></script>
+{%- endif %}
 {%- if config.extra.goatcounter is defined and config.extra.goatcounter is matching("^[a-z0-9-]+$") and not dw_offline %}
 <script data-goatcounter="https://{{ config.extra.goatcounter }}.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 {%- endif %}

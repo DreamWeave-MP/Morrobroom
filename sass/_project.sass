@@ -1,36 +1,75 @@
 // A project's landing page, changelog and install/compatibility panels.
 
+// Hero ------------------------------------------------------------------------------------
+// The top of the catalog and of every project page. A site can draw its own art behind it with
+// [extra.hero] in config.toml (content/guide/customizing.md): the template then adds
+// .dw-hero--art and an empty .dw-hero__art for the site's script to fill.
+
 .dw-hero
   position: relative
+  isolation: isolate
+  margin-bottom: var(--dw-space-7)
   border-bottom: 1px solid var(--dw-line)
-  padding: 1.6rem 0 1.2rem
-  background: linear-gradient(180deg, var(--dw-bg-1), var(--dw-bg-0))
+  padding: clamp(2rem, 1.2rem + 3.5vw, 4.5rem) 0 clamp(1.75rem, 1rem + 3vw, 3.5rem)
+  background: radial-gradient(ellipse 60% 90% at 100% 0%, color-mix(in oklab, var(--dw-accent) 12%, transparent), transparent 70%), radial-gradient(ellipse 45% 70% at 0% 100%, color-mix(in oklab, var(--dw-accent) 5%, transparent), transparent 70%), radial-gradient(color-mix(in oklab, var(--dw-text) 7%, transparent) 1px, transparent 1.5px) 0 0 / 24px 24px, linear-gradient(180deg, var(--dw-bg-1), var(--dw-bg-0))
 
+.dw-hero--art
+  overflow: hidden
+
+// The site's own art: it fills the hero, behind the text.
+.dw-hero__art
+  position: absolute
+  inset: 0
+  z-index: -1
+
+  > canvas, > svg, > img, > video
+    display: block
+    width: 100%
+    height: 100%
+
+// Text and picture side by side, the facts in a row across both.
 .dw-hero__grid
   display: grid
-  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem)
-  gap: 1.5rem 2.25rem
-  align-items: start
+  grid-template-columns: minmax(0, 1fr) minmax(0, 32rem)
+  gap: var(--dw-space-6) clamp(2rem, 4vw, 4rem)
+  align-items: center
+
+  > .dw-strip
+    grid-column: 1 / -1
+    margin: 0
+
+.dw-hero__grid--text
+  grid-template-columns: minmax(0, 1fr)
 
 .dw-hero__title
-  margin: 0 0 .35rem
-  font-size: clamp(2rem, 4.2vw, 3.1rem)
-  letter-spacing: -.03em
-  line-height: 1.05
+  margin: 0 0 var(--dw-space-3)
+  font-size: var(--dw-step-5)
+  letter-spacing: -.035em
+  line-height: 1.02
 
 .dw-hero__summary
-  max-width: 62ch
-  margin: 0 0 1rem
+  max-width: 60ch
+  margin: 0 0 var(--dw-space-5)
   color: var(--dw-text-muted)
-  font-size: 1.08rem
+  font-size: var(--dw-step-1)
+  line-height: 1.55
+
+  &:last-child
+    margin-bottom: 0
+
+// On a phone the hero's buttons fill their rows instead of leaving ragged ends.
+@media (max-width: 759px)
+  .dw-hero .dw-actions > .dw-button
+    flex: 1 1 auto
 
 .dw-hero__figure
   position: relative
   margin: 0
-  border: 1px solid var(--dw-line)
-  border-radius: var(--dw-radius)
+  border: 1px solid var(--dw-line-strong)
+  border-radius: var(--dw-radius-lg)
   overflow: hidden
   background: var(--dw-bg-2)
+  box-shadow: var(--dw-shadow-3), 0 0 0 1px color-mix(in oklab, var(--dw-accent) 12%, transparent)
   aspect-ratio: 16 / 9
 
   img
@@ -44,24 +83,31 @@
     right: 0
     bottom: 0
     left: 0
-    padding: 1.2em .75em .45em
-    background: linear-gradient(transparent, rgb(0 0 0 / 70%))
-    color: #ece4f4
-    font-size: .78rem
+    padding: 2.5em 1em .7em
+    background: linear-gradient(transparent, var(--dw-scrim))
+    color: var(--dw-text)
+    font-size: var(--dw-step--1)
 
 @media (max-width: 1000px)
   .dw-hero__grid
     grid-template-columns: minmax(0, 1fr)
 
+  .dw-hero__figure
+    max-width: 42rem
+
 // Media gallery ---------------------------------------------------------------------------
 
+// Two across on a phone, and as many as fit, stretched to fill the row, above that.
 .dw-gallery
   display: grid
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr))
-  gap: .75rem
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr))
+  gap: var(--dw-space-4) var(--dw-space-3)
   margin: 0
   padding: 0
   list-style: none
+
+  > li
+    margin: 0
 
 .dw-gallery__item
   margin: 0
@@ -69,34 +115,38 @@
   a
     display: block
     border: 1px solid var(--dw-line)
-    border-radius: var(--dw-radius)
+    border-radius: var(--dw-radius-lg)
     overflow: hidden
     background: var(--dw-bg-2)
+    box-shadow: var(--dw-shadow-1)
     aspect-ratio: 16 / 9
+    transition: border-color var(--dw-duration) var(--dw-ease), box-shadow var(--dw-duration) var(--dw-ease)
 
     &:hover, &:focus-visible
-      border-color: var(--dw-accent)
+      border-color: var(--dw-accent-line)
+      box-shadow: var(--dw-shadow-2)
 
   img
     display: block
     width: 100%
     height: 100%
     object-fit: cover
-    transition: transform .25s
+    transition: transform .35s var(--dw-ease)
 
   a:hover img
-    transform: scale(1.03)
+    transform: scale(1.04)
 
   figcaption
-    margin-top: .35em
+    margin-top: .55em
     color: var(--dw-text-muted)
-    font-size: .8rem
+    font-size: var(--dw-step--1)
+    line-height: 1.5
 
 .dw-gallery__category
   display: block
   color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .68rem
+  font-size: var(--dw-step--2)
   letter-spacing: .1em
   text-transform: uppercase
 
@@ -104,7 +154,7 @@
   position: relative
   display: grid
   place-items: center
-  color: #fff !important
+  color: var(--dw-text) !important
   text-decoration: none
 
   &::after
@@ -112,19 +162,21 @@
     position: absolute
     inset: auto .5em .5em auto
     border-radius: var(--dw-radius)
-    padding: .2em .6em
-    background: rgb(0 0 0 / 70%)
+    padding: .25em .65em
+    background: var(--dw-scrim)
     font-family: var(--dw-font-mono)
-    font-size: .72rem
+    font-size: var(--dw-step--2)
 
 .dw-gallery__placeholder
   display: grid
   width: 100%
   height: 100%
   place-items: center
+  padding: 1em
   color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .8rem
+  font-size: var(--dw-step--1)
+  text-align: center
 
 // Lightbox (a native <dialog>; the gallery works as plain links without it)
 
@@ -133,13 +185,15 @@
   max-width: none
   max-height: 96vh
   border: 1px solid var(--dw-line-strong)
-  border-radius: var(--dw-radius)
+  border-radius: var(--dw-radius-lg)
   padding: 0
   background: var(--dw-bg-0)
+  box-shadow: var(--dw-shadow-3)
   color: var(--dw-text)
 
   &::backdrop
-    background: rgb(6 3 10 / 88%)
+    background: var(--dw-scrim)
+    backdrop-filter: blur(4px)
 
 .dw-lightbox__frame
   display: grid
@@ -148,13 +202,14 @@
 
 .dw-lightbox__bar
   display: flex
-  gap: .5rem
+  flex-wrap: wrap
+  gap: var(--dw-space-2)
   align-items: center
   justify-content: space-between
   border-bottom: 1px solid var(--dw-line)
-  padding: .4rem .6rem
+  padding: var(--dw-space-2) var(--dw-space-3)
   font-family: var(--dw-font-mono)
-  font-size: .78rem
+  font-size: var(--dw-step--1)
 
 .dw-lightbox__image
   display: block
@@ -164,42 +219,66 @@
   object-fit: contain
 
 .dw-lightbox__caption
+  margin: 0
   border-top: 1px solid var(--dw-line)
-  padding: .5rem .8rem
+  padding: var(--dw-space-3) var(--dw-space-4)
   color: var(--dw-text-muted)
-  font-size: .85rem
+  font-size: var(--dw-step--1)
 
 // Install ---------------------------------------------------------------------------------
 
 .dw-methods
   display: grid
-  gap: .6rem
+  gap: var(--dw-space-3)
+  margin-bottom: var(--dw-space-6)
 
 .dw-method
+  min-width: 0
   border: 1px solid var(--dw-line)
-  border-radius: var(--dw-radius)
+  border-radius: var(--dw-radius-lg)
   background: var(--dw-bg-1)
+  box-shadow: var(--dw-sheen), var(--dw-shadow-1)
+  transition: border-color var(--dw-duration) var(--dw-ease)
 
+  &[open]
+    border-color: color-mix(in oklab, var(--dw-accent) 28%, var(--dw-line))
+
+  // Name and hint on the left, a chevron on the right, the whole row a target.
   > summary
-    display: flex
-    flex-wrap: wrap
-    gap: .3em .8em
-    align-items: baseline
-    padding: .7em .9em
+    display: grid
+    grid-template-columns: minmax(0, 1fr) auto
+    gap: .1em 1em
+    align-items: center
+    min-height: var(--dw-touch)
+    border-radius: var(--dw-radius-lg)
+    padding: .8em 1.1em
     list-style: none
+    transition: background var(--dw-duration) var(--dw-ease)
 
     &::-webkit-details-marker
       display: none
 
-    &::before
-      content: "▸"
-      color: var(--dw-accent-line)
+    &::after
+      content: ""
+      grid-column: 2
+      grid-row: 1 / span 2
+      width: .5em
+      height: .5em
+      margin-right: .2em
+      border-right: 2px solid var(--dw-accent-line)
+      border-bottom: 2px solid var(--dw-accent-line)
+      transform: translateY(-25%) rotate(45deg)
+      transition: transform var(--dw-duration) var(--dw-ease)
+
+    &:hover
+      background: var(--dw-bg-2)
 
   &[open] > summary
     border-bottom: 1px solid var(--dw-line)
+    border-radius: var(--dw-radius-lg) var(--dw-radius-lg) 0 0
 
-    &::before
-      content: "▾"
+    &::after
+      transform: translateY(25%) rotate(-135deg)
 
 .dw-method__name
   font-family: var(--dw-font-mono)
@@ -207,24 +286,28 @@
 
 .dw-method__hint
   color: var(--dw-text-faint)
-  font-size: .82rem
+  font-size: var(--dw-step--1)
+
+.dw-method > summary .dw-method__hint
+  grid-column: 1
 
 .dw-method__body
-  padding: .9em 1em
+  padding: 1.1em 1.15em
 
   > :last-child
     margin-bottom: 0
 
 .dw-steps
-  margin: 0 0 1em
+  margin: 0 0 1.25em
   padding: 0
   list-style: none
   counter-reset: dw-step
 
   > li
     position: relative
-    margin: 0 0 .7em
-    padding-left: 2.4em
+    min-height: 1.8em
+    margin: 0 0 .85em
+    padding-left: 2.75em
     counter-increment: dw-step
 
     &::before
@@ -232,87 +315,114 @@
       position: absolute
       top: .05em
       left: 0
+      display: grid
+      width: 2em
+      height: 1.6em
+      place-items: center
+      border: 1px solid var(--dw-accent-line)
+      border-radius: var(--dw-radius)
+      background: var(--dw-accent-soft)
       color: var(--dw-accent)
       font-family: var(--dw-font-mono)
-      font-size: .8rem
+      font-size: var(--dw-step--2)
       font-weight: 700
 
 .dw-configurator
   display: grid
-  gap: .7rem
+  grid-template-columns: minmax(0, 1fr)
+  gap: var(--dw-space-4)
+  min-width: 0
 
 .dw-configurator__row
   display: flex
   flex-wrap: wrap
-  gap: .5rem
+  gap: var(--dw-space-2) var(--dw-space-3)
   align-items: center
+  min-width: 0
 
   label
     color: var(--dw-text-muted)
     font-family: var(--dw-font-mono)
-    font-size: .78rem
+    font-size: var(--dw-step--1)
 
   input[type="text"]
-    flex: 1 1 18rem
+    flex: 1 1 16rem
     min-width: 0
-    border: 1px solid var(--dw-line-strong)
-    border-radius: var(--dw-radius)
-    padding: .45em .7em
-    background: var(--dw-bg-0)
     font-family: var(--dw-font-mono)
-    font-size: .82rem
+    font-size: var(--dw-step--1)
 
+.dw-configurator__output
+  margin: 0
+
+// A choice among components: each option a card-sized target.
 .dw-choices
   display: grid
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr))
-  gap: .4rem
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr))
+  gap: var(--dw-space-2)
+  min-width: 0
   margin: 0
   border: 0
   padding: 0
 
   legend
-    margin-bottom: .3rem
+    margin-bottom: var(--dw-space-2)
+    padding: 0
     color: var(--dw-text-muted)
     font-family: var(--dw-font-mono)
-    font-size: .78rem
+    font-size: var(--dw-step--1)
 
   label
     display: flex
-    gap: .5em
-    align-items: flex-start
+    gap: .65em
+    align-items: center
+    min-height: var(--dw-touch)
     border: 1px solid var(--dw-line)
     border-radius: var(--dw-radius)
-    padding: .4em .6em
+    padding: .45em .75em
     background: var(--dw-bg-0)
-    font-size: .85rem
+    font-size: var(--dw-step--1)
     cursor: pointer
+    transition: border-color var(--dw-duration) var(--dw-ease), background var(--dw-duration) var(--dw-ease)
+
+    &:hover
+      border-color: var(--dw-line-strong)
 
     &:has(input:checked)
       border-color: var(--dw-accent-line)
       background: var(--dw-accent-soft)
 
+    &:has(input:focus-visible)
+      outline: 2px solid var(--dw-focus)
+      outline-offset: 2px
+
   input
-    margin-top: .25em
+    flex: none
+    width: 1.05em
+    height: 1.05em
+    margin: 0
     accent-color: var(--dw-accent)
 
 // Compatibility ---------------------------------------------------------------------------
 
 .dw-matrix
   display: grid
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr))
-  gap: .75rem
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr))
+  gap: var(--dw-space-3)
 
 .dw-matrix__cell
+  --dw-cell-color: var(--dw-text-muted)
+  min-width: 0
   border: 1px solid var(--dw-line)
-  border-top: 3px solid var(--dw-line-strong)
-  border-radius: var(--dw-radius)
-  padding: .7em .85em
+  border-top: 3px solid color-mix(in oklab, var(--dw-cell-color) 80%, var(--dw-line))
+  border-radius: var(--dw-radius-lg)
+  padding: .85em 1em 1em
   background: var(--dw-bg-1)
+  box-shadow: var(--dw-sheen), var(--dw-shadow-1)
 
   h3
     margin: 0 0 .5em
-    color: var(--dw-text-muted)
-    font-size: .72rem
+    color: var(--dw-cell-color)
+    font-size: var(--dw-step--2)
     letter-spacing: .12em
     text-transform: uppercase
 
@@ -322,105 +432,149 @@
     list-style: none
 
   li
-    padding: .3em 0
-    font-size: .9rem
+    margin: 0
+    padding: .4em 0
+    font-size: .94rem
 
     + li
       border-top: 1px dashed var(--dw-line)
 
   p
-    margin: .2em 0 0
+    margin: .25em 0 0
     color: var(--dw-text-faint)
-    font-size: .82rem
+    font-size: var(--dw-step--1)
 
 .dw-matrix__cell--requires
-  border-top-color: var(--dw-accent)
+  --dw-cell-color: var(--dw-accent)
 
 .dw-matrix__cell--recommends
-  border-top-color: var(--dw-info)
+  --dw-cell-color: var(--dw-info)
 
 .dw-matrix__cell--conflicts
-  border-top-color: var(--dw-danger)
+  --dw-cell-color: var(--dw-danger)
 
 .dw-matrix__cell--compatible
-  border-top-color: var(--dw-ok)
+  --dw-cell-color: var(--dw-ok)
 
 .dw-constraint
-  margin-left: .4em
+  margin-left: .45em
   color: var(--dw-text-muted)
   font-family: var(--dw-font-mono)
   font-size: .82em
 
 // Releases --------------------------------------------------------------------------------
+// A timeline: each release a card, pinned to a line down the left by a point in its status.
 
 .dw-releases
+  --dw-timeline: 1.6rem
+  --dw-timeline-line: .4rem
+  --dw-timeline-point: .8rem
+  position: relative
   display: grid
-  gap: 1rem
+  gap: var(--dw-space-4)
   margin: 0
-  padding: 0
+  padding: 0 0 0 var(--dw-timeline)
   list-style: none
 
+  &::before
+    content: ""
+    position: absolute
+    top: 1rem
+    bottom: 1rem
+    left: var(--dw-timeline-line)
+    width: 2px
+    border-radius: 2px
+    background: linear-gradient(180deg, var(--dw-accent-line), var(--dw-line) 50%, color-mix(in oklab, var(--dw-line) 30%, transparent))
+
 .dw-release
+  --dw-release-color: var(--dw-accent)
+  position: relative
   // A grid item grows to fit its widest child; without this, a code block in the notes widens the
   // page instead of scrolling.
   min-width: 0
+  margin: 0
   border: 1px solid var(--dw-line)
-  border-left: 3px solid var(--dw-accent-strong)
-  border-radius: var(--dw-radius)
-  padding: .85em 1.05em
+  border-radius: var(--dw-radius-lg)
+  padding: 1rem 1.25rem 1.15rem
   background: var(--dw-bg-1)
+  box-shadow: var(--dw-sheen), var(--dw-shadow-1)
+  scroll-margin-top: var(--dw-space-4)
+
+  &::before
+    content: ""
+    position: absolute
+    top: 1.3rem
+    left: calc(var(--dw-timeline-line) + 1px - var(--dw-timeline-point) / 2 - var(--dw-timeline))
+    width: var(--dw-timeline-point)
+    height: var(--dw-timeline-point)
+    border: 2px solid var(--dw-release-color)
+    border-radius: 50%
+    background: var(--dw-bg-0)
+    box-shadow: 0 0 0 4px var(--dw-bg-0), 0 0 12px color-mix(in oklab, var(--dw-release-color) 45%, transparent)
+
+  &:target
+    border-color: var(--dw-accent-line)
 
   h3
     display: flex
     flex-wrap: wrap
-    gap: .3em .7em
-    align-items: baseline
-    margin: 0 0 .35em
-    font-size: 1.15rem
+    gap: .35em .7em
+    align-items: center
+    margin: 0 0 .4em
+    font-size: var(--dw-step-2)
 
   h4
-    margin: .9em 0 .3em
+    margin: 1.1em 0 .35em
     color: var(--dw-text-muted)
-    font-size: .72rem
+    font-size: var(--dw-step--2)
     letter-spacing: .12em
     text-transform: uppercase
 
   ul
     margin: 0 0 .5em
-    padding-left: 1.2em
+    padding-left: 1.25em
+
+  li + li
+    margin-top: .2em
 
   > :last-child
     margin-bottom: 0
 
+  > .dw-artifact
+    margin-top: var(--dw-space-4)
+
 .dw-release--yanked
-  border-left-color: var(--dw-danger)
-  opacity: .85
+  --dw-release-color: var(--dw-danger)
+  border-color: color-mix(in oklab, var(--dw-danger) 25%, var(--dw-line))
 
 .dw-release--deprecated
-  border-left-color: var(--dw-warn)
+  --dw-release-color: var(--dw-warn)
 
 .dw-release--development
-  border-left-style: dashed
-  border-left-color: var(--dw-info)
+  --dw-release-color: var(--dw-info)
+  border-style: dashed
 
 .dw-release__meta
   color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .78rem
+  font-size: var(--dw-step--2)
+  font-weight: 400
 
 .dw-release__summary
   margin: 0 0 .4em
   color: var(--dw-text-muted)
 
 .dw-release__notice
-  margin: .4em 0
+  margin: .5em 0
+  border: 1px solid color-mix(in oklab, var(--dw-danger) 30%, transparent)
   border-radius: var(--dw-radius)
-  padding: .4em .7em
+  padding: .5em .8em
   background: color-mix(in oklab, var(--dw-danger) 8%, var(--dw-bg-1))
   color: var(--dw-danger)
-  font-size: .88rem
+  font-size: var(--dw-step--1)
 
 .dw-release__notice--deprecated
+  border-color: color-mix(in oklab, var(--dw-warn) 30%, transparent)
   background: color-mix(in oklab, var(--dw-warn) 8%, var(--dw-bg-1))
   color: var(--dw-warn)
 
@@ -433,19 +587,86 @@
 .dw-notes--added li::marker
   color: var(--dw-accent)
 
+@media (max-width: 759px)
+  .dw-releases
+    --dw-timeline: 1.15rem
+    --dw-timeline-line: .25rem
+    --dw-timeline-point: .65rem
+
+  .dw-release
+    padding: .9rem 1rem 1rem
+
+// The changelog page: the releases beside an index of versions on a wide screen.
+.dw-changelog
+  display: grid
+  grid-template-columns: minmax(0, 56rem) minmax(0, 14rem)
+  gap: var(--dw-space-7)
+  align-items: start
+
+.dw-changelog__main
+  min-width: 0
+
+  > .dw-section:first-child
+    margin-top: 0
+
+.dw-changelog__index
+  position: sticky
+  top: var(--dw-space-4)
+  max-height: calc(100vh - 2rem)
+  overflow-y: auto
+  scrollbar-width: thin
+
+  ol
+    margin: 0
+    border-left: 1px solid var(--dw-line)
+    padding: 0
+    list-style: none
+    font-family: var(--dw-font-mono)
+    font-size: var(--dw-step--1)
+
+  li
+    margin: 0
+
+  a
+    display: flex
+    gap: .75em
+    align-items: baseline
+    justify-content: space-between
+    margin-left: -1px
+    border-left: 2px solid transparent
+    padding: .3em .75em
+    color: var(--dw-text-muted)
+    text-decoration: none
+
+    &:hover
+      border-left-color: var(--dw-accent)
+      color: var(--dw-accent)
+
+  small
+    color: var(--dw-text-faint)
+    font-size: var(--dw-step--2)
+
+@media (max-width: 1099px)
+  .dw-changelog
+    grid-template-columns: minmax(0, 1fr)
+
+  .dw-changelog__index
+    display: none
+
 // Artifacts -------------------------------------------------------------------------------
 
 .dw-artifact
+  min-width: 0
   border: 1px solid var(--dw-line)
-  border-radius: var(--dw-radius)
-  background: var(--dw-bg-1)
+  border-radius: var(--dw-radius-lg)
+  background: color-mix(in oklab, var(--dw-bg-0) 55%, var(--dw-bg-1))
 
   + .dw-artifact
-    margin-top: .6rem
+    margin-top: var(--dw-space-2)
 
   // The next channel's label in the downloads rail.
   + .dw-kicker
-    margin-top: 1.4rem
+    margin-top: var(--dw-space-5)
 
 .dw-artifact__head
   display: flex
@@ -453,36 +674,48 @@
   gap: .3em .8em
   align-items: baseline
   justify-content: space-between
-  padding: .6em .8em
+  padding: .7em .9em .5em
 
 .dw-artifact__name
   font-family: var(--dw-font-mono)
-  font-size: .88rem
+  font-size: .9rem
   font-weight: 700
   overflow-wrap: anywhere
 
 .dw-artifact__meta
   color: var(--dw-text-faint)
   font-family: var(--dw-font-mono)
-  font-size: .75rem
+  font-size: var(--dw-step--2)
 
 .dw-artifact__actions
   display: flex
   flex-wrap: wrap
-  gap: .4rem
-  padding: 0 .8em .6em
+  gap: var(--dw-space-2)
+  align-items: center
+  padding: 0 .9em .75em
 
 .dw-artifact details
   border-top: 1px solid var(--dw-line)
 
   > summary
-    padding: .4em .8em
+    display: flex
+    align-items: center
+    min-height: 2.25rem
+    padding: .35em .9em
     color: var(--dw-text-faint)
     font-family: var(--dw-font-mono)
-    font-size: .72rem
+    font-size: var(--dw-step--2)
+    overflow-wrap: anywhere
+
+    &:hover
+      color: var(--dw-text-muted)
+
+@media (pointer: coarse)
+  .dw-artifact details > summary
+    min-height: var(--dw-touch)
 
 .dw-artifact__verify
-  padding: .2em .8em .7em
+  padding: .3em .9em .8em
 
   .dw-record
     font-size: .8rem
@@ -500,29 +733,46 @@
 
 .dw-credits
   display: grid
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr))
-  gap: .5rem
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr))
+  gap: var(--dw-space-3)
   margin: 0
   padding: 0
   list-style: none
 
   li
+    margin: 0
+    border: 1px solid var(--dw-line)
     border-left: 2px solid var(--dw-accent-line)
-    padding: .2em .7em
+    border-radius: var(--dw-radius)
+    padding: .55em .85em .6em
+    background: var(--dw-bg-1)
 
   small
     display: block
+    margin-bottom: .1em
     color: var(--dw-text-faint)
     font-family: var(--dw-font-mono)
-    font-size: .72rem
-    letter-spacing: .06em
+    font-size: var(--dw-step--2)
+    letter-spacing: .08em
     text-transform: uppercase
 
 // Offline documentation banner ------------------------------------------------------------
 
 .dw-offline
-  border-bottom: 1px solid var(--dw-line)
-  padding: .5em 0
+  border-bottom: 1px solid var(--dw-accent-line)
+  padding: .6em 0
   background: var(--dw-accent-soft)
   font-family: var(--dw-font-mono)
-  font-size: .78rem
+  font-size: var(--dw-step--1)
+
+// A page's own logo beside its title, from [extra] icon.
+.dw-hero__title--icon
+  display: flex
+  align-items: center
+  gap: var(--dw-space-4, 1rem)
+
+.dw-hero__icon
+  flex: none
+  width: clamp(3.5rem, 7vw, 5.5rem)
+  height: auto
+  filter: drop-shadow(0 6px 22px color-mix(in oklab, var(--dw-accent) 35%, transparent))

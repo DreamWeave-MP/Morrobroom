@@ -3,10 +3,10 @@
 {%- block title %}Not found · {{ config.title }}{% endblock title %}
 
 {%- block content %}
-<div class="dw-shell"><div class="dw-article">
-    <p class="dw-kicker"><span>404</span></p>
+<div class="dw-shell dw-empty">
+    <p class="dw-empty__code" aria-hidden="true">404</p>
     <h1>Nothing here</h1>
     <p>This page does not exist. If you followed a link to a download, the project may have moved or renamed its archive; its <a href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">site index</a> lists what exists now.</p>
-    <p><a class="dw-button" href="{{ config.base_url | safe }}/">Back to the start</a></p>
-</div></div>
+    <p class="dw-actions"><a class="dw-button dw-button--primary" href="{{ config.base_url | safe }}/">Back to the start</a></p>
+</div>
 {%- endblock content %}

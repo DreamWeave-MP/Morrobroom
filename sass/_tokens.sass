@@ -1,233 +1,290 @@
 // Design tokens. Override them in sass/brand.sass, or set `palette`/`accent` in config.toml.
 // Everything else in the template reads these; nothing hard-codes a color.
+//
+// Every palette stands on the same OKLCH lightness ladder: the four surfaces are .036 apart
+// (about .15, .19, .22 and .26), lines sit at .30 and .39, and text at .93, .79 and .65. So a
+// panel, a hover or a muted label looks the same distance from its page in every palette, and
+// only hue and chroma tell them apart. Body and muted text pass WCAG AA on bg-0 to bg-3, faint
+// text passes 4.5:1 on bg-0 to bg-2. tools/tests/test_palettes.py checks all of it, and that
+// sass/giscus/ and static/img/mark-*.svg carry the same colors.
 
 :root
   // Surfaces, darkest first
-  --dw-bg-0: #110d18
-  --dw-bg-1: #161120
-  --dw-bg-2: #1d1629
-  --dw-bg-3: #271d37
+  --dw-bg-0: #0d0914
+  --dw-bg-1: #150f20
+  --dw-bg-2: #1e162c
+  --dw-bg-3: #271d38
 
   // Text
-  --dw-text: #e7dfef
-  --dw-text-muted: #b6a9c6
-  --dw-text-faint: #8d809f
+  --dw-text: #ebe4f4
+  --dw-text-muted: #c0b2cf
+  --dw-text-faint: #9687a6
 
   // Lines
-  --dw-line: #33274a
-  --dw-line-strong: #4e3b6b
+  --dw-line: #332648
+  --dw-line-strong: #4c3a6a
 
-  // Accent: one value, the rest is derived so a single override stays coherent
+  // Accent: one value, the rest is derived so a single override stays coherent. The derived
+  // shades mix toward the palette's own surfaces, never toward a fixed hue.
   --dw-accent: #c6a0f6
-  --dw-accent-strong: color-mix(in oklab, var(--dw-accent) 62%, #3a1066)
-  --dw-accent-soft: color-mix(in oklab, var(--dw-accent) 16%, var(--dw-bg-1))
+  --dw-accent-strong: color-mix(in oklab, var(--dw-accent) 58%, var(--dw-bg-0))
+  --dw-accent-soft: color-mix(in oklab, var(--dw-accent) 14%, var(--dw-bg-1))
   --dw-accent-line: color-mix(in oklab, var(--dw-accent) 45%, var(--dw-line))
   --dw-accent-hover: color-mix(in oklab, var(--dw-accent) 70%, white)
+  // Text on an accent fill: a primary button, the visitor's own download
+  --dw-on-accent: var(--dw-bg-0)
 
   // Status semantics
   --dw-ok: #8fdcb0
   --dw-warn: #ecd18f
   --dw-danger: #ffaea2
   --dw-info: #9cc7ff
-  --dw-neutral: #c2b7ce
+  --dw-neutral: var(--dw-text-muted)
   --dw-focus: #b3ead7
 
-  // Type
+  // Type. Mono carries structure (headings, labels, metadata); sans carries reading.
   --dw-font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif
   --dw-font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace
   --dw-font-display: var(--dw-font-mono)
-  --dw-size-base: 15.5px
-  --dw-leading: 1.62
+  --dw-size-base: 16px
+  --dw-leading: 1.65
+  --dw-leading-tight: 1.2
 
-  // Space and shape
-  --dw-gap: 1rem
-  --dw-radius: 3px
+  // Type scale: labels, small print, body, lead, then headings. The top three grow with the
+  // viewport, so a phone's h1 is not a desktop's.
+  --dw-step--2: .75rem
+  --dw-step--1: .875rem
+  --dw-step-0: 1rem
+  --dw-step-1: 1.125rem
+  --dw-step-2: 1.28rem
+  --dw-step-3: clamp(1.4rem, 1.28rem + .5vw, 1.65rem)
+  --dw-step-4: clamp(1.8rem, 1.5rem + 1.3vw, 2.45rem)
+  --dw-step-5: clamp(2.25rem, 1.6rem + 3vw, 3.75rem)
+
+  // Space: one ramp for padding, gaps and the rhythm between sections
+  --dw-space-1: .25rem
+  --dw-space-2: .5rem
+  --dw-space-3: .75rem
+  --dw-space-4: 1rem
+  --dw-space-5: 1.5rem
+  --dw-space-6: 2rem
+  --dw-space-7: 3rem
+  --dw-space-8: 4.5rem
+  --dw-gap: var(--dw-space-4)
+  // The page's side margin: tight on a phone, roomier on a desktop
+  --dw-gutter: clamp(16px, 3.2vw, 40px)
+
+  // Shape. Cards and panels round twice as much as controls; set --dw-radius to 0 for a square site.
+  --dw-radius: 5px
+  --dw-radius-lg: calc(var(--dw-radius) * 2)
+  --dw-radius-pill: 999px
+
+  // Elevation: resting cards, raised hovers, and popovers above the page
+  --dw-shadow-1: 0 1px 2px rgb(0 0 0 / 28%)
+  --dw-shadow-2: 0 2px 4px rgb(0 0 0 / 22%), 0 14px 32px -10px rgb(0 0 0 / 55%)
+  --dw-shadow-3: 0 4px 10px rgb(0 0 0 / 30%), 0 28px 64px -16px rgb(0 0 0 / 70%)
+  // A lit top edge on raised surfaces
+  --dw-sheen: inset 0 1px 0 color-mix(in oklab, var(--dw-text) 7%, transparent)
+  // Behind a dialog, and under text laid over an image
+  --dw-scrim: color-mix(in oklab, var(--dw-bg-0) 88%, transparent)
+
+  // Motion. prefers-reduced-motion turns every transition off (sass/_base.sass).
+  --dw-ease: cubic-bezier(.2, .7, .2, 1)
+  --dw-duration: .16s
+
+  // Sizes
+  --dw-touch: 44px
+  --dw-control: 2.5rem
   --dw-width-page: 1600px
-  --dw-width-prose: 74ch
+  --dw-width-prose: 70ch
   --dw-width-rail: 20rem
 
   // Code
-  --dw-code-bg: #1a1424
-  --dw-code-inline-bg: #241b31
+  --dw-code-bg: #110c1a
+  --dw-code-inline-bg: #231a32
 
   color-scheme: dark
 
+// Teal: deep sea-glass and a clear teal.
 [data-palette="teal"]
   --dw-accent: #7fded0
-  --dw-bg-0: #0c1214
-  --dw-bg-1: #10181b
-  --dw-bg-2: #152024
-  --dw-bg-3: #1c2b30
-  --dw-line: #22363b
-  --dw-line-strong: #325059
-  --dw-text: #dcecea
-  --dw-text-muted: #a3bcb9
-  --dw-text-faint: #7d9794
-  --dw-code-bg: #111c1f
-  --dw-code-inline-bg: #182a2e
+  --dw-bg-0: #060c0f
+  --dw-bg-1: #0a1518
+  --dw-bg-2: #0f1e22
+  --dw-bg-3: #15272c
+  --dw-line: #1b3238
+  --dw-line-strong: #2a4a54
+  --dw-text: #e0eae9
+  --dw-text-muted: #aabebc
+  --dw-text-faint: #7f9392
+  --dw-code-bg: #071113
+  --dw-code-inline-bg: #122227
 
+// Gold: lamp-black and brass.
 [data-palette="gold"]
   --dw-accent: #ecc978
-  --dw-bg-0: #13100b
-  --dw-bg-1: #19150e
-  --dw-bg-2: #211b12
-  --dw-bg-3: #2c2418
-  --dw-line: #3a301f
-  --dw-line-strong: #574829
-  --dw-text: #efe6d6
-  --dw-text-muted: #c4b69c
-  --dw-text-faint: #998c74
-  --dw-code-bg: #1d1810
-  --dw-code-inline-bg: #282116
+  --dw-bg-0: #0e0b05
+  --dw-bg-1: #17120a
+  --dw-bg-2: #211a0f
+  --dw-bg-3: #2a2214
+  --dw-line: #372c1a
+  --dw-line-strong: #51432a
+  --dw-text: #ebe7df
+  --dw-text-muted: #c0b8a9
+  --dw-text-faint: #968e7e
+  --dw-code-bg: #130e07
+  --dw-code-inline-bg: #261e11
 
+// Ember: banked coals and a live flame.
 [data-palette="ember"]
   --dw-accent: #ff9d7a
-  --dw-bg-0: #140d0c
-  --dw-bg-1: #1b1110
-  --dw-bg-2: #231615
-  --dw-bg-3: #2e1d1b
-  --dw-line: #3d2723
-  --dw-line-strong: #5c3a33
-  --dw-text: #f1e1dd
-  --dw-text-muted: #c9aca5
-  --dw-text-faint: #9d837c
-  --dw-code-bg: #1f1413
-  --dw-code-inline-bg: #2b1c1a
+  --dw-bg-0: #110907
+  --dw-bg-1: #1b0f0d
+  --dw-bg-2: #261614
+  --dw-bg-3: #311e1a
+  --dw-line: #3f2622
+  --dw-line-strong: #5d3b35
+  --dw-text: #f1e5e2
+  --dw-text-muted: #c9b3ae
+  --dw-text-faint: #a08983
+  --dw-code-bg: #160c0a
+  --dw-code-inline-bg: #2c1a17
 
+// Moss: wet stone and new growth.
 [data-palette="moss"]
   --dw-accent: #b7d98c
-  --dw-bg-0: #0e110c
-  --dw-bg-1: #131710
-  --dw-bg-2: #191f15
-  --dw-bg-3: #222a1c
-  --dw-line: #2d3825
-  --dw-line-strong: #435436
-  --dw-text: #e3ebdc
-  --dw-text-muted: #b2c0a6
-  --dw-text-faint: #88967d
-  --dw-code-bg: #161c12
-  --dw-code-inline-bg: #1f271a
+  --dw-bg-0: #090c07
+  --dw-bg-1: #10150c
+  --dw-bg-2: #181d12
+  --dw-bg-3: #1f2618
+  --dw-line: #28311f
+  --dw-line-strong: #3d4a31
+  --dw-text: #e5e9e1
+  --dw-text-muted: #b5bcad
+  --dw-text-faint: #8a9282
+  --dw-code-bg: #0d1009
+  --dw-code-inline-bg: #1b2215
 
 // Umber: near-black browns, parchment and burnished copper, between Quake's rust and Morrowind's
 // bronze interface.
 [data-palette="umber"]
   --dw-accent: #d99a5b
-  --dw-bg-0: #110d09
-  --dw-bg-1: #17120d
-  --dw-bg-2: #1f1811
-  --dw-bg-3: #292016
-  --dw-line: #3a2d1f
-  --dw-line-strong: #57432e
-  --dw-text: #ece2d0
-  --dw-text-muted: #c2b196
-  --dw-text-faint: #978670
-  --dw-code-bg: #1b150f
-  --dw-code-inline-bg: #261e15
+  --dw-bg-0: #0f0a06
+  --dw-bg-1: #18120b
+  --dw-bg-2: #221910
+  --dw-bg-3: #2c2116
+  --dw-line: #382b1c
+  --dw-line-strong: #54412d
+  --dw-text: #ece7e0
+  --dw-text-muted: #c1b8aa
+  --dw-text-faint: #978d7f
+  --dw-code-bg: #130e08
+  --dw-code-inline-bg: #271d13
 
 // Grove: forest-floor greens and a fresh leaf, bluer and deeper than moss.
 [data-palette="grove"]
   --dw-accent: #8bd67f
-  --dw-bg-0: #0c140e
-  --dw-bg-1: #101b12
-  --dw-bg-2: #152418
-  --dw-bg-3: #1c3020
-  --dw-line: #223b27
-  --dw-line-strong: #32593a
-  --dw-text: #dcecdc
-  --dw-text-muted: #a4bca3
-  --dw-text-faint: #7e977d
-  --dw-code-bg: #111f14
-  --dw-code-inline-bg: #182e1c
+  --dw-bg-0: #060d07
+  --dw-bg-1: #0a160d
+  --dw-bg-2: #0f1f13
+  --dw-bg-3: #152919
+  --dw-line: #1b3521
+  --dw-line-strong: #2b4e33
+  --dw-text: #e1ebe1
+  --dw-text-muted: #adbfac
+  --dw-text-faint: #819581
+  --dw-code-bg: #07120a
+  --dw-code-inline-bg: #122416
 
 // Prism: near-black plum and a lantern's magenta pane.
 [data-palette="prism"]
   --dw-accent: #f28be6
-  --dw-bg-0: #140c12
-  --dw-bg-1: #1b1019
-  --dw-bg-2: #241521
+  --dw-bg-0: #11080f
+  --dw-bg-1: #1b0e18
+  --dw-bg-2: #251522
   --dw-bg-3: #301c2c
-  --dw-line: #3b2236
-  --dw-line-strong: #593251
-  --dw-text: #ecdce9
-  --dw-text-muted: #bca3b8
-  --dw-text-faint: #977d93
-  --dw-code-bg: #1f111c
-  --dw-code-inline-bg: #2e1829
+  --dw-line: #3d2339
+  --dw-line-strong: #5b3754
+  --dw-text: #efe4ee
+  --dw-text-muted: #c7b1c3
+  --dw-text-faint: #9d869a
+  --dw-code-bg: #160b13
+  --dw-code-inline-bg: #2b1827
 
 // Slate: cool stone greys with a steel-blue accent.
 [data-palette="slate"]
   --dw-accent: #a9bdd8
-  --dw-bg-0: #0e1012
-  --dw-bg-1: #121519
-  --dw-bg-2: #181c21
-  --dw-bg-3: #20252c
-  --dw-line: #272d36
-  --dw-line-strong: #3a4451
-  --dw-text: #dfe3e9
-  --dw-text-muted: #a8aeb7
-  --dw-text-faint: #828992
-  --dw-code-bg: #14171c
-  --dw-code-inline-bg: #1c2229
+  --dw-bg-0: #090b0f
+  --dw-bg-1: #101318
+  --dw-bg-2: #171b21
+  --dw-bg-3: #1e242c
+  --dw-line: #272e38
+  --dw-line-strong: #3c4653
+  --dw-text: #e5e8ed
+  --dw-text-muted: #b3b9c2
+  --dw-text-faint: #898f98
+  --dw-code-bg: #0c0f13
+  --dw-code-inline-bg: #1a2027
 
 // Crimson: dark oxblood and a clear red.
 [data-palette="crimson"]
   --dw-accent: #ff7f7f
-  --dw-bg-0: #140c0c
-  --dw-bg-1: #1b1010
-  --dw-bg-2: #241516
-  --dw-bg-3: #301c1d
-  --dw-line: #3b2223
-  --dw-line-strong: #593233
-  --dw-text: #ecdcdc
-  --dw-text-muted: #bca3a3
-  --dw-text-faint: #977d7d
-  --dw-code-bg: #1f1111
-  --dw-code-inline-bg: #2e1819
+  --dw-bg-0: #110809
+  --dw-bg-1: #1c0f0f
+  --dw-bg-2: #271616
+  --dw-bg-3: #321d1d
+  --dw-line: #402526
+  --dw-line-strong: #5e393a
+  --dw-text: #f1e4e4
+  --dw-text-muted: #cab2b2
+  --dw-text-faint: #a18787
+  --dw-code-bg: #170b0c
+  --dw-code-inline-bg: #2c191a
 
 // Indigo: blue-violet night and a periwinkle accent.
 [data-palette="indigo"]
   --dw-accent: #a5adff
-  --dw-bg-0: #0c0d14
-  --dw-bg-1: #10111b
-  --dw-bg-2: #151624
-  --dw-bg-3: #1c1d30
-  --dw-line: #22243b
-  --dw-line-strong: #323559
-  --dw-text: #dcddec
-  --dw-text-muted: #a3a5bc
-  --dw-text-faint: #7d8097
-  --dw-code-bg: #11121f
-  --dw-code-inline-bg: #181a2e
+  --dw-bg-0: #090a14
+  --dw-bg-1: #10111f
+  --dw-bg-2: #18192b
+  --dw-bg-3: #202137
+  --dw-line: #292b47
+  --dw-line-strong: #3e4168
+  --dw-text: #e5e7f4
+  --dw-text-muted: #b5b7cf
+  --dw-text-faint: #8a8ca6
+  --dw-code-bg: #0d0e1a
+  --dw-code-inline-bg: #1c1d32
 
 // Azure: deep navy and a clear signal blue.
 [data-palette="azure"]
   --dw-accent: #74bdff
-  --dw-bg-0: #0c1014
-  --dw-bg-1: #10151b
-  --dw-bg-2: #151c24
-  --dw-bg-3: #1c2530
-  --dw-line: #222e3b
-  --dw-line-strong: #324459
-  --dw-text: #dce4ec
-  --dw-text-muted: #a3afbc
-  --dw-text-faint: #7d8a97
-  --dw-code-bg: #11181f
-  --dw-code-inline-bg: #18222e
+  --dw-bg-0: #070c11
+  --dw-bg-1: #0d141b
+  --dw-bg-2: #131c26
+  --dw-bg-3: #192431
+  --dw-line: #212f3f
+  --dw-line-strong: #33475d
+  --dw-text: #e2e9f0
+  --dw-text-muted: #aebbc8
+  --dw-text-faint: #82909e
+  --dw-code-bg: #0a0f16
+  --dw-code-inline-bg: #16202c
 
 // Frost: blue-black ice and a pale cyan.
 [data-palette="frost"]
   --dw-accent: #a8e9f5
-  --dw-bg-0: #0d1113
-  --dw-bg-1: #11161a
-  --dw-bg-2: #171e23
-  --dw-bg-3: #1e282e
-  --dw-line: #243038
-  --dw-line-strong: #364955
-  --dw-text: #dde8ea
-  --dw-text-muted: #a5b6ba
-  --dw-text-faint: #809094
-  --dw-code-bg: #12191e
-  --dw-code-inline-bg: #1a252c
+  --dw-bg-0: #070c0f
+  --dw-bg-1: #0d1418
+  --dw-bg-2: #131d22
+  --dw-bg-3: #19252c
+  --dw-line: #203039
+  --dw-line-strong: #334854
+  --dw-text: #e1eaeb
+  --dw-text-muted: #adbcbf
+  --dw-text-faint: #829296
+  --dw-code-bg: #091014
+  --dw-code-inline-bg: #162127
 
 // Names the shared docs shell and the St4sh schematic styles were written against. Kept so
 // those files stay recognizable to the repositories that import them.

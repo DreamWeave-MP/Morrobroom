@@ -2,8 +2,10 @@
 
 {%- block content %}
 <div class="dw-shell"><div class="dw-article">
-    <p class="dw-kicker"><span><a href="{{ get_url(path=taxonomy.name) | safe }}">{{ taxonomy.name }}</a></span><span>{{ term.pages | length }} page{{ term.pages | length | pluralize }}</span></p>
-    <h1>#{{ term.name }}</h1>
+    <header>
+        <p class="dw-kicker"><span><a href="{{ get_url(path=taxonomy.name) | safe }}">{{ taxonomy.name }}</a></span><span>{{ term.pages | length }} page{{ term.pages | length | pluralize }}</span></p>
+        <h1>#{{ term.name }}</h1>
+    </header>
     <ol class="dw-catalog">
     {%- for item in term.pages %}
         <li class="dw-catalog__row">
