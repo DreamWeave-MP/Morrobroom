@@ -202,6 +202,20 @@ pub fn get_object_model_path(object: &TES3Object) -> Option<String> {
     }
 }
 
+/// A model's bounds in map units. `compile --scale` multiplies map units into
+/// Morrowind units, so the catalog divides by the same scale to show each record
+/// at the size it will have in game.
+fn catalog_bounds(min: [f32; 3], max: [f32; 3], object_scale: f32) -> [i32; 6] {
+    [
+        fgd_bound(min[0] / object_scale),
+        fgd_bound(min[1] / object_scale),
+        fgd_bound(min[2] / object_scale),
+        fgd_bound(max[0] / object_scale),
+        fgd_bound(max[1] / object_scale),
+        fgd_bound(max[2] / object_scale),
+    ]
+}
+
 fn get_object_bounds_from_nif(
     vfs: &VFS,
     object: &TES3Object,
@@ -245,18 +259,9 @@ fn get_object_bounds_from_nif(
             .is_ok()
             && let Ok(stream) = tes3::nif::NiStream::from_bytes(&bytes)
         {
-            if let Some((min, max)) = stream.bounding_box() {
-                Some([
-                    fgd_bound(min.x * object_scale),
-                    fgd_bound(min.y * object_scale),
-                    fgd_bound(min.z * object_scale),
-                    fgd_bound(max.x * object_scale),
-                    fgd_bound(max.y * object_scale),
-                    fgd_bound(max.z * object_scale),
-                ])
-            } else {
-                None
-            }
+            stream
+                .bounding_box()
+                .map(|(min, max)| catalog_bounds(min.into(), max.into(), object_scale))
         } else {
             None
         }
@@ -572,6 +577,19 @@ mod bundled_nif_fgd_test {
     fn billboard_modes_are_the_four_a_morrowind_nif_can_store() {
         let fgd = include_str!("../resources/Nif.fgd");
         assert_eq!(choices(fgd, "Nif_Billboard_Mode"), ["0", "1", "2", "3"]);
+    }
+}
+
+#[cfg(test)]
+mod catalog_bounds_test {
+    use super::catalog_bounds;
+
+    #[test]
+    fn catalog_bounds_are_in_map_units() {
+        assert_eq!(
+            catalog_bounds([-64.0, -32.0, 0.0], [64.0, 32.0, 128.0], 2.0),
+            [-32, -16, 0, 32, 16, 64]
+        );
     }
 }
 
