@@ -559,6 +559,32 @@ mod bundled_fgd_classes_test {
 }
 
 #[cfg(test)]
+mod bundled_preview_fgd_test {
+    /// The description of every class `fgd` declares, keyed by class name.
+    fn class_descriptions<'a>(fgd: &'a str, prefix: &str) -> Vec<(&'a str, &'a str)> {
+        fgd.lines()
+            .filter_map(|line| line.split_once("= "))
+            .filter_map(|(_, declaration)| declaration.split_once(" : "))
+            .filter(|(name, _)| name.starts_with(prefix))
+            .collect()
+    }
+
+    #[test]
+    fn classes_the_compiler_does_not_build_say_so() {
+        let nif = class_descriptions(include_str!("../resources/Nif.fgd"), "nif_fx_");
+        let vfx = class_descriptions(include_str!("../resources/VFX.fgd"), "vfx_");
+        assert_eq!(nif.len(), 1);
+        assert_eq!(vfx.len(), 1205);
+        for (name, description) in nif.into_iter().chain(vfx) {
+            assert!(
+                description.contains("not compiled"),
+                "{name} should say it is not compiled: {description}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod bundled_nif_fgd_test {
     fn choices<'a>(fgd: &'a str, property: &str) -> Vec<&'a str> {
         let start = fgd

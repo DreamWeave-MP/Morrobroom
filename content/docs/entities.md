@@ -101,7 +101,11 @@ baked lightmap; use the `Light_Point` entities for light the bake should see.
 
 ## Not compiled yet
 
-These are in the entity browser, and placing one does nothing yet: the compiler prints
-`<class> is an editor preview and is not compiled yet` and moves on.
+These are in the entity browser, marked "preview, not compiled" in their descriptions, and placing
+one does nothing yet: the compiler prints `<class> is an editor preview and is not compiled yet`
+and moves on.
 
-- **`nif_fx_fire`** and the **VFX catalog** (`vfx_kurp_…`, previews of Kurpulio's VFX Meshbank).
+- **`nif_fx_fire`**, a planned fire preset. Its properties describe the particles, but nothing
+  builds them yet. For fire today, place a light and a fire mesh from the catalog.
+- **The VFX catalog** (`vfx_kurp_…`): previews of the effects in Kurpulio's VFX Meshbank, for
+  seeing what each one looks like. Turning them into meshes is not built yet.

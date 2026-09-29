@@ -199,9 +199,10 @@
 // -----------------------------------------------------------------------------
 // High-level baked effects
 // -----------------------------------------------------------------------------
-// These are Morrobroom compiler presets, not raw NIF object definitions.
+// Planned Morrobroom compiler presets, not raw NIF object definitions. None is
+// compiled yet: placing one prints a note and builds nothing.
 
-@PointClass size(-12 -12 -12, 12 12 12) color(255 96 32) base(NifLinks) = nif_fx_fire : "Baked NIF Fire Effect"
+@PointClass size(-12 -12 -12, 12 12 12) color(255 96 32) base(NifLinks) = nif_fx_fire : "Baked NIF Fire Effect (preview, not compiled)"
 [
     Nif_Fire_Texture(string) : "Particle texture"
     Nif_Fire_Color(color) : "Primary flame color"
