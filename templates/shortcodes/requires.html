@@ -1,0 +1,10 @@
+{#- {{ requires(name="H3lp Yours3lf", url="@/h3lp_yours3lf/index.md", note="OpenMW helper modules") }}:
+    a badge for something a project needs. `url` is a page of this site (`@/…`) or any address.
+    `icon` is a path as in a page's [extra]: `/` for a file under static/, otherwise next to this page.
+    `note` says what it is for, and defaults to "Required". Styled in sass/_requires.sass. -#}
+{%- import "macros/dw.html" as dw_macros -%}
+{%- set badge_icon = icon | default(value="") -%}
+{%- set badge_note = note | default(value="Required") -%}
+{%- if page is defined and page.colocated_path %}{% set icon_dir = page.colocated_path %}{% else %}{% set icon_dir = "" %}{% endif -%}
+{%- if url is starting_with("@/") %}{% set href = get_url(path=url) %}{% else %}{% set href = url %}{% endif -%}
+<a class="dw-requires" href="{{ href | safe }}"><span class="dw-requires__name">{% if badge_icon %}{{ dw_macros::page_art(page_dir=icon_dir, path=badge_icon, width=64, height=64, op="fit", class="dw-requires__icon", quality=90) }}{% endif %}{{ name }}</span><span class="dw-requires__note">{{ badge_note }}</span></a>

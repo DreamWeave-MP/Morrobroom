@@ -93,7 +93,7 @@
     {% endif %}
     <div class="dw-shell docs-shell{% if not docs_has_toc %} docs-shell--no-toc{% endif %}">
         <aside class="docs-sidebar">
-            <details class="docs-sidebar__panel" open>
+            <details class="docs-sidebar__panel{% if docs_manuals | length > 1 %} docs-sidebar__panel--manuals{% endif %}" open>
                 <summary>{{ docs_project_name }}</summary>
                 {%- if docs_manuals | length > 1 %}
                 <details class="docs-switcher">

@@ -197,7 +197,7 @@
     {%- for key in ["post_install", "upgrade", "uninstall", "notes"] %}
     {%- if project.install_notes[key] is defined %}
     <h3>{% if key == "post_install" %}After installing{% elif key == "upgrade" %}Upgrading{% elif key == "uninstall" %}Uninstalling{% else %}Notes{% endif %}</h3>
-    <div class="dw-prose">{{ project.install_notes[key] | markdown | safe }}</div>
+    <div class="dw-prose">{{ dw_macros::author_markdown(text=project.install_notes[key]) }}</div>
     {%- endif %}
     {%- endfor %}
 </section>

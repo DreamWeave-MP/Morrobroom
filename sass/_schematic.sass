@@ -3,6 +3,8 @@
 // come from the template's tokens, so a diagram follows the site's palette.
 
 .docs-schematic
+  container-type: inline-size
+  container-name: docs-schematic
   margin: 2em auto
   border: 1px solid var(--accent-alpha-70)
   border-radius: var(--dw-radius-lg)
@@ -101,6 +103,11 @@
   border-bottom: .35em solid transparent
   border-left: .45em solid var(--accent)
   transform: translateY(-50%)
+
+// The last card of a row points nowhere.
+.docs-schematic--horizontal .docs-schematic__nodes > li:nth-child(3n)
+  &::before, &::after
+    display: none
 
 .docs-schematic__node
   min-width: 0
@@ -383,23 +390,22 @@ a.docs-schematic__title:focus-visible
   border: 1px dashed var(--accent)
   background: var(--accent-alpha-20)
 
-@media (max-width: 600px)
+// A schematic lays itself out by its own width, not the screen's: beside the docs navigation on a
+// tablet its column is as narrow as a phone's. Up to 36rem, too narrow for three cards abreast or
+// for support beside the flow, everything stacks, joined downwards.
+@container docs-schematic (max-width: 36rem)
   .docs-schematic__canvas
     display: block
 
-  .docs-schematic--horizontal .docs-schematic__nodes
+  .docs-schematic--horizontal .docs-schematic__nodes,
+  .docs-schematic--horizontal .docs-schematic__support
     grid-template-columns: 1fr
 
   .docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::after
     display: none
-    top: auto
-    left: 50%
-    width: 1px
-    height: 1.25em
-    background: var(--accent)
-    transform: none
 
   .docs-schematic--horizontal .docs-schematic__nodes > li:not(:last-child)::before
+    display: block
     top: calc(100% + .8em)
     left: calc(50% - .35em)
     border-top: .45em solid var(--accent)

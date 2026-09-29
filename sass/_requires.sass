@@ -1,0 +1,61 @@
+// Requirement badges ({{ requires() }}, {{ requires_openmw() }}): what is needed, and what for.
+// Several on consecutive lines make one paragraph, which lays them out as a wrapping row, as wide as
+// the section rather than the prose measure, since it is not text to read.
+
+p:has(> .dw-requires)
+  display: flex
+  flex-wrap: wrap
+  gap: var(--dw-space-2)
+  max-width: none
+
+.dw-requires
+  display: inline-flex
+  align-items: stretch
+  max-width: 100%
+  border: 1px solid var(--dw-accent-line)
+  border-radius: var(--dw-radius)
+  overflow: hidden
+  background: var(--dw-bg-2)
+  box-shadow: var(--dw-shadow-1)
+  color: var(--dw-text)
+  font-family: var(--dw-font-mono)
+  font-size: var(--dw-step--1)
+  line-height: 1.25
+  text-decoration: none
+  vertical-align: middle
+  transition: border-color var(--dw-duration) var(--dw-ease), box-shadow var(--dw-duration) var(--dw-ease)
+
+  &:hover, &:focus-visible
+    border-color: var(--dw-accent)
+    box-shadow: var(--dw-shadow-2), 0 0 0 1px color-mix(in oklab, var(--dw-accent) 30%, transparent)
+    color: var(--dw-text)
+
+    .dw-requires__note
+      background: color-mix(in oklab, var(--dw-accent) 30%, var(--dw-bg-1))
+
+.dw-requires__name
+  display: inline-flex
+  gap: .55em
+  align-items: center
+  min-width: 0
+  padding: .45em .75em
+  font-weight: 600
+
+.dw-requires__icon
+  flex: none
+  width: 1.35em
+  height: 1.35em
+  object-fit: contain
+
+.dw-requires__note
+  display: inline-flex
+  align-items: center
+  border-left: 1px solid var(--dw-accent-line)
+  padding: .45em .8em
+  background: var(--dw-accent-soft)
+  color: var(--dw-accent)
+  font-size: var(--dw-step--2)
+  font-weight: 700
+  letter-spacing: .08em
+  text-transform: uppercase
+  transition: background var(--dw-duration) var(--dw-ease)

@@ -70,12 +70,16 @@
   overflow: hidden
   background: var(--dw-bg-2)
   box-shadow: var(--dw-shadow-3), 0 0 0 1px color-mix(in oklab, var(--dw-accent) 12%, transparent)
-  aspect-ratio: 16 / 9
+  container-type: inline-size
 
+  // The picture keeps its own shape, a 1300×372 Nexus header as much as a screenshot. Only one taller
+  // than 4:3 is cropped, to 4:3 around its middle.
   img
     display: block
     width: 100%
-    height: 100%
+    height: auto
+    max-height: 32rem
+    max-height: 75cqi
     object-fit: cover
 
   figcaption

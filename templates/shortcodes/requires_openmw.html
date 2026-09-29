@@ -1,0 +1,19 @@
+{#- {{ requires_openmw() }}: a badge for the OpenMW a project needs, linking to OpenMW's downloads.
+    On a project page it reads `openmw` under [runtimes] in the page's mod.toml, so the badge follows
+    it: ">=0.51" reads "OpenMW 0.51+". `version="0.51"` names one instead, as a page with no mod.toml
+    must. `note` defaults to "Required for use". The logo is OpenMW's own (files/launcher/images). -#}
+{%- set openmw_version = version | default(value="") -%}
+{%- set badge_note = note | default(value="Required for use") -%}
+{%- if not openmw_version and page is defined and page.colocated_path -%}
+  {%- set manifest = load_data(path="content/" ~ page.colocated_path ~ "mod.toml", required=false) -%}
+  {%- if manifest and manifest.runtimes is defined and manifest.runtimes.openmw is defined -%}
+    {%- set constraint = manifest.runtimes.openmw | trim -%}
+    {%- if constraint is starting_with(">=") and constraint is not containing(",") -%}
+      {%- set openmw_version = constraint | trim_start_matches(pat=">=") | trim -%}
+      {%- set openmw_version = openmw_version ~ "+" -%}
+    {%- elif constraint != "*" -%}
+      {%- set openmw_version = constraint -%}
+    {%- endif -%}
+  {%- endif -%}
+{%- endif -%}
+<a class="dw-requires dw-requires--openmw" href="https://openmw.org/downloads/"><span class="dw-requires__name"><img class="dw-requires__icon" src="{{ get_url(path='img/openmw.webp') | safe }}" alt="" width="96" height="96">OpenMW{% if openmw_version %} {{ openmw_version }}{% endif %}</span><span class="dw-requires__note">{{ badge_note }}</span></a>

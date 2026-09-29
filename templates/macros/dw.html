@@ -55,18 +55,30 @@
 {%- if item.project is not defined and item.capability is not defined %} <span class="dw-badge" title="No DreamWeave id: shown to people, not resolvable by clients">not on the network</span>{% endif -%}
 {%- endmacro relationship %}
 
+{#- mod.toml's Markdown, with embedded HTML shown as text, as the protocol asks of every consumer.
+    `<` is escaped outside code spans and fences only, where Markdown already shows it as written;
+    `<https://…>` stays an autolink. -#}
+{% macro author_markdown(text, inline=false) -%}
+{%- set_global neutral = "" -%}
+{%- for piece in text | split(pat="`") -%}
+  {%- if loop.index0 is even %}{% set clean = piece | replace(from="<", to="&lt;") %}{% set clean = clean | replace(from="&lt;https://", to="<https://") %}{% set clean = clean | replace(from="&lt;http://", to="<http://") %}{% else %}{% set clean = piece %}{% endif -%}
+  {%- if loop.first %}{% set_global neutral = clean %}{% else %}{% set_global neutral = neutral ~ "`" ~ clean %}{% endif -%}
+{%- endfor -%}
+{{ neutral | markdown(inline=inline) | safe }}
+{%- endmacro author_markdown %}
+
 {% macro notes(notes) -%}
-{%- if notes.highlights is defined %}{{ notes.highlights | markdown | safe }}{% endif -%}
+{%- if notes.highlights is defined %}{{ dw_macros::author_markdown(text=notes.highlights) }}{% endif -%}
 {%- for key in ["breaking", "added", "changed", "fixed", "known_issues"] %}
 {%- if notes[key] is defined %}
 <h4>{% if key == "known_issues" %}Known issues{% elif key == "breaking" %}Breaking changes{% else %}{{ key | capitalize }}{% endif %}</h4>
 <ul class="dw-notes--{{ key }}">
-{%- for line in notes[key] %}<li>{{ line | markdown(inline=true) | safe }}</li>{% endfor %}
+{%- for line in notes[key] %}<li>{{ dw_macros::author_markdown(text=line, inline=true) }}</li>{% endfor %}
 </ul>
 {%- endif %}
 {%- endfor %}
-{%- if notes.migration is defined %}<h4>Migration</h4>{{ notes.migration | markdown | safe }}{% endif -%}
-{%- if notes.notes is defined %}{{ notes.notes | markdown | safe }}{% endif -%}
+{%- if notes.migration is defined %}<h4>Migration</h4>{{ dw_macros::author_markdown(text=notes.migration) }}{% endif -%}
+{%- if notes.notes is defined %}{{ dw_macros::author_markdown(text=notes.notes) }}{% endif -%}
 {%- endmacro notes %}
 
 {% macro artifact(artifact, release, project, primary=false) -%}
@@ -148,7 +160,7 @@
     {%- elif declared.deprecated is defined %}
     <p class="dw-release__notice dw-release__notice--deprecated"><strong>Deprecated:</strong> {{ declared.deprecated }}{% if declared.replacement is defined %} Use {{ declared.replacement }} instead.{% endif %}</p>
     {%- endif %}
-    {%- if declared.notes.summary is defined %}<p class="dw-release__summary">{{ declared.notes.summary }}</p>{% endif %}
+    {%- if declared.notes.summary is defined %}<p class="dw-release__summary">{{ dw_macros::author_markdown(text=declared.notes.summary, inline=true) }}</p>{% endif %}
     {{ dw_macros::notes(notes=declared.notes) }}
     {%- if project.format == "crate" and published %}
     {%- set crate_artifact = published.artifacts | first %}

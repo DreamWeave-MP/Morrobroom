@@ -98,10 +98,14 @@ $measure: var(--dw-width-prose, 78ch)
   &::-webkit-details-marker
     display: none
 
-// On a wide screen the panels are always open and their names are labels, not buttons.
+// On a wide screen the panels are always open and their names are labels, not buttons. Where there
+// are several manuals, the switcher names this one, and the label would only repeat it.
 @media (min-width: 768px)
   .docs-sidebar__panel > summary
     pointer-events: none
+
+  .docs-sidebar__panel--manuals > summary
+    display: none
 
 @media (min-width: 1200px)
   .docs-toc__panel > summary
