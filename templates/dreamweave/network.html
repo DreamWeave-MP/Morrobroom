@@ -16,7 +16,7 @@
 <header class="dw-hero">
     <div class="dw-shell">
         <p class="dw-kicker"><span>Distribution metadata</span><span>schema_version 2</span></p>
-        <h1 class="dw-hero__title">{{ page.title }}</h1>
+        <h1 class="dw-hero__title">{{ dw_macros::breakable(text=page.title) }}</h1>
         {%- if page.description %}<p class="dw-hero__summary">{{ page.description }}</p>{% endif %}
     </div>
 </header>

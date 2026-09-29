@@ -753,6 +753,14 @@ class ReleaseLifecycle(unittest.TestCase):
             for group in newest["groups"]:
                 self.assertIn(f"{group['name']} · {group['select']}", html.unescape(page))
 
+    def test_a_long_title_may_break_after_an_underscore(self):
+        index = self.root / "content/lantern/index.md"
+        index.write_text(index.read_text().replace('title = "Lantern"', 'title = "lantern_tool/v2.x"'))
+        subprocess.run(["zola", "build"], cwd=self.root, check=True, capture_output=True)
+        page = (self.root / "public/lantern/index.html").read_text()
+        self.assertIn("<span>lantern_<wbr>tool&#x2F;<wbr>v2.<wbr>x</span>", page, "a phone wraps the name whole, not mid-word")
+        self.assertIn("<title>lantern_tool&#x2F;v2.x", page)
+
     def test_requirement_badges(self):
         index = self.root / "content/lantern/index.md"
         index.write_text(index.read_text() + '\n{{ requires(name="Tallow", url="https://example.com/tallow", note="Scheduling") }}\n{{ requires_openmw() }}\n')

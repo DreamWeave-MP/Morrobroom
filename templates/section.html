@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% import "macros/dw.html" as dw_macros %}
 
 {%- block content %}
 <header class="dw-hero">
     <div class="dw-shell">
-        <h1 class="dw-hero__title">{{ section.title }}</h1>
+        <h1 class="dw-hero__title">{{ dw_macros::breakable(text=section.title) }}</h1>
         {%- if section.description %}<p class="dw-hero__summary">{{ section.description }}</p>{% endif %}
     </div>
 </header>

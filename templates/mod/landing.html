@@ -32,7 +32,7 @@
             </p>
             <h1 class="dw-hero__title{% if page_icon %} dw-hero__title--icon{% endif %}">
                 {%- if page_icon %}{{ dw_macros::page_art(page_dir=page.colocated_path, path=page_icon, width=192, height=192, op="fit", class="dw-hero__icon", quality=90) }}{% endif -%}
-                <span>{% if page.extra.title_html %}{{ page.extra.title_html | safe }}{% else %}{{ page.title }}{% endif %}</span>
+                <span>{% if page.extra.title_html %}{{ page.extra.title_html | safe }}{% else %}{{ dw_macros::breakable(text=page.title) }}{% endif %}</span>
             </h1>
             {%- if project.summary %}<p class="dw-hero__summary">{{ project.summary }}</p>{% endif %}
             {%- if project.format == "crate" and not dw_offline %}

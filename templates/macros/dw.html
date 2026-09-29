@@ -55,6 +55,12 @@
 {%- if item.project is not defined and item.capability is not defined %} <span class="dw-badge" title="No DreamWeave id: shown to people, not resolvable by clients">not on the network</span>{% endif -%}
 {%- endmacro relationship %}
 
+{#- A heading that may also break after `_`, `/` and `.`, so a long identifier such as a crate's name
+    wraps whole on a phone instead of mid-word. Escaped first, so it is as safe as {{ text }}. -#}
+{% macro breakable(text) -%}
+{{ text | escape | replace(from="_", to="_<wbr>") | replace(from="&#x2F;", to="&#x2F;<wbr>") | replace(from=".", to=".<wbr>") | safe }}
+{%- endmacro breakable %}
+
 {#- mod.toml's Markdown, with embedded HTML shown as text, as the protocol asks of every consumer.
     `<` is escaped outside code spans and fences only, where Markdown already shows it as written;
     `<https://…>` stays an autolink. -#}

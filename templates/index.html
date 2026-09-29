@@ -16,7 +16,7 @@
     <div class="dw-shell">
         {%- if paginator %}{% set listed_total = paginator.total_pages %}{% else %}{% set listed_total = section.pages | length %}{% endif %}
         <p class="dw-kicker"><span>Catalog</span><span>{{ listed_total }} project{{ listed_total | pluralize }}</span>{% if paginator and paginator.number_pagers > 1 %}<span>page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>{% endif %}</p>
-        <h1 class="dw-hero__title">{% if section.extra.title_html %}{{ section.extra.title_html | safe }}{% elif section.title %}{{ section.title }}{% else %}{{ config.title }}{% endif %}</h1>
+        <h1 class="dw-hero__title">{% if section.extra.title_html %}{{ section.extra.title_html | safe }}{% elif section.title %}{{ dw_macros::breakable(text=section.title) }}{% else %}{{ dw_macros::breakable(text=config.title) }}{% endif %}</h1>
         {%- if section.description or config.description %}<p class="dw-hero__summary">{% if section.description %}{{ section.description }}{% else %}{{ config.description }}{% endif %}</p>{% endif %}
     </div>
 </header>
