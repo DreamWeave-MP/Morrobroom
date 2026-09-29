@@ -1,0 +1,106 @@
+{
+  "schema_version": "2",
+  "document": "lock",
+  "project": "015878d0-9501-4b1f-8453-7726bcccf860",
+  "note": "Written by CI when a release tag is pushed: what each published release's archive contains. Do not edit.",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "locked_from": "18276268c2ec5209ad63a5ade5b2c8ed310ac2f6",
+      "artifacts": [
+        {
+          "id": "windows-x64",
+          "format": "binary",
+          "filename": "morrobroom-Windows-X64.zip",
+          "media_type": "application/zip",
+          "size": 10646329,
+          "digests": {
+            "sha256": "b4c1afdf7d7dd6cceedb7005ce5cd5c54e40e16fb21c4a3e71f97ebdceb6b9bb"
+          },
+          "platform": {
+            "os": "windows",
+            "arch": "x86_64"
+          }
+        },
+        {
+          "id": "macos-arm64",
+          "format": "binary",
+          "filename": "morrobroom-macOS-ARM64.zip",
+          "media_type": "application/zip",
+          "size": 10754355,
+          "digests": {
+            "sha256": "878ebb63aed71756820f2a2b7d9632951221b8e3472e95f250caf503f6e1dd9f"
+          },
+          "platform": {
+            "os": "macos",
+            "arch": "aarch64"
+          }
+        },
+        {
+          "id": "macos-x64",
+          "format": "binary",
+          "filename": "morrobroom-macOS-X64.zip",
+          "media_type": "application/zip",
+          "size": 10901639,
+          "digests": {
+            "sha256": "5b38a748bf70454b6afb86ae4d751ce262d2b8052696bc14d17851919a062e92"
+          },
+          "platform": {
+            "os": "macos",
+            "arch": "x86_64"
+          }
+        },
+        {
+          "id": "linux-x64",
+          "format": "binary",
+          "filename": "morrobroom-Linux-X64.zip",
+          "media_type": "application/zip",
+          "size": 11032973,
+          "digests": {
+            "sha256": "4f2977afb2b668660b5601011c70c853a144cf98c22621452cee58aa39ae28ae"
+          },
+          "platform": {
+            "os": "linux",
+            "arch": "x86_64"
+          }
+        }
+      ],
+      "runtimes": {},
+      "platforms": [
+        {
+          "os": "windows",
+          "arch": "x86_64"
+        },
+        {
+          "os": "macos",
+          "arch": "aarch64"
+        },
+        {
+          "os": "macos",
+          "arch": "x86_64"
+        },
+        {
+          "os": "linux",
+          "arch": "x86_64"
+        }
+      ],
+      "provides": [],
+      "relationships": [],
+      "components": [
+        {
+          "id": "main",
+          "name": "Morrobroom",
+          "path": ".",
+          "required": true,
+          "default": true,
+          "requires": [],
+          "conflicts": [],
+          "suggested_with": []
+        }
+      ],
+      "groups": [],
+      "extensions": {},
+      "critical_extensions": []
+    }
+  ]
+}
