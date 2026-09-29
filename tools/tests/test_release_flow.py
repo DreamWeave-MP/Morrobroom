@@ -524,7 +524,8 @@ class ReleaseLifecycle(unittest.TestCase):
         config = self.root / "config.toml"
         config.write_text(config.read_text().replace('[extra]\n', '[extra]\npalette = "teal"\n'))
         page = self.zola_build()
-        self.assertIn('href="https://example.github.io/cool-mods/img/mark-teal.svg" type="image/svg+xml"', page)
+        # The content hash makes a changed icon, or another site's at the same address, a new URL.
+        self.assertRegex(page, r'href="https://example\.github\.io/cool-mods/img/mark-teal\.svg\?h=[0-9a-f]+" type="image/svg\+xml"')
         self.assertTrue((self.root / "public/img/mark-teal.svg").is_file())
 
     def test_a_leftover_offline_view_does_not_break_the_site(self):

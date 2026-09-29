@@ -46,12 +46,14 @@
     <link rel="stylesheet" href="{{ get_url(path='fonts.css', trailing_slash=false) | safe }}">
     <style>:root{--dw-font-display:"{{ config.extra.font_override }}",var(--dw-font-mono)}{% if not config.extra.font_override_titles_only | default(value=false) %}body{font-family:"{{ config.extra.font_override }}",var(--dw-font-body)}{% endif %}</style>
     {%- endif %}
+    {#- Browsers keep a favicon long after it changes, and every site previewed at the same local
+        address shares one cache: the content hash in the URL makes each icon its own. -#}
     {%- if config.extra.favicon %}
-    <link rel="icon" href="{{ get_url(path=config.extra.favicon, trailing_slash=false) | safe }}"{% if config.extra.favicon is ending_with(".svg") %} type="image/svg+xml"{% endif %}>
+    <link rel="icon" href="{{ get_url(path=config.extra.favicon, trailing_slash=false, cachebust=true) | safe }}"{% if config.extra.favicon is ending_with(".svg") %} type="image/svg+xml"{% endif %}>
     {%- else %}
     {#- The DreamWeave mark in the site's palette. The palette is validated, so the file exists. -#}
     {%- if palette == "purple" %}{% set mark_path = "img/mark.svg" %}{% else %}{% set mark_path = "img/mark-" ~ palette ~ ".svg" %}{% endif %}
-    <link rel="icon" href="{{ get_url(path=mark_path, trailing_slash=false) | safe }}" type="image/svg+xml">
+    <link rel="icon" href="{{ get_url(path=mark_path, trailing_slash=false, cachebust=true) | safe }}" type="image/svg+xml">
     {%- endif %}
     {%- if not dw_offline %}
     <link rel="alternate" type="application/vnd.dreamweave.index+json" title="DreamWeave index" href="{{ get_url(path='dreamweave.json', trailing_slash=false) | safe }}">
