@@ -1,34 +1,53 @@
 // Morrobroom. This file belongs to Morrobroom: the template never changes it, and it loads last.
-// The umber palette does the heavy lifting; this adds the logo and a little forge heat.
+// The palette does the heavy lifting; this places the mark and adds a little forge heat.
 
-// The hero carries the moon-and-cube logo on its right, lit from behind like something just out
-// of the furnace. On narrow screens the text needs the room, so the logo steps aside.
-.dw-hero
-  overflow: hidden
-  isolation: isolate
-  background: radial-gradient(ellipse 38% 90% at 88% 50%, color-mix(in oklab, var(--dw-accent) 16%, transparent), transparent 70%), linear-gradient(180deg, var(--dw-bg-1), var(--dw-bg-0))
+// The hero's art is static/js/morrobroom-hero.js: OpenMW's crescent and TrenchBroom's crate in 3D,
+// placed beside the text. Until its first frame, and without WebGL, the script shows a still of
+// the mark in the same place. Without JavaScript the still stands to the right of the text, or
+// above it on a phone.
+.dw-hero__art
+  > .mb-hero__canvas
+    opacity: 0
+    transition: opacity .6s var(--dw-ease)
 
-  &::after
-    content: ""
+  > .mb-hero__still
     position: absolute
-    z-index: -1
-    top: 50%
-    right: max(2rem, calc((100vw - var(--dw-width-page)) / 2 + 3rem))
-    width: 15rem
-    aspect-ratio: 1
-    transform: translateY(-50%)
-    background: url("img/logo.png") center / contain no-repeat
-    filter: drop-shadow(0 0 2.5rem color-mix(in oklab, var(--dw-accent) 45%, transparent))
+    width: auto
+    height: auto
+    object-fit: contain
+    opacity: 0
+    transition: opacity .6s var(--dw-ease)
     pointer-events: none
 
-  @media (max-width: 1100px)
-    &::after
-      width: 10rem
-      opacity: .35
+  &.is-placed > .mb-hero__still
+    opacity: 1
 
-  @media (max-width: 700px)
-    &::after
-      display: none
+  &.is-live > .mb-hero__canvas
+    opacity: 1
+
+  &.is-live > .mb-hero__still
+    opacity: 0
+
+html:not(.dw-js) .dw-hero--art .dw-hero__art::before
+  content: ""
+  position: absolute
+  top: 42%
+  right: max(1.5rem, calc((100% - var(--dw-width-page)) / 2 + 2rem))
+  width: min(22rem, 32%)
+  aspect-ratio: 1
+  transform: translateY(-50%)
+  background: url("img/morrobroom-logo.webp") center / contain no-repeat
+
+// On a phone the text needs the width, so the mark stands above it.
+@media (max-width: 760px)
+  .dw-hero--art .dw-hero__text
+    padding-top: 12rem
+
+  html:not(.dw-js) .dw-hero--art .dw-hero__art::before
+    top: 1rem
+    right: 50%
+    width: 11.5rem
+    transform: translateX(50%)
 
 // Brass rather than hairline: the header's lower edge catches the same light.
 .dw-header

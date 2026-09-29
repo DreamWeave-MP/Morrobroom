@@ -56,6 +56,12 @@ font_override_titles_only = true
 # DreamWeave's own page-view counter: this is DreamWeave's site.
 goatcounter = "dreamweave-mp"
 
+# The hero draws the crescent and crate in 3D: static/js/morrobroom-hero.js, on three.js r180 in
+# static/js/vendor/.
+[extra.hero]
+script = "js/morrobroom-hero.js"
+preload = ["js/vendor/three.module.min.js", "js/vendor/three.core.min.js"]
+
 # GitHub Discussions on this repository, through giscus. The ids are looked up at build time.
 [extra.comments]
 enabled = true
