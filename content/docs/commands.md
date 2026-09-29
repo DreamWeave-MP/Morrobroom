@@ -51,7 +51,9 @@ morrobroom nif2map meshes/ \
   --output-dir nif2map-out
 ```
 
-Every option, and the model behind them, is on [NIF import](@/docs/nif-import.md#options-that-matter).
+It writes map units, dividing the NIF's Morrowind units by `-s`, `--scale` (`2.0`, the same as
+`compile`). Every option, and the model behind them, is on
+[NIF import](@/docs/nif-import.md#options-that-matter).
 
 ## fgd
 

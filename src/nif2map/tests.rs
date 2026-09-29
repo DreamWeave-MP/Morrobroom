@@ -108,6 +108,7 @@ fn options(fallback: &str) -> Options {
         verbose: false,
         validate: true,
         max_brushes: 20_000,
+        scale: 2.0,
     }
 }
 

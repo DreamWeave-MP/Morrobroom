@@ -61,6 +61,7 @@ fn main() -> io::Result<()> {
             verbose,
             no_validate,
             max_brushes,
+            object_scale,
         } => morrobroom::nif2map::run(&morrobroom::nif2map::Options {
             inputs,
             recursive,
@@ -76,6 +77,7 @@ fn main() -> io::Result<()> {
             verbose,
             validate: !no_validate,
             max_brushes,
+            scale: f64::from(object_scale),
         }),
         BroomCommand::Fgd {
             object_scale,
@@ -1601,5 +1603,165 @@ mod worldspawn_cell_tests {
             classify_point_entity("world_Detail", &properties),
             PointEntity::EmptyBrushEntity
         );
+    }
+}
+
+#[cfg(test)]
+mod nif2map_round_trip_tests {
+    use super::*;
+    use morrobroom::slipgate::repr::Map;
+    use tes3::nif::{NiNode, NiStream, NiTriShape, NiTriShapeData, glam};
+
+    const MIN_CORNER: [f32; 3] = [60.0, 36.0, 20.0];
+    const MAX_CORNER: [f32; 3] = [140.0, 84.0, 52.0];
+
+    /// The box's corners, numbered by bits: x is bit 0, y bit 1, z bit 2.
+    fn corners() -> Vec<glam::Vec3> {
+        (0..8_u8)
+            .map(|index| {
+                let pick = |axis: usize| {
+                    if index >> axis & 1 == 0 {
+                        MIN_CORNER[axis]
+                    } else {
+                        MAX_CORNER[axis]
+                    }
+                };
+                glam::vec3(pick(0), pick(1), pick(2))
+            })
+            .collect()
+    }
+
+    /// A closed box in Morrowind units, each face wound counter-clockwise from
+    /// outside.
+    #[allow(
+        clippy::field_reassign_with_default,
+        reason = "The tes3 NIF facade exposes flattened accessors but nested constructors."
+    )]
+    fn box_nif() -> NiStream {
+        let faces: [[u16; 4]; 6] = [
+            [0, 4, 6, 2],
+            [1, 3, 7, 5],
+            [0, 1, 5, 4],
+            [2, 6, 7, 3],
+            [0, 2, 3, 1],
+            [4, 5, 7, 6],
+        ];
+        let mut stream = NiStream::default();
+        let mut data = NiTriShapeData::default();
+        data.vertices = corners();
+        data.triangles = faces
+            .iter()
+            .flat_map(|[a, b, c, d]| [[*a, *b, *c], [*a, *c, *d]])
+            .collect();
+        let data_link = stream.insert(data);
+        let mut shape = NiTriShape::default();
+        shape.geometry_data = data_link.cast();
+        shape.name = "crate".into();
+        let shape_link = stream.insert(shape);
+        let mut root = NiNode::default();
+        root.children.push(shape_link.cast());
+        let root_link = stream.insert(root);
+        stream.roots.push(root_link.cast());
+        stream
+    }
+
+    #[test]
+    fn nif2map_then_compile_at_the_default_scale_keeps_the_nif_size() {
+        let scale = broom_args::default_scale()
+            .parse::<f32>()
+            .expect("the default scale parses");
+        let root = std::env::temp_dir().join(format!(
+            "morrobroom-nif2map-round-trip-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).expect("create the round-trip directory");
+        let nif_path = root.join("crate.nif");
+        box_nif()
+            .save_path(&nif_path)
+            .expect("write the source NIF");
+        morrobroom::nif2map::run(&morrobroom::nif2map::Options {
+            inputs: vec![nif_path],
+            recursive: false,
+            output_dir: root.join("maps"),
+            shell_thickness: 8.0,
+            fallback_thickness: 1.0,
+            fallback: "planar-prisms".into(),
+            skip_material: "skip".into(),
+            texture_roots: vec![root.clone()],
+            include_collision: false,
+            overwrite: true,
+            dry_run: false,
+            verbose: false,
+            validate: true,
+            max_brushes: 20_000,
+            scale: f64::from(scale),
+        })
+        .expect("nif2map should reverse the box");
+        let map = std::fs::read_to_string(root.join("maps/crate.map"))
+            .expect("nif2map should write crate.map")
+            .parse::<Map>()
+            .expect("nif2map's map should parse");
+
+        let openmw_config = openmw_config::OpenMWConfiguration::new_empty("round-trip-config")
+            .expect("construct in-memory empty OpenMW configuration");
+        let map_data = MapData::from_map(map, "crate.map", false, &openmw_config);
+        let (work_dir, map_dir) =
+            morrobroom::create_workdir_at(Path::new("crate.map"), &root.join("build"))
+                .expect("create the generated-asset tree");
+        let mut state = CompileState {
+            map_data: &map_data,
+            work_dir: &work_dir,
+            map_dir: &map_dir,
+            object_scale: scale,
+            cell: None,
+            created_objects: Vec::new(),
+            processed_base_objects: HashSet::new(),
+            used_indices: BTreeSet::new(),
+        };
+        compile_entities(&mut state).expect("compile nif2map's map");
+
+        let cell = state.cell.take().expect("the map compiles into a cell");
+        let mut world_vertices = Vec::new();
+        for object in &state.created_objects {
+            let TES3Object::Static(record) = object else {
+                continue;
+            };
+            let Some(nif) = NiStream::from_path(work_dir.join("Meshes").join(&record.mesh)).ok()
+            else {
+                continue;
+            };
+            for reference in cell
+                .references
+                .values()
+                .filter(|reference| reference.id == record.id)
+            {
+                let origin = glam::Vec3::from(reference.translation);
+                for data in nif.objects_of_type::<NiTriShapeData>() {
+                    world_vertices
+                        .extend(data.vertices.iter().map(|vertex| origin + *vertex * scale));
+                }
+            }
+        }
+        std::fs::remove_dir_all(&root).expect("remove the round-trip directory");
+
+        assert!(
+            !world_vertices.is_empty(),
+            "the compiled box has no vertices"
+        );
+        let corners = corners();
+        for vertex in &world_vertices {
+            assert!(
+                corners.iter().any(|corner| vertex.distance(*corner) < 0.01),
+                "compiled vertex {vertex} is not a corner of the source box {corners:?}"
+            );
+        }
+        for corner in &corners {
+            assert!(
+                world_vertices
+                    .iter()
+                    .any(|vertex| vertex.distance(*corner) < 0.01),
+                "the source corner {corner} is missing from the compiled box"
+            );
+        }
     }
 }

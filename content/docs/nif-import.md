@@ -83,6 +83,14 @@ copy before making edits. `nif2map` is a reverse-compilation workflow in its
 own right; you can use it to recover visual geometry for a new level, inspect
 an existing asset, or produce a blockout for further brush authoring.
 
+## Scale
+
+A NIF is in Morrowind units; a map is in map units, half as large, because
+`compile` multiplies by its `--scale` of `2.0`. `nif2map` divides by the same
+scale, so its maps sit at the size of everything else you build in
+TrenchBroom, and compiling one at the default scale gives the NIF back at its
+own size. If you compile at another `--scale`, pass the same one to `nif2map`.
+
 ## Options that matter
 
 | Option | Default | Purpose |
@@ -92,8 +100,9 @@ an existing asset, or produce a blockout for further brush authoring.
 | `-o`, `--output-dir PATH` | `nif2map-out` | Write `.map` and `.nif2map.json` files there. |
 | `--fallback MODE` | `planar-prisms` | `planar-prisms` surface reconstruction, or `skip` for structural-only output. |
 | `--max-brushes N` | `20000` | Stop if one input would generate more than `N` brushes. |
-| `--shell-thickness N` | `16` | Backing thickness for open swept architectural shells. |
-| `--fallback-thickness N` | `2` | Thickness used by planar-prism surface reconstruction. |
+| `-s`, `--scale NUMBER` | `2.0` | Divide the NIF's Morrowind units by this to write map units. Keep it the same as `compile --scale`. |
+| `--shell-thickness N` | `8` | Backing thickness for open swept architectural shells, in map units. |
+| `--fallback-thickness N` | `1` | Thickness used by planar-prism surface reconstruction, in map units. |
 | `--skip-material NAME` | `skip` | The material for the closing and partition faces reconstruction adds, which were never visible in the NIF. |
 | `--include-collision` | | Emit `RootCollisionNode` descendants in a separate Collision group. |
 | `--overwrite` | | Permit existing outputs to be replaced. |

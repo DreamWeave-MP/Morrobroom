@@ -56,7 +56,7 @@ Quake-style maps and Morrowind assets do not share a scale: Quake maps come out 
 of Morrowind's. The compiler scales by `2.0` by default, for Morrowind-sized content, and the
 Map-to-Engine profile passes the same. Use `--scale` for maps
 authored at another scale, and keep the same value for `fgd --scale`, so catalog entities are the
-size they will be in game.
+size they will be in game, and for `nif2map --scale`, so imported meshes are too.
 
 ## Plugin types
 

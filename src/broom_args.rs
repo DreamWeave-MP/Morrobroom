@@ -103,7 +103,7 @@ fn validate_openmw_config_path(s: &str) -> Result<PathBuf, String> {
     Ok(abs_path)
 }
 
-const fn default_scale() -> &'static str {
+pub const fn default_scale() -> &'static str {
     "2.0"
 }
 
@@ -192,12 +192,12 @@ pub enum BroomCommand {
         #[arg(long = "output-dir", short = 'o', default_value = "nif2map-out")]
         output_dir: PathBuf,
 
-        /// Backing thickness for open swept architectural shells.
-        #[arg(long, default_value_t = 16.0)]
+        /// Backing thickness for open swept architectural shells, in map units.
+        #[arg(long, default_value_t = 8.0)]
         shell_thickness: f64,
 
-        /// Backing thickness for planar-region fallback.
-        #[arg(long, default_value_t = 2.0)]
+        /// Backing thickness for planar-region fallback, in map units.
+        #[arg(long, default_value_t = 1.0)]
         fallback_thickness: f64,
 
         /// Unsupported-shape behavior: planar-prisms or skip.
@@ -236,6 +236,11 @@ pub enum BroomCommand {
         /// Permit at most this many generated brushes per input.
         #[arg(long, default_value_t = 20_000)]
         max_brushes: usize,
+
+        /// Write map units: the NIF's Morrowind units divided by this. Defaults to 2.0, the
+        /// scale compile multiplies by, so compiling the map at the same scale gives the NIF's size.
+        #[arg(long = "scale", short = 's', value_parser = validate_scale, default_value = default_scale())]
+        object_scale: f32,
     },
     #[command(
         about = "Generate a TrenchBroom entity catalog, MorrowindObjects.fgd, from an OpenMW load order"
@@ -619,6 +624,34 @@ mod tests {
             panic!("expected FGD subcommand");
         };
         assert_eq!(object_types.expect("types were given").len(), 3);
+    }
+
+    #[test]
+    fn nif2map_writes_map_units_at_the_compile_scale() {
+        let args = MorrobroomArgs::parse_from([
+            "morrobroom",
+            "nif2map",
+            "crate.nif",
+            "--texture-root",
+            ".",
+        ]);
+
+        let BroomCommand::Nif2Map { object_scale, .. } = args.command else {
+            panic!("expected nif2map subcommand");
+        };
+        assert!((object_scale - 2.0).abs() < f32::EPSILON);
+        assert!(
+            MorrobroomArgs::try_parse_from([
+                "morrobroom",
+                "nif2map",
+                "crate.nif",
+                "--texture-root",
+                ".",
+                "--scale",
+                "0",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

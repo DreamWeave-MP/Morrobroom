@@ -101,6 +101,8 @@ pub struct Options {
     pub verbose: bool,
     pub validate: bool,
     pub max_brushes: usize,
+    /// The compile scale: map units are the NIF's Morrowind units divided by it.
+    pub scale: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -323,6 +325,24 @@ struct ImportedAsset {
     markers: Vec<ImportedMarker>,
     diagnostics: Vec<String>,
     timings: StageTimings,
+}
+
+impl ImportedAsset {
+    /// Divide every position by the compile scale. The NIF is in Morrowind
+    /// units and `compile --scale` multiplies map units into them, so the map is
+    /// written in map units and compiling it at the same scale gives the NIF's
+    /// size back. Reconstruction then works in map units too, which is what the
+    /// thickness options are measured in.
+    fn scale_to_map_units(&mut self, scale: f64) {
+        for mesh in &mut self.meshes {
+            for vertex in &mut mesh.vertices {
+                *vertex = *vertex / scale;
+            }
+        }
+        for marker in &mut self.markers {
+            marker.origin = marker.origin.map(|coordinate| coordinate / scale);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -745,7 +765,8 @@ fn process_one(
     resolver: &TextureResolver,
 ) -> Result<(usize, usize, Report), Error> {
     let started = Instant::now();
-    let imported = import_scene(source, resolver)?;
+    let mut imported = import_scene(source, resolver)?;
+    imported.scale_to_map_units(options.scale);
     let nif: Vec<_> = imported
         .meshes
         .iter()
@@ -837,6 +858,12 @@ pub fn run(options: &Options) -> io::Result<()> {
 }
 
 fn validate_options(options: &Options) -> io::Result<()> {
+    if !options.scale.is_finite() || options.scale <= 0.0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--scale must be a finite number greater than 0",
+        ));
+    }
     if options.shell_thickness <= 0.0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
