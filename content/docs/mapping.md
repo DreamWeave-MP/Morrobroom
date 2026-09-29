@@ -64,7 +64,7 @@ the compiler. The compiler is many things, but it is not a texture diviner.
 | A texture with `water`, `slime`, `lava` or `mwat` in its name | Drawn, but never collides, so the player can wade into it. |
 | **NoClip** surface flag | Drawn, but never collides. |
 | **Invert Faces** surface flag | Drawn inside out, for fake skyboxes and other things seen from within. |
-| **Smooth Shading** surface flag | Not implemented yet; faces are flat shaded. |
+| **Smooth Shading** surface flag | Shaded smooth where it meets the entity's other Smooth Shading faces with the same surface **Value**: they share vertex normals, so an eight-sided pillar reads as round. Faces that should stay sharp, like the pillar's caps, get no flag or another value. |
 
 ## Groups and layers
 

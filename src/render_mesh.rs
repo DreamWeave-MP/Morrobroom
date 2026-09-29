@@ -5,7 +5,8 @@ use crate::slipgate::{
     map_geometry::{InvalidFacePolygon, MapGeometry},
     texture::{TextureId, TextureSizes},
 };
-use crate::slipgate::{brush::BrushId, repr::Extension};
+use crate::slipgate::{brush::BrushId, entity::EntityId, repr::Extension};
+use std::collections::HashMap;
 
 /// The material policy needed by the compiler before it reaches the NIF
 /// backend. It deliberately contains no TES3 objects.
@@ -178,8 +179,84 @@ impl RenderMesh {
             });
         }
 
+        smooth_normals(&mut mesh.parts, geometry);
         Ok(mesh)
     }
+}
+
+/// Smooth-shaded faces of one entity whose surface values match form a
+/// smoothing group. Where faces of a group meet at a vertex, each of them takes
+/// the average of their face normals there; every other normal stays flat.
+fn smooth_normals(parts: &mut [RenderPart], geometry: &MapGeometry) {
+    let brush_entities: HashMap<BrushId, EntityId> = geometry
+        .geomap
+        .entity_brushes
+        .iter()
+        .flat_map(|(entity, brushes)| brushes.iter().map(move |brush| (*brush, *entity)))
+        .collect();
+    let smoothing_group = |part: &RenderPart| SmoothingGroup {
+        entity: brush_entities.get(&part.source_brush).copied(),
+        value: match part.material.extension {
+            Extension::Quake2 { value, .. } => value.to_bits(),
+            _ => 0,
+        },
+        inverted: part.material.invert_winding,
+    };
+
+    let mut face_normals: HashMap<(SmoothingGroup, [i64; 3]), Vec<Vector3>> = HashMap::new();
+    for part in parts
+        .iter()
+        .filter(|part| part.material.shading == ShadingPolicy::Smooth)
+    {
+        let group = smoothing_group(part);
+        for vertex in &part.vertices {
+            let normals = face_normals
+                .entry((group, smoothing_position(vertex.position)))
+                .or_default();
+            // Count a direction once, however many coplanar faces or CSG
+            // fragments of one face reach this vertex.
+            if !normals
+                .iter()
+                .any(|normal| normal.dot(&vertex.normal) > 1.0 - 1e-4)
+            {
+                normals.push(vertex.normal);
+            }
+        }
+    }
+
+    for part in parts
+        .iter_mut()
+        .filter(|part| part.material.shading == ShadingPolicy::Smooth)
+    {
+        let group = smoothing_group(part);
+        for vertex in &mut part.vertices {
+            let normal: Vector3 = face_normals[&(group, smoothing_position(vertex.position))]
+                .iter()
+                .sum();
+            if normal.norm_squared() > f32::EPSILON {
+                vertex.normal = normal.normalize();
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct SmoothingGroup {
+    entity: Option<EntityId>,
+    value: u32,
+    inverted: bool,
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "Map coordinates are far inside the i64 range; the grid only needs to identify shared vertices."
+)]
+fn smoothing_position(position: Vector3) -> [i64; 3] {
+    // Vertices within 1/128 of a map unit are the same vertex. Map grids are
+    // powers of two, so authored vertices sit at the centre of these cells.
+    position
+        .map(|coordinate| (f64::from(coordinate) * 64.0).round() as i64)
+        .into()
 }
 
 fn polygon_normal(vertices: &[crate::slipgate::csg::CsgVector], fallback: Vector3) -> Vector3 {
@@ -204,6 +281,92 @@ mod tests {
     use super::*;
     use crate::slipgate::{csg::GeometryTolerance, repr::Map};
     use std::collections::BTreeMap;
+
+    /// A box whose top and +X faces carry Smooth Shading in group 0, whose -X
+    /// face carries it in group 1, and whose other faces are flat.
+    const SMOOTH_BOX: &str = r#"// Game: Morrowind
+// Format: Valve
+{
+"classname" "worldspawn"
+{
+( -16 -16 -16 ) ( -16 -15 -16 ) ( -16 -16 -15 ) mb/canonical [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 2 1
+( -16 -16 -16 ) ( -16 -16 -15 ) ( -15 -16 -16 ) mb/canonical [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( -16 -16 -16 ) ( -15 -16 -16 ) ( -16 -15 -16 ) mb/canonical [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 0 0
+( 16 16 16 ) ( 16 17 16 ) ( 17 16 16 ) mb/canonical [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1 0 2 0
+( 16 16 16 ) ( 17 16 16 ) ( 16 16 17 ) mb/canonical [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 0 0
+( 16 16 16 ) ( 16 16 17 ) ( 16 17 16 ) mb/canonical [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 0 2 0
+}
+}
+"#;
+
+    fn smooth_box_mesh() -> (MapGeometry, RenderMesh) {
+        let map = SMOOTH_BOX.parse::<Map>().expect("smooth box should parse");
+        let geometry = MapGeometry::from_map_without_occlusion(map);
+        let sizes = crate::slipgate::texture::texture_sizes(
+            &geometry.geomap.textures,
+            &BTreeMap::from([("mb/canonical", (256, 256))]),
+        );
+        let mesh = RenderMesh::from_geometry(&geometry, &sizes, GeometryTolerance::default())
+            .expect("smooth box should compile");
+        (geometry, mesh)
+    }
+
+    fn assert_normal(actual: Vector3, expected: [f32; 3], at: Vector3) {
+        let expected = Vector3::new(expected[0], expected[1], expected[2]).normalize();
+        assert!(
+            (actual - expected).norm() < 1e-4,
+            "normal at {at:?} is {actual:?}, expected {expected:?}"
+        );
+    }
+
+    #[test]
+    fn smooth_shading_shares_normals_where_faces_of_one_group_meet() {
+        let (geometry, mesh) = smooth_box_mesh();
+        let part_facing = |normal: [f32; 3]| {
+            mesh.parts
+                .iter()
+                .find(|part| {
+                    (*geometry.face_planes[part.source_face].normal()
+                        - Vector3::new(normal[0], normal[1], normal[2]))
+                    .norm()
+                        < 1e-4
+                })
+                .expect("the box should have this face")
+        };
+
+        let top = part_facing([0.0, 0.0, 1.0]);
+        assert_eq!(top.material.shading, ShadingPolicy::Smooth);
+        for vertex in &top.vertices {
+            let expected = if vertex.position.x > 0.0 {
+                [1.0, 0.0, 1.0]
+            } else {
+                [0.0, 0.0, 1.0]
+            };
+            assert_normal(vertex.normal, expected, vertex.position);
+        }
+
+        let east = part_facing([1.0, 0.0, 0.0]);
+        for vertex in &east.vertices {
+            let expected = if vertex.position.z > 0.0 {
+                [1.0, 0.0, 1.0]
+            } else {
+                [1.0, 0.0, 0.0]
+            };
+            assert_normal(vertex.normal, expected, vertex.position);
+        }
+
+        let west = part_facing([-1.0, 0.0, 0.0]);
+        assert_eq!(west.material.shading, ShadingPolicy::Smooth);
+        for vertex in &west.vertices {
+            assert_normal(vertex.normal, [-1.0, 0.0, 0.0], vertex.position);
+        }
+
+        let north = part_facing([0.0, 1.0, 0.0]);
+        assert_eq!(north.material.shading, ShadingPolicy::Flat);
+        for vertex in &north.vertices {
+            assert_normal(vertex.normal, [0.0, 1.0, 0.0], vertex.position);
+        }
+    }
 
     #[test]
     fn clipped_vertices_receive_source_projection_and_provenance() {
