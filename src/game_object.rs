@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use tes3::esp::{
     Activator, Alchemy, AlchemyData, AlchemyFlags, Apparatus, ApparatusData, Armor, ArmorData,
     AtmosphereData, AttributeId, AttributeId2, BipedObject, Book, BookData, BookType, Cell,
-    CellFlags, Container, ContainerFlags, Effect, EffectId, EffectId2, EffectRange, Ingredient,
-    IngredientData, LeveledCreature, LeveledCreatureFlags, LeveledItem, LeveledItemFlags, Light,
-    LightData, LightFlags, MiscItem, MiscItemData, MiscItemFlags, ObjectFlags, SkillId, SkillId2,
-    TES3Object,
+    CellFlags, Clothing, ClothingData, Container, ContainerFlags, Effect, EffectId, EffectId2,
+    EffectRange, Ingredient, IngredientData, LeveledCreature, LeveledCreatureFlags, LeveledItem,
+    LeveledItemFlags, Light, LightData, LightFlags, MiscItem, MiscItemData, MiscItemFlags,
+    ObjectFlags, SkillId, SkillId2, TES3Object,
 };
 
 #[allow(
@@ -208,6 +208,39 @@ pub fn cell(entity_props: &HashMap<&String, &String>) -> Cell {
         }),
         ..Default::default()
     }
+}
+
+pub fn clothing(
+    entity_props: &HashMap<&String, &String>,
+    ref_id: &str,
+    mesh_name: &str,
+) -> TES3Object {
+    TES3Object::Clothing(Clothing {
+        flags: object_flags(entity_props),
+        id: ref_id.to_owned(),
+        name: get_prop("Name", entity_props),
+        script: get_prop("Script", entity_props),
+        mesh: mesh_name.to_owned(),
+        icon: get_prop("Icon", entity_props),
+        enchanting: get_prop("Enchantment", entity_props),
+        biped_objects: collect_biped_objects(entity_props),
+        data: ClothingData {
+            clothing_type: get_prop("ClothingType", entity_props)
+                .parse::<u32>()
+                .unwrap_or_default()
+                .try_into()
+                .expect("Invalid Clothing Type!"),
+            weight: get_prop("Weight", entity_props)
+                .parse::<f32>()
+                .unwrap_or_default(),
+            value: get_prop("Value", entity_props)
+                .parse::<u16>()
+                .unwrap_or_default(),
+            enchantment: get_prop("EnchantmentPoints", entity_props)
+                .parse::<u16>()
+                .unwrap_or_default(),
+        },
+    })
 }
 
 pub fn container(
@@ -536,26 +569,26 @@ fn collect_effects(prop_map: &HashMap<&String, &String>, effects_size: u8) -> Ve
 fn collect_biped_objects(prop_map: &HashMap<&String, &String>) -> Vec<BipedObject> {
     let mut biped_objects = Vec::new();
 
+    // TrenchBroom writes every slot's default type, so a slot counts only when
+    // it names a body part.
     for count in 1..9 {
-        if let Some(biped_object) = prop_map.get(&format!("ESM3_SlotType{count}")) {
-            biped_objects.push(BipedObject {
-                biped_object_type: biped_object
-                    .parse::<u8>()
-                    .unwrap_or_default()
-                    .try_into()
-                    .expect("Invalid Biped Object Type!"),
-                male_bodypart: prop_map
-                    .get(&format!("ESM3_male_part{count}"))
-                    .copied()
-                    .map_or("", |value| value)
-                    .to_owned(),
-                female_bodypart: prop_map
-                    .get(&format!("ESM3_female_part{count}"))
-                    .copied()
-                    .map_or("", |value| value)
-                    .to_owned(),
-            });
+        let Some(biped_object) = prop_map.get(&format!("ESM3_SlotType{count}")) else {
+            continue;
+        };
+        let male_bodypart = get_prop(&format!("male_part{count}"), prop_map);
+        let female_bodypart = get_prop(&format!("female_part{count}"), prop_map);
+        if male_bodypart.is_empty() && female_bodypart.is_empty() {
+            continue;
         }
+        biped_objects.push(BipedObject {
+            biped_object_type: biped_object
+                .parse::<u8>()
+                .unwrap_or_default()
+                .try_into()
+                .expect("Invalid Biped Object Type!"),
+            male_bodypart,
+            female_bodypart,
+        });
     }
 
     biped_objects
@@ -641,6 +674,7 @@ fn get_prop(prop_name: &str, prop_map: &HashMap<&String, &String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tes3::esp::{ArmorType, BipedObjectType, ClothingType};
 
     #[test]
     fn game_object_reads_esm3_properties_only() {
@@ -697,5 +731,74 @@ mod tests {
         };
         assert!(container.container_flags.contains(ContainerFlags::RESPAWNS));
         assert!(container.container_flags.contains(ContainerFlags::ORGANIC));
+    }
+
+    /// Properties as `TrenchBroom` writes them for a wearable: every body part
+    /// slot carries its default slot type, and only the first names a part.
+    fn wearable_properties(record_properties: &[(&str, &str)]) -> Vec<(String, String)> {
+        let mut owned: Vec<(String, String)> = (1..=8)
+            .map(|slot| (format!("ESM3_SlotType{slot}"), "0".to_owned()))
+            .collect();
+        owned.retain(|(key, _)| key != "ESM3_SlotType1");
+        owned.extend([
+            ("ESM3_SlotType1".to_owned(), "3".to_owned()),
+            ("ESM3_male_part1".to_owned(), "a_iron_cuirass".to_owned()),
+            ("ESM3_female_part1".to_owned(), String::new()),
+            ("ESM3_male_part2".to_owned(), String::new()),
+            ("ESM3_Name".to_owned(), "Brush Mail".to_owned()),
+            ("ESM3_Weight".to_owned(), "20.5".to_owned()),
+            ("ESM3_Value".to_owned(), "90".to_owned()),
+            ("ESM3_EnchantmentPoints".to_owned(), "40".to_owned()),
+        ]);
+        owned.extend(
+            record_properties
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned())),
+        );
+        owned
+    }
+
+    #[test]
+    fn armor_keeps_only_the_body_part_slots_that_name_a_part() {
+        let owned = wearable_properties(&[
+            ("ESM3_ArmorType", "1"),
+            ("ESM3_ArmorRating", "30"),
+            ("ESM3_Health", "400"),
+        ]);
+        let properties: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
+        let TES3Object::Armor(armor) = armor(&properties, "mb_mail", "mb/mb_mail.nif") else {
+            panic!("armor factory must produce an Armor record");
+        };
+        assert_eq!(armor.name, "Brush Mail");
+        assert_eq!(armor.mesh, "mb/mb_mail.nif");
+        assert_eq!(armor.data.armor_type, ArmorType::Cuirass);
+        assert_eq!(armor.data.armor_rating, 30);
+        assert_eq!(armor.data.health, 400);
+        assert_eq!(armor.data.value, 90);
+        assert_eq!(armor.data.enchantment, 40);
+        assert_eq!(armor.biped_objects.len(), 1);
+        assert_eq!(
+            armor.biped_objects[0].biped_object_type,
+            BipedObjectType::Chest
+        );
+        assert_eq!(armor.biped_objects[0].male_bodypart, "a_iron_cuirass");
+    }
+
+    #[test]
+    fn clothing_keeps_only_the_body_part_slots_that_name_a_part() {
+        let owned = wearable_properties(&[("ESM3_ClothingType", "2")]);
+        let properties: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
+        let TES3Object::Clothing(clothing) = clothing(&properties, "mb_shirt", "mb/mb_shirt.nif")
+        else {
+            panic!("clothing factory must produce a Clothing record");
+        };
+        assert_eq!(clothing.name, "Brush Mail");
+        assert_eq!(clothing.mesh, "mb/mb_shirt.nif");
+        assert_eq!(clothing.data.clothing_type, ClothingType::Shirt);
+        assert!((clothing.data.weight - 20.5).abs() < f32::EPSILON);
+        assert_eq!(clothing.data.value, 90);
+        assert_eq!(clothing.data.enchantment, 40);
+        assert_eq!(clothing.biped_objects.len(), 1);
+        assert_eq!(clothing.biped_objects[0].male_bodypart, "a_iron_cuirass");
     }
 }

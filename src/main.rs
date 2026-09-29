@@ -544,6 +544,7 @@ fn assign_game_object(
         "item_Apparatus" => mesh.game_object = game_object::apparatus(props, ref_id, mesh_name),
         "item_Armor" => mesh.game_object = game_object::armor(props, ref_id, mesh_name),
         "item_Book" => mesh.game_object = game_object::book(props, ref_id, mesh_name),
+        "item_Clothing" => mesh.game_object = game_object::clothing(props, ref_id, mesh_name),
         "item_Ingredient" => mesh.game_object = game_object::ingredient(props, ref_id, mesh_name),
         "item_Light" => {
             mesh.game_object = game_object::light(props, state.object_scale, ref_id, mesh_name);

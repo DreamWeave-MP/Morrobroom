@@ -89,8 +89,8 @@ This is reconstruction, not magic. NIF is a general scene format and `.map` is a
 ### Build game objects from brushes
 
 Brush entities compile into real TES3 records with generated meshes: statics, activators,
-containers, lights, books, potions, ingredients, apparatus and miscellaneous items, each placed in
-the cell. Point lights and leveled lists come along too. The
+containers, lights, books, potions, ingredients, apparatus, armor, clothing and miscellaneous
+items, each placed in the cell. Point lights and leveled lists come along too. The
 [Entities](https://dreamweave-mp.github.io/Morrobroom/docs/entities/) page lists them all.
 
 ### Browse your load order in TrenchBroom

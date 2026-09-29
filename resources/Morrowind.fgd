@@ -95,7 +95,8 @@
     ESM3_SoundClose(string) : "Sound played when the door closes"
 ]
 
-// Used by both clothing and armor. Awkward hack.
+// Used by both clothing and armor: up to eight body part slots, each naming the
+// BODY records a wearer shows there.
 
 @BaseClass = BipedObject1 : "Body Part 1"
 [
@@ -130,8 +131,8 @@
         26 : "Tail"
     ]
 
-    ESM3_male_part1(String) : "Mesh used for male body, slot 1"
-    ESM3_female_part1(String) : "Mesh used for female body, slot 1"
+    ESM3_male_part1(String) : "Body part worn by men in slot 1: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part1(String) : "Body part worn by women in slot 1: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject2 : "Body Part 2"
@@ -166,8 +167,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part2(String) : "Mesh used for male body, slot 2"
-    ESM3_female_part2(String) : "Mesh used for female body, slot 2"
+    ESM3_male_part2(String) : "Body part worn by men in slot 2: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part2(String) : "Body part worn by women in slot 2: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject3 : "Body Part 3"
@@ -202,8 +203,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part1(String) : "Mesh used for male body, slot 3"
-    ESM3_female_part1(String) : "Mesh used for female body, slot 3"
+    ESM3_male_part3(String) : "Body part worn by men in slot 3: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part3(String) : "Body part worn by women in slot 3: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject4 : "Body Part 4"
@@ -238,8 +239,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part4(String) : "Mesh used for male body, slot 4"
-    ESM3_female_part4(String) : "Mesh used for female body, slot 4"
+    ESM3_male_part4(String) : "Body part worn by men in slot 4: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part4(String) : "Body part worn by women in slot 4: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject5 : "Body Part 5"
@@ -274,8 +275,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part5(String) : "Mesh used for male body, slot 5"
-    ESM3_female_part5(String) : "Mesh used for female body, slot 5"
+    ESM3_male_part5(String) : "Body part worn by men in slot 5: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part5(String) : "Body part worn by women in slot 5: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject6 : "Body Part 6"
@@ -310,8 +311,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part6(String) : "Mesh used for male body, slot 6"
-    ESM3_female_part6(String) : "Mesh used for female body, slot 6"
+    ESM3_male_part6(String) : "Body part worn by men in slot 6: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part6(String) : "Body part worn by women in slot 6: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject7 : "Body Part 7"
@@ -346,8 +347,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part7(String) : "Mesh used for male body, slot 7"
-    ESM3_female_part7(String) : "Mesh used for female body, slot 7"
+    ESM3_male_part7(String) : "Body part worn by men in slot 7: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part7(String) : "Body part worn by women in slot 7: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass = BipedObject8 : "Body Part 8"
@@ -382,8 +383,8 @@
         25 : "Weapon"
         26 : "Tail"
     ]
-    ESM3_male_part8(String) : "Mesh used for male body, slot 8"
-    ESM3_female_part8(String) : "Mesh used for female body, slot 8"
+    ESM3_male_part8(String) : "Body part worn by men in slot 8: the ID of a BODY record, not a mesh. Slots that name no part are left out."
+    ESM3_female_part8(String) : "Body part worn by women in slot 8: the ID of a BODY record, not a mesh. Slots that name no part are left out."
 ]
 
 @BaseClass base(BipedObject1, BipedObject2, BipedObject3, BipedObject4, BipedObject5, BipedObject6, BipedObject7, BipedObject8) = BodyParts : "Body Part Set" []
@@ -1986,8 +1987,28 @@
     ESM3_Script(string) : "Id of the script used by the object. Optional. Be warned that all instances of this ESM3_RefId will share the script." : "fallingScript"
 ]
 
-// We're just going to no-op armor and skip clothing for now because it's going to cause problems
-// @SolidClass base(ArmorData, BodyParts, Referenceable, MagicEffect, NifGeometry) = item_Armor : "Base Armor Entity" []
+// Wearables built from brushes. The brushes are the item as it lies in the world;
+// what a wearer shows comes from the body parts named in its slots.
+@SolidClass base(Wearable, ArmorData, BodyParts, NifGeometry) = item_Armor : "Brush Armor" []
+
+@BaseClass = ClothingData : "Clothing Data"
+[
+    ESM3_ClothingType(choices) : "Clothing Type" : 0 =
+    [
+        0 : "Pants"
+        1 : "Shoes"
+        2 : "Shirt"
+        3 : "Belt"
+        4 : "Robe"
+        5 : "Right Glove"
+        6 : "Left Glove"
+        7 : "Skirt"
+        8 : "Ring"
+        9 : "Amulet"
+    ]
+]
+
+@SolidClass base(Wearable, ClothingData, BodyParts, NifGeometry) = item_Clothing : "Brush Clothing" []
 
 @SolidClass base(Referenceable, MagicEffect1, NifGeometry) = item_Alchemy : "Base Potion Entity"
 [

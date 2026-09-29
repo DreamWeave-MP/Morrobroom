@@ -50,6 +50,13 @@ entities also accept every property in [NIF authoring](@/docs/nif-authoring.md).
 | `item_Alchemy` | Potion | `ESM3_Auto_Calculate`, and its magic effects |
 | `item_Ingredient` | Ingredient | its magic effects |
 | `item_Light` | Light, with a mesh built from the brushes | `ESM3_Radius`, `ESM3_light_color`, `ESM3_LightFlags`, `ESM3_Time`, `ESM3_Sound`, `ESM3_Script` |
+| `item_Armor` | Armor | `ESM3_ArmorType`, `ESM3_ArmorRating`, `ESM3_Health`, `ESM3_Enchantment`, `ESM3_EnchantmentPoints`, and its body parts |
+| `item_Clothing` | Clothing | `ESM3_ClothingType`, `ESM3_Enchantment`, `ESM3_EnchantmentPoints`, and its body parts |
+
+The brushes of armor and clothing are the item as it lies in the world. What someone wearing it
+shows comes from its body parts: up to eight slots, each an `ESM3_SlotType<n>` with the ID of a
+body part record (`BODY`, made in OpenCS or taken from the game) in `ESM3_male_part<n>` and
+`ESM3_female_part<n>`. A slot that names no part is left out.
 
 Every one of them also takes these:
 
@@ -83,4 +90,3 @@ These are in the entity browser, and placing one does nothing yet: the compiler 
   scale. Placing them as references is not implemented; build the object from brushes, or finish
   the plugin in OpenCS.
 - **`nif_fx_fire`** and the **VFX catalog** (`vfx_kurp_…`, previews of Kurpulio's VFX Meshbank).
-- **Armor and clothing.** `item_Armor` is not in the FGD at all.

@@ -472,6 +472,88 @@ mod bundled_fgd_test {
 }
 
 #[cfg(test)]
+mod bundled_fgd_classes_test {
+    use std::collections::HashSet;
+
+    const BUNDLED: [&str; 2] = [
+        include_str!("../resources/Morrowind.fgd"),
+        include_str!("../resources/Nif.fgd"),
+    ];
+
+    /// Each active class declaration: its bases and its name.
+    fn declarations() -> Vec<(Vec<String>, String)> {
+        let active: String = BUNDLED
+            .iter()
+            .flat_map(|fgd| fgd.lines())
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        active
+            .split('@')
+            .skip(1)
+            .filter_map(|declaration| {
+                let header = declaration.split(['[', ':']).next()?;
+                let name = header.split('=').nth(1)?.trim().to_owned();
+                let bases = header
+                    .split_once("base(")
+                    .map(|(_, rest)| {
+                        rest.split(')')
+                            .next()
+                            .unwrap_or_default()
+                            .split(',')
+                            .map(|base| base.trim().to_owned())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Some((bases, name))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_base_class_a_bundled_class_names_is_declared() {
+        let declarations = declarations();
+        let names: HashSet<&str> = declarations.iter().map(|(_, name)| name.as_str()).collect();
+        for (bases, name) in &declarations {
+            for base in bases {
+                assert!(
+                    names.contains(base.as_str()),
+                    "{name} names undeclared base {base}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn each_body_part_slot_names_its_own_properties() {
+        let fgd = BUNDLED[0];
+        for slot in 1..=8 {
+            let start = fgd
+                .find(&format!("@BaseClass = BipedObject{slot} "))
+                .unwrap_or_else(|| panic!("Morrowind.fgd should declare BipedObject{slot}"));
+            let block = &fgd[start..start + fgd[start..].find("\n]").unwrap()];
+            for property in ["SlotType", "male_part", "female_part"] {
+                assert!(
+                    block.contains(&format!("ESM3_{property}{slot}(")),
+                    "BipedObject{slot} should declare ESM3_{property}{slot}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn armor_and_clothing_are_brush_entities() {
+        let declarations = declarations();
+        for class in ["item_Armor", "item_Clothing"] {
+            assert!(
+                declarations.iter().any(|(_, name)| name == class),
+                "Morrowind.fgd should declare {class}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod bundled_nif_fgd_test {
     fn choices<'a>(fgd: &'a str, property: &str) -> Vec<&'a str> {
         let start = fgd
