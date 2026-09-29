@@ -36,17 +36,20 @@ or change the profile's `--start` to match.
 
 ## Something I placed is not in the game
 
-Look at the compiler's output. `Unidentified point entity class: …` means the entity has no
-compiled form yet: records placed from the generated catalog, `nif_fx_fire` and the VFX catalog are
-all like that for now. `No matching object type found!` is the same for a brush entity.
-[Entities](@/docs/entities.md) lists what does compile.
+Look at the compiler's output. `Unidentified point entity class: …` means the entity is neither
+one Morrobroom compiles nor a record to place: a record from the catalog whose `ESM3_RefId` was
+cleared looks like that, so give it back its ID. `… is an editor preview and is not compiled yet`
+is `nif_fx_fire` or the VFX catalog. `No matching object type found!` is the same for a brush
+entity. [Entities](@/docs/entities.md) lists what does compile.
+
+A record from the catalog that compiled but is missing in game comes from a plugin OpenMW is not
+loading. Load that plugin, or generate the catalog from the `openmw.cfg` you play with.
 
 ## Objects are missing from the entity browser
 
 If a record from an installed mod does not appear, generate the catalog from the `openmw.cfg` that
 loads it with `morrobroom fgd`, then reload the game configuration or restart TrenchBroom. Use
-`--output <path>` for TrenchBroom's portable mode. The catalog shows records; placing them does not
-compile yet, as above.
+`--output <path>` for TrenchBroom's portable mode.
 
 ## Geometry fails or looks wrong
 

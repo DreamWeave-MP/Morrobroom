@@ -57,6 +57,16 @@ impl MapData {
             .parse::<Map>()
             .expect("Map parsing failed!");
 
+        Self::from_map(map, map_name, lightmaps_enabled, openmw_config)
+    }
+
+    /// Prepare an already parsed map. `map_name` names the map's lightmap.
+    pub fn from_map(
+        map: Map,
+        map_name: &str,
+        lightmaps_enabled: bool,
+        openmw_config: &OpenMWConfiguration,
+    ) -> Self {
         // MapData needs the core geometry, but not the expensive occlusion
         // scans. Keep construction in MapGeometry so there is one dataflow.
         let geometry = MapGeometry::from_map_without_occlusion(map);

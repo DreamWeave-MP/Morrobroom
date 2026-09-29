@@ -582,6 +582,44 @@ fn assign_game_object(
     true
 }
 
+/// What the compiler makes of a point entity.
+#[derive(Debug, PartialEq, Eq)]
+enum PointEntity {
+    /// Editor-only entities, and the NIF markers the brush pass has read.
+    Skip,
+    PointLight,
+    CreatureList,
+    ItemList,
+    /// A reference to a record that already exists in the load order, such as
+    /// one placed from the generated catalog.
+    ExistingRecord(String),
+    /// Declared in the bundled FGDs as an editor preview; not compiled yet.
+    Preview,
+    Unidentified,
+}
+
+fn classify_point_entity(class: &str, properties: &HashMap<&String, &String>) -> PointEntity {
+    if matches!(
+        class,
+        "func_group" | "info_player_start" | "tool_Dictionary"
+    ) || class.starts_with("nif_node_")
+    {
+        PointEntity::Skip
+    } else if class.contains("Light_Point") {
+        PointEntity::PointLight
+    } else if class == "world_CreatureList" {
+        PointEntity::CreatureList
+    } else if class == "world_ItemList" {
+        PointEntity::ItemList
+    } else if class == "nif_fx_fire" || class.starts_with("vfx_") {
+        PointEntity::Preview
+    } else if let Some(record_id) = nonempty_property(properties, "ESM3_RefId") {
+        PointEntity::ExistingRecord(record_id.clone())
+    } else {
+        PointEntity::Unidentified
+    }
+}
+
 fn process_point_entities(state: &mut CompileState<'_>) {
     for entity_id in state.map_data.geomap.point_entities.iter() {
         let prop_map = state.map_data.get_entity_properties(*entity_id);
@@ -589,55 +627,70 @@ fn process_point_entities(state: &mut CompileState<'_>) {
             .get(&"classname".to_string())
             .expect("All point entities have class names")
             .as_str();
-        if class == "func_group" || class.starts_with("nif_node_") {
-            continue;
-        }
-        if class.contains("Light_Point") {
-            let ref_id = format!("{}-PL-{}", state.map_dir, state.used_indices.find_lowest());
-            let ref_id = ref_id[..min(ref_id.len(), 32)].to_string();
-            let radius = class
-                .chars()
-                .skip_while(|character| !character.is_ascii_digit())
-                .take_while(char::is_ascii_digit)
-                .collect::<String>()
-                .parse()
-                .expect("All point light types should have a radius encoded in their classnames!");
-            state.created_objects.push(game_object::point_light(
-                &prop_map,
-                state.object_scale,
-                radius,
-                &ref_id,
-            ));
-            append_cell_reference(
+        match classify_point_entity(class, &prop_map) {
+            PointEntity::Skip => {}
+            PointEntity::PointLight => {
+                let ref_id = format!("{}-PL-{}", state.map_dir, state.used_indices.find_lowest());
+                let ref_id = ref_id[..min(ref_id.len(), 32)].to_string();
+                let radius = class
+                    .chars()
+                    .skip_while(|character| !character.is_ascii_digit())
+                    .take_while(char::is_ascii_digit)
+                    .collect::<String>()
+                    .parse()
+                    .expect(
+                        "All point light types should have a radius encoded in their classnames!",
+                    );
+                state.created_objects.push(game_object::point_light(
+                    &prop_map,
+                    state.object_scale,
+                    radius,
+                    &ref_id,
+                ));
+                append_cell_reference(
+                    &mut state.used_indices,
+                    &mut state.cell,
+                    &ref_id,
+                    point_entity_position(state.object_scale, &prop_map),
+                    [0.0; 3],
+                );
+            }
+            PointEntity::CreatureList => {
+                let ref_id = required_ref_id(&prop_map, *entity_id, "creature list");
+                if state.processed_base_objects.insert(ref_id.clone()) {
+                    state
+                        .created_objects
+                        .push(game_object::creature_list(&prop_map, &ref_id));
+                }
+                append_cell_reference(
+                    &mut state.used_indices,
+                    &mut state.cell,
+                    &ref_id,
+                    point_entity_position(state.object_scale, &prop_map),
+                    [0.0; 3],
+                );
+            }
+            PointEntity::ItemList => {
+                let ref_id = required_ref_id(&prop_map, *entity_id, "item list");
+                if state.processed_base_objects.insert(ref_id.clone()) {
+                    state
+                        .created_objects
+                        .push(game_object::item_list(&prop_map, &ref_id));
+                }
+            }
+            PointEntity::ExistingRecord(record_id) => append_cell_reference(
                 &mut state.used_indices,
                 &mut state.cell,
-                &ref_id,
+                &record_id,
                 point_entity_position(state.object_scale, &prop_map),
-                [0.0; 3],
-            );
-        } else if class == "world_CreatureList" {
-            let ref_id = required_ref_id(&prop_map, *entity_id, "creature list");
-            if state.processed_base_objects.insert(ref_id.clone()) {
-                state
-                    .created_objects
-                    .push(game_object::creature_list(&prop_map, &ref_id));
+                point_entity_rotation(class, &prop_map),
+            ),
+            PointEntity::Preview => {
+                println!("{class} is an editor preview and is not compiled yet; nothing placed");
             }
-            append_cell_reference(
-                &mut state.used_indices,
-                &mut state.cell,
-                &ref_id,
-                point_entity_position(state.object_scale, &prop_map),
-                [0.0; 3],
-            );
-        } else if class == "world_ItemList" {
-            let ref_id = required_ref_id(&prop_map, *entity_id, "item list");
-            if state.processed_base_objects.insert(ref_id.clone()) {
-                state
-                    .created_objects
-                    .push(game_object::item_list(&prop_map, &ref_id));
-            }
-        } else {
-            println!("Unidentified point entity class: {class}");
+            PointEntity::Unidentified => println!(
+                "Unidentified point entity class: {class}. Give it an ESM3_RefId to place that record."
+            ),
         }
     }
 }
@@ -713,8 +766,63 @@ fn get_rotation(input: &str) -> [f32; 3] {
         * Rotation3::from_axis_angle(&Vector3::y_axis(), angles[1])
         * Rotation3::from_axis_angle(&Vector3::x_axis(), angles[0]);
     let y_up_to_z_up = Rotation3::from_axis_angle(&Vector3::x_axis(), std::f32::consts::FRAC_PI_2);
-    let openmw_rotation = y_up_to_z_up * trenchbroom_rotation * y_up_to_z_up.inverse();
-    let matrix = openmw_rotation.matrix();
+    tes3_reference_rotation(&(y_up_to_z_up * trenchbroom_rotation * y_up_to_z_up.inverse()))
+}
+
+/// The attitude `TrenchBroom` shows for a point entity, as TES3 reference angles.
+///
+/// `TrenchBroom` keeps a point entity's rotation in the first of `angles`,
+/// `mangle` and `angle` it has. The first two hold pitch, yaw and roll in
+/// degrees, positive pitch down, applied as `Rz(yaw) * Ry(pitch) * Rx(roll)` in
+/// the map's own Z-up axes, which are Morrowind's; `angle` is a yaw, or -1 and
+/// -2 for straight up and down. Classes named `light…` follow Quake's lights
+/// instead: `mangle` first, as yaw, pitch and roll with positive pitch up.
+fn point_entity_rotation(class: &str, properties: &HashMap<&String, &String>) -> [f32; 3] {
+    let angles = |key: &str| {
+        nonempty_property(properties, key).map(|value| {
+            let mut angles = [0.0f32; 3];
+            for (index, token) in value.split_whitespace().take(3).enumerate() {
+                if let Ok(value) = token.parse::<f32>() {
+                    angles[index] = value;
+                }
+            }
+            angles
+        })
+    };
+    let angle = nonempty_property(properties, "angle")
+        .and_then(|value| value.trim().parse::<f32>().ok())
+        .unwrap_or(0.0);
+
+    let [yaw, pitch, roll] = if class.starts_with("light") {
+        if let Some([yaw, pitch, roll]) = angles("mangle") {
+            [yaw, -pitch, roll]
+        } else if let Some([pitch, yaw, roll]) = angles("angles") {
+            [yaw, pitch, roll]
+        } else {
+            [angle, 0.0, 0.0]
+        }
+    } else if let Some([pitch, yaw, roll]) = angles("angles").or_else(|| angles("mangle")) {
+        [yaw, pitch, roll]
+    } else if (angle + 1.0).abs() < f32::EPSILON {
+        [0.0, -90.0, 0.0]
+    } else if (angle + 2.0).abs() < f32::EPSILON {
+        [0.0, 90.0, 0.0]
+    } else {
+        [angle, 0.0, 0.0]
+    }
+    .map(f32::to_radians);
+
+    tes3_reference_rotation(
+        &(Rotation3::from_axis_angle(&Vector3::z_axis(), yaw)
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), pitch)
+            * Rotation3::from_axis_angle(&Vector3::x_axis(), roll)),
+    )
+}
+
+/// Decompose an attitude into the angles `OpenMW` rebuilds it from:
+/// `Rx(-x) * Ry(-y) * Rz(-z)`.
+fn tes3_reference_rotation(rotation: &Rotation3<f32>) -> [f32; 3] {
+    let matrix = rotation.matrix();
     let sin_y = matrix[(0, 2)].clamp(-1.0, 1.0);
     let y = sin_y.asin();
     let cos_y = y.cos();
@@ -1029,5 +1137,181 @@ mod nif_semantic_compile_tests {
         let error = nif_markers_for_target(Some(&"missing".to_owned()), &[])
             .expect_err("a target with no in-scope link must fail");
         assert!(error.contains("does not match a Nif_LinkName"));
+    }
+}
+
+#[cfg(test)]
+mod point_entity_tests {
+    use super::*;
+    use morrobroom::slipgate::repr::Map;
+
+    const CATALOG_MAP: &str = r#"// Game: Morrowind
+// Format: Valve
+{
+"classname" "worldspawn"
+{
+( -16 -16 -16 ) ( -16 -15 -16 ) ( -16 -16 -15 ) skip [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -16 -16 -15 ) ( -15 -16 -16 ) skip [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( -16 -16 -16 ) ( -15 -16 -16 ) ( -16 -15 -16 ) skip [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 16 17 16 ) ( 17 16 16 ) skip [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 1 1
+( 16 16 16 ) ( 17 16 16 ) ( 16 16 17 ) skip [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 16 16 16 ) ( 16 16 17 ) ( 16 17 16 ) skip [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+}
+}
+{
+"classname" "static_ex_common_house_01"
+"origin" "32 -16 8"
+"ESM3_RefId" "ex_common_house_01"
+"ESM3_Plugin" "morrowind.esm"
+"mangle" "0 90 0"
+}
+{
+"classname" "misc_chargen_boat"
+"origin" "0 0 0"
+"ESM3_RefId" "chargen boat"
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 0"
+}
+{
+"classname" "vfx_kurp_0001"
+"origin" "0 0 0"
+}
+"#;
+
+    fn assert_rotation_degrees(actual: [f32; 3], expected: [f32; 3]) {
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert!(
+                (actual.to_degrees() - expected).abs() < 1e-3,
+                "{actual:?} != {expected:?}"
+            );
+        }
+    }
+
+    fn owned_properties(properties: &[(&str, &str)]) -> Vec<(String, String)> {
+        properties
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+            .collect()
+    }
+
+    fn rotation_of(class: &str, properties: &[(&str, &str)]) -> [f32; 3] {
+        let owned = owned_properties(properties);
+        let properties: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
+        point_entity_rotation(class, &properties)
+    }
+
+    /// The attitude `OpenMW` rebuilds from reference angles.
+    fn openmw_attitude(rotation: [f32; 3]) -> Rotation3<f32> {
+        Rotation3::from_axis_angle(&Vector3::x_axis(), -rotation[0])
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), -rotation[1])
+            * Rotation3::from_axis_angle(&Vector3::z_axis(), -rotation[2])
+    }
+
+    #[test]
+    fn records_placed_from_the_catalog_become_references() {
+        let map = CATALOG_MAP
+            .parse::<Map>()
+            .expect("catalog placement map should parse");
+        let openmw_config = openmw_config::OpenMWConfiguration::new_empty("catalog-test-config")
+            .expect("construct in-memory empty OpenMW configuration");
+        let map_data = MapData::from_map(map, "catalog.map", false, &openmw_config);
+        let mut state = CompileState {
+            map_data: &map_data,
+            work_dir: Path::new("unused"),
+            map_dir: "catalog",
+            object_scale: 2.0,
+            cell: Some(Cell::default()),
+            created_objects: Vec::new(),
+            processed_base_objects: HashSet::new(),
+            used_indices: BTreeSet::new(),
+        };
+
+        process_point_entities(&mut state);
+
+        assert!(
+            state.created_objects.is_empty(),
+            "placing an existing record must not create one"
+        );
+        let references: Vec<_> = state.cell.unwrap().references.into_values().collect();
+        assert_eq!(references.len(), 2);
+        let house = references
+            .iter()
+            .find(|reference| reference.id == "ex_common_house_01")
+            .expect("the catalog static should be placed");
+        for (actual, expected) in house.translation.into_iter().zip([64.0, -32.0, 16.0]) {
+            assert!((actual - expected).abs() < 1e-4, "{:?}", house.translation);
+        }
+        assert_rotation_degrees(house.rotation, [0.0, 0.0, -90.0]);
+        assert!(
+            references
+                .iter()
+                .any(|reference| reference.id == "chargen boat")
+        );
+    }
+
+    #[test]
+    fn point_entity_kinds() {
+        let owned = owned_properties(&[("ESM3_RefId", "ex_common_house_01")]);
+        let with_id: HashMap<_, _> = owned.iter().map(|(key, value)| (key, value)).collect();
+        let without_id = HashMap::new();
+
+        assert_eq!(
+            classify_point_entity("static_ex_common_house_01", &with_id),
+            PointEntity::ExistingRecord("ex_common_house_01".into())
+        );
+        assert_eq!(
+            classify_point_entity("static_ex_common_house_01", &without_id),
+            PointEntity::Unidentified
+        );
+        for editor_only in ["info_player_start", "tool_Dictionary", "nif_node_billboard"] {
+            assert_eq!(
+                classify_point_entity(editor_only, &with_id),
+                PointEntity::Skip
+            );
+        }
+        for preview in ["nif_fx_fire", "vfx_kurp_0001"] {
+            assert_eq!(
+                classify_point_entity(preview, &with_id),
+                PointEntity::Preview
+            );
+        }
+        assert_eq!(
+            classify_point_entity("Light_Point128", &without_id),
+            PointEntity::PointLight
+        );
+    }
+
+    #[test]
+    fn point_entity_rotation_follows_trenchbroom() {
+        assert_rotation_degrees(rotation_of("static_x", &[]), [0.0, 0.0, 0.0]);
+        assert_rotation_degrees(
+            rotation_of("static_x", &[("mangle", "0 90 0")]),
+            [0.0, 0.0, -90.0],
+        );
+        assert_rotation_degrees(
+            rotation_of("static_x", &[("angle", "90")]),
+            [0.0, 0.0, -90.0],
+        );
+        assert_rotation_degrees(
+            rotation_of("static_x", &[("angles", "0 45 0"), ("mangle", "0 90 0")]),
+            [0.0, 0.0, -45.0],
+        );
+
+        let [pitch, yaw, roll] = [20.0_f32, 30.0, 40.0].map(f32::to_radians);
+        let expected = Rotation3::from_axis_angle(&Vector3::z_axis(), yaw)
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), pitch)
+            * Rotation3::from_axis_angle(&Vector3::x_axis(), roll);
+        let actual = openmw_attitude(rotation_of("static_x", &[("mangle", "20 30 40")]));
+        assert!((actual.matrix() - expected.matrix()).norm() < 1e-4);
+
+        let light = openmw_attitude(rotation_of("light_de_lantern_03", &[("mangle", "90 30 0")]));
+        let expected = Rotation3::from_axis_angle(&Vector3::z_axis(), 90.0_f32.to_radians())
+            * Rotation3::from_axis_angle(&Vector3::y_axis(), (-30.0_f32).to_radians());
+        assert!((light.matrix() - expected.matrix()).norm() < 1e-4);
+
+        let up = openmw_attitude(rotation_of("static_x", &[("angle", "-1")]));
+        assert!((up * Vector3::x() - Vector3::z()).norm() < 1e-4);
     }
 }

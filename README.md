@@ -97,8 +97,7 @@ items, each placed in the cell. Point lights and leveled lists come along too. T
 
 Morrobroom can read an OpenMW configuration and generate an entity catalog from the active game
 data, so the records from your installed game and mods show up in TrenchBroom's entity browser.
-The catalog is for browsing and judging scale: placing its entries does not compile into references
-yet.
+Place one and the compiler places that record in the cell.
 
 ## Quick Start
 
@@ -144,7 +143,7 @@ normal **Launch** command.
 TrenchBroom's Export Map task. The on-disk map is the source of truth.
 
 `resources/Morrowind.fgd` is the small, handwritten schema used for normal
-editing. To browse records from the active OpenMW configuration, generate the
+editing. To place records from the active OpenMW configuration, generate the
 large object catalog beside it:
 
 ```bash

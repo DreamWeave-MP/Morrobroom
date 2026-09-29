@@ -51,9 +51,16 @@ pub trait WriteFGDProp {
     ) -> Result<(), io::Error>;
 }
 
+/// The compiler places a catalog entity as a reference to its `ESM3_RefId`, so
+/// the default is the record's own ID. Only an ID that would end the FGD's quoted
+/// string early is encoded.
 fn write_record_ref_id<W: Write>(target: &mut W, record_id: &str) -> Result<(), io::Error> {
-    let encoded = encode_fgd_token(&record_id);
-    "RefId".write_fgd(target, "TES3 record ID", encoded.as_ref())
+    if record_id.contains(['"', '\\']) {
+        let encoded = encode_fgd_token(&record_id);
+        "RefId".write_fgd(target, "TES3 record ID", encoded.as_ref())
+    } else {
+        "RefId".write_fgd(target, "TES3 record ID", record_id)
+    }
 }
 
 impl WriteFGDProp for Static {
@@ -124,6 +131,17 @@ mod test_static_fgd {
 
         assert_eq!(out, expected);
         println!("{out}");
+    }
+
+    #[test]
+    fn record_id_default_is_the_id_itself() {
+        let record = Static {
+            id: "chargen boat".into(),
+            ..Default::default()
+        };
+
+        let out = serialize_static(&record);
+        assert!(out.contains("    ESM3_RefId(string): \"TES3 record ID\": \"chargen boat\"\n"));
     }
 }
 

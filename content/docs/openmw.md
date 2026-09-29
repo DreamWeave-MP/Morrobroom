@@ -65,9 +65,8 @@ TrenchBroom iteration, an `.omwaddon` in the map's build directory is the least 
 
 ## The entity catalog for your load order
 
-`Morrowind.fgd` is the compact schema for editing. To see your installed game's and mods' records
-in TrenchBroom's entity browser, with their models, generate a catalog from your OpenMW
-configuration:
+`Morrowind.fgd` is the compact schema for editing. To place your installed game's and mods' records
+from TrenchBroom's entity browser, generate a catalog from your OpenMW configuration:
 
 ```bash
 morrobroom fgd --config /path/to/openmw.cfg
@@ -86,5 +85,5 @@ morrobroom fgd --config /path/to/openmw.cfg --types "stat;door;ligh;acti"
 
 Regenerate after changing your load order, then reload the game configuration in TrenchBroom.
 
-The catalog is for browsing and judging scale: placing its entries does not compile into references
-yet. [Entities](@/docs/entities.md#not-compiled-yet) says what does.
+Each record shows as a box the size of its model. Placing one compiles to a reference to that
+record; [Entities](@/docs/entities.md#records-from-the-catalog) has the details.

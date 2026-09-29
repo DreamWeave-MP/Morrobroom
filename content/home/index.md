@@ -39,7 +39,8 @@ For the story behind all of this, read OpenMW's
 - Bakes colored static lighting into BC7 lightmaps, which OpenMW loads without an engine patch.
 - Carries NIF materials, transparency, texturing, scrolling and swaying UVs, billboards, sort nodes
   and collision roots from TrenchBroom into the meshes it writes.
-- Generates a TrenchBroom entity catalog from an OpenMW load order.
+- Generates a TrenchBroom entity catalog from an OpenMW load order, and places the records you
+  pick from it.
 - Reverse-compiles visual NIF geometry into editable maps with `nif2map`.
 
 ## Status
