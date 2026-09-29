@@ -40,7 +40,8 @@ logo_text = "Morrobroom"
 footer_text = "Morrobroom · DreamWeave contributors"
 favicon = "img/logo.png"
 
-palette = "umber"
+palette = "slate"
+accent = "#d4b06a"
 
 menu_items = [
     { name = "Morrobroom", url = "@/home/index.md" },
