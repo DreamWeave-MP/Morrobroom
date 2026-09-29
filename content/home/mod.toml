@@ -51,12 +51,17 @@ url = "https://www.nexusmods.com/morrowind/mods/49695"
 # them, and records them here. Set the date to the day you push it.
 [[releases]]
 version = "1.0.0"
-date = 2026-09-28
+date = 2026-09-29
 summary = "First release: compile TrenchBroom maps into Morrowind content for OpenMW."
 added = [
-    "Compile Valve 220 maps into NIF meshes and a TES3 plugin, with brush-built statics, activators, containers, items, lights and leveled lists.",
+    "Compile Valve 220 maps into NIF meshes and a TES3 plugin, with brush-built statics, activators, containers, items, armor, clothing, lights and leveled lists.",
     "Bake static lighting into lightmaps that OpenMW loads without an engine patch.",
-    "Author NIF materials, alpha, texturing, scrolling UVs, billboards, sort nodes and collision roots from TrenchBroom.",
-    "Generate a TrenchBroom entity catalog from an OpenMW load order.",
-    "Reverse-compile visual NIF geometry into editable maps with nif2map.",
+    "Author NIF materials, alpha, texturing, scrolling and oscillating UVs, billboards in all four Morrowind modes, sort nodes and collision roots from TrenchBroom.",
+    "Smooth-shade faces with the Smooth Shading surface flag, in groups set by each face's Value.",
+    "Generate a TrenchBroom entity catalog from an OpenMW load order, sized in map units, and place its records as references.",
+    "Reverse-compile visual NIF geometry into editable maps with nif2map, billboard modes included.",
+]
+known_issues = [
+    "`nif_fx_fire` and the VFX catalog are editor previews: placing one builds nothing yet.",
+    "nif2map does not read oscillating UV animation back: it reports the controller and imports the geometry without it.",
 ]
