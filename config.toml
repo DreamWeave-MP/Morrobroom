@@ -38,7 +38,7 @@ github_project = "Morrobroom"
 
 logo_text = "Morrobroom"
 footer_text = "Morrobroom · DreamWeave contributors"
-favicon = "img/logo.png"
+favicon = "img/favicon.png"
 
 palette = "slate"
 accent = "#d4b06a"
